@@ -11,7 +11,6 @@ import { generateReportHtml } from './reportHtml';
 export class CoverageReport {
     private panel: vscode.WebviewPanel | undefined;
     private functionIndex: Map<string, CovdbFunctionSummary[]> = new Map();
-    private extensionUri: vscode.Uri | undefined;
 
     dispose(): void {
         this.panel?.dispose();
@@ -29,8 +28,6 @@ export class CoverageReport {
             return;
         }
 
-        this.extensionUri = extensionUri;
-
         // Lazy-load function index
         if (this.functionIndex.size === 0 && activeCovdbPath) {
             this.functionIndex = await CovdbParser.loadFunctionIndex(activeCovdbPath);
@@ -43,9 +40,6 @@ export class CoverageReport {
                 'covdbgCoverageReport', 'covdbg Coverage Report',
                 vscode.ViewColumn.Two, {
                 enableScripts: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons', 'dist'),
-                ],
             }
             );
             this.panel.onDidDispose(() => { this.panel = undefined; });
@@ -55,7 +49,6 @@ export class CoverageReport {
             fileIndex,
             functionIndex: this.functionIndex,
             asRelativePath: p => this.toRelativePath(p),
-            codiconCssUri: this.getCodiconCssUri(),
         });
     }
 
@@ -72,7 +65,6 @@ export class CoverageReport {
             fileIndex,
             functionIndex: this.functionIndex,
             asRelativePath: p => this.toRelativePath(p),
-            codiconCssUri: this.getCodiconCssUri(),
         });
     }
 
@@ -82,14 +74,6 @@ export class CoverageReport {
     }
 
     // ── Private ──
-
-    private getCodiconCssUri(): string {
-        if (!this.panel || !this.extensionUri) { return ''; }
-        const onDiskPath = vscode.Uri.joinPath(
-            this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'
-        );
-        return this.panel.webview.asWebviewUri(onDiskPath).toString();
-    }
 
     private toRelativePath(p: string): string {
         return vscode.workspace.workspaceFolders
