@@ -1,0 +1,19 @@
+.DS_Store
+npm-debug.log
+Thumbs.db
+out/
+**/node_modules/
+*/out/
+.vs/
+*/.vs/
+.covdbg/
+*.vsix
+tsconfig.lsif.json
+*.lsif
+*.db
+*.tsbuildinfo
+
+# Don't check in API files. These should be pulled in during install
+vscode*.d.ts
+
+assets/portable

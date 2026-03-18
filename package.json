@@ -1,0 +1,248 @@
+{
+    "name": "covdbg",
+    "displayName": "covdbg",
+    "description": "The complete C++ code coverage solution for Windows. Open-source VS Code extension for covdbg coverage on Windows. Coverage runs require separately licensed proprietary covdbg software.",
+    "version": "0.2.0",
+    "author": "Liasoft GmbH",
+    "publisher": "covdbg",
+    "license": "Apache-2.0",
+    "icon": "icon.png",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/liasoft/covdbg"
+    },
+    "homepage": "https://github.com/liasoft/covdbg/tree/main/ide/vscode-extension",
+    "bugs": {
+        "url": "https://github.com/liasoft/covdbg/issues"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Testing",
+        "Visualization"
+    ],
+    "keywords": [
+        "coverage",
+        "covdbg",
+        "code coverage",
+        "testing"
+    ],
+    "activationEvents": [
+        "workspaceContains:.covdbg.yaml"
+    ],
+    "main": "./out/extension.js",
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": "limited",
+            "description": "covdbg can view existing .covdb files in Restricted Mode, but running coverage binaries requires workspace trust.",
+            "restrictedConfigurations": [
+                "covdbg.executablePath",
+                "covdbg.runner.targetExecutable",
+                "covdbg.runner.workingDirectory",
+                "covdbg.runner.configPath",
+                "covdbg.runner.outputPath",
+                "covdbg.runner.appDataPath",
+                "covdbg.runner.binaryDiscoveryPattern",
+                "covdbg.runner.env"
+            ]
+        }
+    },
+    "contributes": {
+        "commands": [
+            {
+                "command": "covdbg.showMenu",
+                "title": "Open Menu",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.toggleCoverage",
+                "title": "Toggle Coverage Display",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.showReport",
+                "title": "Show Coverage Report",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.browseFiles",
+                "title": "Browse Covered Files",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.setRenderMode",
+                "title": "Set Render Mode",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.configurePath",
+                "title": "Select .covdb File…",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.runCoverage",
+                "title": "Run Coverage",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.clearLastRunResult",
+                "title": "Clear Last Run Result",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.refreshTestBinaries",
+                "title": "Refresh Test Binaries",
+                "category": "covdbg"
+            }
+        ],
+        "configuration": {
+            "title": "covdbg",
+            "properties": {
+                "covdbg.covdbPath": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Path to a `.covdb` file. Supports absolute paths or paths relative to the workspace root. The extension auto-loads this file on startup and reloads when it changes.",
+                    "scope": "resource",
+                    "order": 0
+                },
+                "covdbg.discoveryPattern": {
+                    "type": "string",
+                    "default": "**/*.covdb",
+                    "markdownDescription": "Glob pattern used to auto-discover `.covdb` files in the workspace when `#covdbg.covdbPath#` is not set.",
+                    "scope": "resource",
+                    "order": 1
+                },
+                "covdbg.renderMode": {
+                    "type": "string",
+                    "enum": [
+                        "line",
+                        "gutter",
+                        "both"
+                    ],
+                    "default": "line",
+                    "enumDescriptions": [
+                        "Highlight covered/uncovered lines with background colors",
+                        "Show coverage indicators in the gutter only",
+                        "Both line highlighting and gutter indicators"
+                    ],
+                    "markdownDescription": "How to visualise coverage in the editor.",
+                    "scope": "resource",
+                    "order": 1
+                },
+                "covdbg.showExternalFiles": {
+                    "type": "boolean",
+                    "default": false,
+                    "markdownDescription": "Include files outside the workspace (e.g. SDK headers, system includes) in coverage results.",
+                    "scope": "resource",
+                    "order": 2
+                },
+                "covdbg.executablePath": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg is resolved from bundled portable first, then PATH/known install paths/cache.",
+                    "scope": "resource",
+                    "order": 3
+                },
+                "covdbg.portableCachePath": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Optional cache folder for portable binaries. Leave empty to use extension global storage.",
+                    "scope": "machine",
+                    "order": 4
+                },
+                "covdbg.runner.targetExecutable": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Windows C++ test executable to run under coverage (absolute or workspace-relative).",
+                    "scope": "resource",
+                    "order": 5
+                },
+                "covdbg.runner.targetArgs": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "string"
+                    },
+                    "markdownDescription": "Arguments passed to `covdbg.runner.targetExecutable`.",
+                    "scope": "resource",
+                    "order": 6
+                },
+                "covdbg.runner.configPath": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Optional path to `.covdbg.yaml` (absolute or workspace-relative). If empty, covdbg config is resolved automatically near the target executable.",
+                    "scope": "resource",
+                    "order": 7
+                },
+                "covdbg.runner.outputPath": {
+                    "type": "string",
+                    "default": ".covdbg/coverage.covdb",
+                    "markdownDescription": "Output `.covdb` path for runs started from VS Code.",
+                    "scope": "resource",
+                    "order": 8
+                },
+                "covdbg.runner.appDataPath": {
+                    "type": "string",
+                    "default": ".covdbg",
+                    "markdownDescription": "Path for covdbg appdata (logs, cache). Default stores logs under `.covdbg/Logs`.",
+                    "scope": "resource",
+                    "order": 9
+                },
+                "covdbg.runner.binaryDiscoveryPattern": {
+                    "type": "string",
+                    "default": "**/*.exe",
+                    "markdownDescription": "Glob pattern used to discover test binaries for the Testing API integration.",
+                    "scope": "resource",
+                    "order": 10
+                },
+                "covdbg.runner.licenseServerUrl": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Optional override for the covdbg license server base URL. Useful for local VS Code E2E runs against a Dockerized `covdbg-license` server.",
+                    "scope": "resource",
+                    "order": 11
+                },
+                "covdbg.runner.workingDirectory": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Working directory used for the covdbg process. Empty value uses workspace root.",
+                    "scope": "resource",
+                    "order": 12
+                },
+                "covdbg.runner.env": {
+                    "type": "object",
+                    "default": {},
+                    "markdownDescription": "Additional environment variables passed to covdbg runs (for example `COVDBG_LICENSE`).",
+                    "scope": "resource",
+                    "order": 13
+                }
+            }
+        }
+    },
+    "scripts": {
+        "prepare:portable": "node ./scripts/downloadPortable.js",
+        "release:check": "node ./scripts/verifyReleaseVersion.js",
+        "vscode:prepublish": "npm run prepare:portable && npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "package": "vsce package --skip-license",
+        "pretest": "npm run compile",
+        "test": "node --test \"out/test/**/*.test.js\"",
+        "lint": "eslint src --ext ts"
+    },
+    "dependencies": {
+        "@vscode/codicons": "^0.0.36",
+        "sql.js": "^1.14.0"
+    },
+    "devDependencies": {
+        "@types/node": "^18.x",
+        "@types/sql.js": "^1.4.9",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.x",
+        "@typescript-eslint/parser": "^6.x",
+        "eslint": "^8.x",
+        "typescript": "^5.3.0",
+        "@vscode/vsce": "^3.2.0"
+    }
+}

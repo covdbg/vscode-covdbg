@@ -1,0 +1,114 @@
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { CovdbFileSummary, CovdbFunctionSummary } from '../coverage/covdbParser';
+import { CovdbParser } from '../coverage/covdbParser';
+import { generateReportHtml } from './reportHtml';
+
+// ---------------------------------------------------------------------------
+// Coverage Report — webview panel management
+// ---------------------------------------------------------------------------
+
+export class CoverageReport {
+    private panel: vscode.WebviewPanel | undefined;
+    private functionIndex: Map<string, CovdbFunctionSummary[]> = new Map();
+    private extensionUri: vscode.Uri | undefined;
+
+    dispose(): void {
+        this.panel?.dispose();
+        this.panel = undefined;
+    }
+
+    /** Show (or reveal) the coverage report webview. */
+    async show(
+        fileIndex: Map<string, CovdbFileSummary>,
+        activeCovdbPath: string | undefined,
+        extensionUri: vscode.Uri,
+    ): Promise<void> {
+        if (fileIndex.size === 0) {
+            vscode.window.showInformationMessage('covdbg: No coverage data loaded.');
+            return;
+        }
+
+        this.extensionUri = extensionUri;
+
+        // Lazy-load function index
+        if (this.functionIndex.size === 0 && activeCovdbPath) {
+            this.functionIndex = await CovdbParser.loadFunctionIndex(activeCovdbPath);
+        }
+
+        if (this.panel) {
+            this.panel.reveal(vscode.ViewColumn.Two);
+        } else {
+            this.panel = vscode.window.createWebviewPanel(
+                'covdbgCoverageReport', 'covdbg Coverage Report',
+                vscode.ViewColumn.Two, {
+                enableScripts: true,
+                localResourceRoots: [
+                    vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons', 'dist'),
+                ],
+            }
+            );
+            this.panel.onDidDispose(() => { this.panel = undefined; });
+            this.panel.webview.onDidReceiveMessage(msg => this.handleMessage(msg));
+        }
+        this.panel.webview.html = generateReportHtml({
+            fileIndex,
+            functionIndex: this.functionIndex,
+            asRelativePath: p => this.toRelativePath(p),
+            codiconCssUri: this.getCodiconCssUri(),
+        });
+    }
+
+    /** Refresh the report content if the panel is already open. */
+    async update(
+        fileIndex: Map<string, CovdbFileSummary>,
+        activeCovdbPath: string | undefined,
+    ): Promise<void> {
+        if (!this.panel) { return; }
+        if (this.functionIndex.size === 0 && activeCovdbPath) {
+            this.functionIndex = await CovdbParser.loadFunctionIndex(activeCovdbPath);
+        }
+        this.panel.webview.html = generateReportHtml({
+            fileIndex,
+            functionIndex: this.functionIndex,
+            asRelativePath: p => this.toRelativePath(p),
+            codiconCssUri: this.getCodiconCssUri(),
+        });
+    }
+
+    /** Clear cached function index (e.g. when the .covdb is reloaded). */
+    clearFunctionIndex(): void {
+        this.functionIndex.clear();
+    }
+
+    // ── Private ──
+
+    private getCodiconCssUri(): string {
+        if (!this.panel || !this.extensionUri) { return ''; }
+        const onDiskPath = vscode.Uri.joinPath(
+            this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'
+        );
+        return this.panel.webview.asWebviewUri(onDiskPath).toString();
+    }
+
+    private toRelativePath(p: string): string {
+        return vscode.workspace.workspaceFolders
+            ? vscode.workspace.asRelativePath(p)
+            : path.basename(p);
+    }
+
+    private async handleMessage(msg: { command?: string; filePath?: string; line?: number }): Promise<void> {
+        if (msg.command !== 'openFile' || !msg.filePath) { return; }
+        try {
+            const doc = await vscode.workspace.openTextDocument(msg.filePath);
+            const editor = await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+            if (msg.line && msg.line > 0) {
+                const pos = new vscode.Position(msg.line - 1, 0);
+                editor.selection = new vscode.Selection(pos, pos);
+                editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+            }
+        } catch {
+            vscode.window.showWarningMessage(`Cannot open: ${msg.filePath}`);
+        }
+    }
+}

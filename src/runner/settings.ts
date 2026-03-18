@@ -1,0 +1,94 @@
+import * as path from "path";
+import * as vscode from "vscode";
+import { ensureArrayOfStrings } from "./runnerArgs";
+import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
+
+export function readRunnerSettings(): RunnerSettings {
+    const config = vscode.workspace.getConfiguration("covdbg");
+    const env = config.get<Record<string, string>>("runner.env", {});
+    return {
+        executablePath: config.get<string>("executablePath", "").trim(),
+        portableCachePath: config.get<string>("portableCachePath", "").trim(),
+        binaryDiscoveryPattern:
+            config
+                .get<string>("runner.binaryDiscoveryPattern", "**/*.exe")
+                .trim() || "**/*.exe",
+        licenseServerUrl: config
+            .get<string>("runner.licenseServerUrl", "")
+            .trim(),
+        targetExecutable: config
+            .get<string>("runner.targetExecutable", "")
+            .trim(),
+        targetArgs: ensureArrayOfStrings(config.get("runner.targetArgs", [])),
+        configPath: config.get<string>("runner.configPath", "").trim(),
+        outputPath: config
+            .get<string>("runner.outputPath", ".covdbg/coverage.covdb")
+            .trim(),
+        appDataPath:
+            config.get<string>("runner.appDataPath", ".covdbg").trim() ||
+            ".covdbg",
+        workingDirectory: config
+            .get<string>("runner.workingDirectory", "")
+            .trim(),
+        env: sanitizeEnv(env),
+    };
+}
+
+export function getWorkspaceRoot(): string | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+export function resolvePathFromWorkspace(
+    inputPath: string,
+    workspaceRoot: string,
+): string {
+    if (path.isAbsolute(inputPath)) {
+        return path.normalize(inputPath);
+    }
+    return path.normalize(path.resolve(workspaceRoot, inputPath));
+}
+
+export function resolveRunnerPaths(
+    settings: RunnerSettings,
+    workspaceRoot: string,
+): RunnerResolvedPaths {
+    const targetExecutablePath = resolvePathFromWorkspace(
+        settings.targetExecutable,
+        workspaceRoot,
+    );
+    const outputPath = resolvePathFromWorkspace(
+        settings.outputPath || ".covdbg/coverage.covdb",
+        workspaceRoot,
+    );
+    const appDataPath = resolvePathFromWorkspace(
+        settings.appDataPath || ".covdbg",
+        workspaceRoot,
+    );
+    const workingDirectory = settings.workingDirectory
+        ? resolvePathFromWorkspace(settings.workingDirectory, workspaceRoot)
+        : workspaceRoot;
+
+    const configPath = settings.configPath
+        ? resolvePathFromWorkspace(settings.configPath, workspaceRoot)
+        : undefined;
+
+    return {
+        workspaceRoot,
+        targetExecutablePath,
+        configPath,
+        outputPath,
+        appDataPath,
+        workingDirectory,
+    };
+}
+
+function sanitizeEnv(env: Record<string, string>): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(env || {})) {
+        if (!key || typeof value !== "string") {
+            continue;
+        }
+        result[key] = value;
+    }
+    return result;
+}
