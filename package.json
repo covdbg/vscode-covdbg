@@ -9,11 +9,11 @@
     "icon": "icon.png",
     "repository": {
         "type": "git",
-        "url": "https://github.com/liasoft/covdbg"
+        "url": "https://github.com/covdbg/vscode-covdbg.git"
     },
-    "homepage": "https://github.com/liasoft/covdbg/tree/main/ide/vscode-extension",
+    "homepage": "https://github.com/covdbg/vscode-covdbg",
     "bugs": {
-        "url": "https://github.com/liasoft/covdbg/issues"
+        "url": "https://github.com/covdbg/vscode-covdbg/issues"
     },
     "engines": {
         "vscode": "^1.85.0"
@@ -29,7 +29,8 @@
         "testing"
     ],
     "activationEvents": [
-        "workspaceContains:.covdbg.yaml"
+        "workspaceContains:.covdbg.yaml",
+        "workspaceContains:**/*.covdb"
     ],
     "main": "./out/extension.js",
     "capabilities": {
@@ -120,7 +121,7 @@
                         "gutter",
                         "both"
                     ],
-                    "default": "line",
+                    "default": "gutter",
                     "enumDescriptions": [
                         "Highlight covered/uncovered lines with background colors",
                         "Show coverage indicators in the gutter only",
@@ -191,7 +192,7 @@
                 },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
-                    "default": "**/*.exe",
+                    "default": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*",
                     "markdownDescription": "Glob pattern used to discover test binaries for the Testing API integration.",
                     "scope": "resource",
                     "order": 10
@@ -223,18 +224,19 @@
     "scripts": {
         "prepare:portable": "node ./scripts/downloadPortable.js",
         "release:check": "node ./scripts/verifyReleaseVersion.js",
-        "vscode:prepublish": "npm run prepare:portable && npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
+        "vscode:prepublish": "npm run build",
+        "typecheck": "tsc -p ./ --noEmit",
+        "bundle": "node ./scripts/bundle.js",
+        "compile": "npm run typecheck && npm run bundle",
+        "build": "npm run prepare:portable && npm run compile",
+        "watch": "node ./scripts/bundle.js --watch",
         "package": "vsce package --skip-license",
-        "pretest": "npm run compile",
-        "test": "node --test \"out/test/**/*.test.js\"",
+        "compile:tests": "tsc -p ./tsconfig.tests.json",
+        "pretest": "npm run compile && npm run compile:tests",
+        "test": "node --test test-out/test/*.test.js",
         "lint": "eslint src --ext ts"
     },
-    "dependencies": {
-        "@vscode/codicons": "^0.0.45",
-        "sql.js": "^1.14.1"
-    },
+    "dependencies": {},
     "devDependencies": {
         "@types/node": "^18.x",
         "@types/sql.js": "^1.4.10",
@@ -242,7 +244,9 @@
         "@typescript-eslint/eslint-plugin": "^8.57.1",
         "@typescript-eslint/parser": "^8.57.1",
         "@vscode/vsce": "^3.2.0",
+        "esbuild": "^0.27.4",
         "eslint": "^8.x",
+        "sql.js": "^1.14.1",
         "typescript": "^5.3.0"
     }
 }

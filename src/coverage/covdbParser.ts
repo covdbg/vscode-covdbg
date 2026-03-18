@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import initSqlJs, { Database } from 'sql.js';
 import * as output from '../views/outputChannel';
 
@@ -55,7 +56,9 @@ let sqlJsModule: Awaited<ReturnType<typeof initSqlJs>> | undefined;
 
 async function getSqlJs(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
     if (!sqlJsModule) {
-        sqlJsModule = await initSqlJs();
+        sqlJsModule = await initSqlJs({
+            locateFile: () => path.join(__dirname, 'sql-wasm.wasm'),
+        });
     }
     return sqlJsModule;
 }

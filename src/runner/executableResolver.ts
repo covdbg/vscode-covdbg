@@ -4,11 +4,17 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import * as output from '../views/outputChannel';
 import { ResolvedExecutable, RunnerSettings } from './runnerTypes';
+import {
+    portableArchiveStampMatches,
+    readPortableArchiveStamp,
+    writePortableArchiveStamp,
+} from './portableCacheState';
 import { resolvePathFromWorkspace } from './settings';
 import { getKnownInstallPaths } from './installPaths';
 
 const COVDBG_EXE = 'covdbg.exe';
 const BUNDLED_PORTABLE_ZIP = 'covdbg-portable.zip';
+const BUNDLED_PORTABLE_STATE = 'bundled-state.json';
 
 export async function resolveCovdbgExecutable(
     context: vscode.ExtensionContext,
@@ -93,10 +99,17 @@ async function resolveBundledPortable(
         return undefined;
     }
 
+    const bundledZipStats = await fs.stat(bundledZipPath);
+    const bundledZipStamp = {
+        size: bundledZipStats.size,
+        mtimeMs: bundledZipStats.mtimeMs,
+    };
     const cacheRoot = getPortableRoot(context, settings);
     const extractPath = path.join(cacheRoot, 'bundled');
+    const statePath = path.join(extractPath, BUNDLED_PORTABLE_STATE);
     const cachedBundledExe = await findFileRecursively(extractPath, COVDBG_EXE, 5);
-    if (cachedBundledExe) {
+    const cachedStamp = await readPortableArchiveStamp(statePath);
+    if (cachedBundledExe && portableArchiveStampMatches(bundledZipStamp, cachedStamp)) {
         return cachedBundledExe;
     }
     await fs.mkdir(extractPath, { recursive: true });
@@ -110,6 +123,7 @@ async function resolveBundledPortable(
             output.logError('Bundled portable zip does not contain covdbg.exe');
             return undefined;
         }
+        await writePortableArchiveStamp(statePath, bundledZipStamp);
         return extractedExe;
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

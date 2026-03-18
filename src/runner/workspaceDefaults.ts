@@ -140,14 +140,14 @@ export async function resolveEffectiveConfigPath(
 
 export async function discoverExecutableCandidates(workspaceRoot: string): Promise<CandidateExe[]> {
     const settings = readRunnerSettings();
-    const pattern = settings.binaryDiscoveryPattern || '**/*.exe';
+    const pattern = settings.binaryDiscoveryPattern;
     const matches = await vscode.workspace.findFiles(pattern, '**/{.git,node_modules,.vscode,assets}/**', 500);
     const candidates: CandidateExe[] = [];
     for (const uri of matches) {
-        const fileName = path.basename(uri.fsPath).toLowerCase();
-        if (fileName === 'covdbg.exe') {
+        if (!(await isDiscoveredExecutable(uri.fsPath))) {
             continue;
         }
+        const fileName = path.basename(uri.fsPath).toLowerCase();
         const score = scoreExecutable(uri.fsPath.toLowerCase());
         candidates.push({
             absolutePath: uri.fsPath,
@@ -210,5 +210,17 @@ async function isFile(filePath: string): Promise<boolean> {
     } catch {
         return false;
     }
+}
+
+async function isDiscoveredExecutable(filePath: string): Promise<boolean> {
+    if (path.extname(filePath).toLowerCase() !== '.exe') {
+        return false;
+    }
+
+    if (path.basename(filePath).toLowerCase() === 'covdbg.exe') {
+        return false;
+    }
+
+    return isFile(filePath);
 }
 

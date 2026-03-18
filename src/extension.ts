@@ -17,7 +17,7 @@ import {
     MenuContext,
     MenuActions,
 } from "./views/menuPopup";
-import { runCoverageForTarget, runCoverageNow } from "./runner/runnerService";
+import { runCoverageForTarget } from "./runner/runnerService";
 import { logCovdbgResolution } from "./runner/runtimeInfo";
 import { listDiscoveredExecutablePaths } from "./runner/workspaceDefaults";
 import {
@@ -48,6 +48,8 @@ let activeCovdbMtime: number = 0;
 let fileIndex: Map<string, CovdbFileSummary> = new Map();
 /** Per-file line-level coverage cache (populated lazily on editor open). */
 let coverageCache: Map<string, FileCoverage> = new Map();
+/** Coverage entries invalidated by source edits since the last .covdb reload. */
+let staleCoverageKeys: Set<string> = new Set();
 /** Maximum number of file coverages to keep in cache. */
 const MAX_COVERAGE_CACHE_SIZE = 200;
 /** Interval handle for timestamp polling. */
@@ -56,6 +58,10 @@ let pollTimer: ReturnType<typeof setInterval> | undefined;
 let isLoadingIndex = false;
 /** Testing API controller for discovered binaries. */
 let testingController: vscode.TestController | undefined;
+/** Root item shown in the Testing view. */
+let testingRootItem: vscode.TestItem | undefined;
+/** Executable path lookup for file-less test items. */
+const testExecutablePaths: Map<string, string> = new Map();
 /** Track last run output for clear command. */
 let lastRunOutputPath: string | undefined;
 
@@ -76,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
         context.workspaceState.get<RenderMode>("covdbg.renderMode");
     const configMode = vscode.workspace
         .getConfiguration("covdbg")
-        .get<RenderMode>("renderMode", "line");
+        .get<RenderMode>("renderMode", "gutter");
     const initialMode = savedMode ?? configMode;
     decorator.setRenderMode(initialMode);
     statusBar.setRenderMode(initialMode);
@@ -120,6 +126,12 @@ export function activate(context: vscode.ExtensionContext) {
                 decorateEditor(editor);
             }
         }),
+        vscode.workspace.onDidChangeTextDocument((event) => {
+            if (event.contentChanges.length === 0) {
+                return;
+            }
+            invalidateCoverageForDocument(event.document);
+        }),
     );
 
     // Reload index when settings change
@@ -135,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration("covdbg.renderMode")) {
                 const mode = vscode.workspace
                     .getConfiguration("covdbg")
-                    .get<RenderMode>("renderMode", "line");
+                    .get<RenderMode>("renderMode", "gutter");
                 decorator.setRenderMode(mode);
                 statusBar.setRenderMode(mode);
                 context.workspaceState.update("covdbg.renderMode", mode);
@@ -246,6 +258,7 @@ async function loadIndex(
             ? result.files
             : filterToWorkspaceFiles(result.files);
         coverageCache.clear();
+        staleCoverageKeys.clear();
         report.clearFunctionIndex();
 
         statusBar.setLoaded();
@@ -338,6 +351,9 @@ async function getOrLoadCoverage(
     if (!key) {
         return undefined;
     }
+    if (staleCoverageKeys.has(key)) {
+        return undefined;
+    }
 
     // Return cached data if available (re-insert to refresh LRU order)
     const cached = coverageCache.get(key);
@@ -383,6 +399,26 @@ async function decorateEditor(editor: vscode.TextEditor): Promise<void> {
 function refreshAllEditors(): void {
     for (const editor of vscode.window.visibleTextEditors) {
         decorateEditor(editor);
+    }
+}
+
+function invalidateCoverageForDocument(document: vscode.TextDocument): void {
+    if (document.uri.scheme !== "file") {
+        return;
+    }
+
+    const key = findIndexKey(document.uri.fsPath);
+    if (!key) {
+        return;
+    }
+
+    coverageCache.delete(key);
+    staleCoverageKeys.add(key);
+
+    for (const editor of vscode.window.visibleTextEditors) {
+        if (editor.document.uri.fsPath === document.uri.fsPath) {
+            decorator.clearDecorations(editor);
+        }
     }
 }
 
@@ -463,6 +499,7 @@ function closeCovdb(): void {
     activeCovdbMtime = 0;
     fileIndex = new Map();
     coverageCache.clear();
+    staleCoverageKeys.clear();
     report.clearFunctionIndex();
     statusBar.setIdle();
     vscode.window.visibleTextEditors.forEach((e) =>
@@ -482,13 +519,6 @@ async function applyRenderMode(
     decorator.setRenderMode(mode);
     statusBar.setRenderMode(mode);
     context.workspaceState.update("covdbg.renderMode", mode);
-    // Keep the VS Code setting in sync so the Settings UI reflects the current mode
-    const config = vscode.workspace.getConfiguration("covdbg");
-    await config.update(
-        "renderMode",
-        mode,
-        vscode.ConfigurationTarget.Workspace,
-    );
     refreshAllEditors();
 }
 
@@ -513,23 +543,21 @@ async function pickCovdbFile(): Promise<void> {
 async function runCoverageCommand(
     context: vscode.ExtensionContext,
 ): Promise<void> {
-    const result = await runCoverageNow(
-        context,
-        () => statusBar.setRunning(),
-        (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
-    );
-    await handleLicenseStatusUpdate(
-        context,
-        result.licenseStatus,
-        result.success,
-    );
-    if (result.success && result.outputPath) {
-        lastRunOutputPath = result.outputPath;
-        if (await fileExists(result.outputPath)) {
-            await loadIndex(result.outputPath, "settings");
-            return;
-        }
-        await discoverAndLoadIndex();
+    await refreshTestControllerItems();
+    const selectedItems = await promptForDiscoveredTestItems();
+    if (!selectedItems || selectedItems.length === 0) {
+        return;
+    }
+
+    const cancellation = new vscode.CancellationTokenSource();
+    try {
+        await runCoverageFromTestRequest(
+            new vscode.TestRunRequest(selectedItems),
+            cancellation.token,
+            context,
+        );
+    } finally {
+        cancellation.dispose();
     }
 }
 
@@ -574,7 +602,7 @@ async function handleLicenseStatusUpdate(
     if (!runSucceeded && licenseStatus.status === "trial-used") {
         void vscode.window.showWarningMessage(
             licenseStatus.message ||
-                "covdbg: The 30-day demo has already been used on this machine.",
+            "covdbg: The 30-day demo has already been used on this machine.",
         );
     }
 }
@@ -662,9 +690,13 @@ async function fileExists(p: string): Promise<boolean> {
 function initializeTestingController(context: vscode.ExtensionContext): void {
     testingController = vscode.tests.createTestController(
         "covdbg.testController",
-        "covdbg binaries",
+        "covdbg",
     );
     context.subscriptions.push(testingController);
+
+    testingRootItem = testingController.createTestItem("covdbg.root", "covdbg");
+    testingRootItem.description = "Discovering test executables...";
+    testingController.items.replace([testingRootItem]);
 
     testingController.createRunProfile(
         "Run with Coverage",
@@ -677,26 +709,38 @@ function initializeTestingController(context: vscode.ExtensionContext): void {
 }
 
 async function refreshTestControllerItems(): Promise<void> {
-    if (!testingController) {
+    if (!testingController || !testingRootItem) {
         return;
     }
-    testingController.items.replace([]);
+    testingController.items.replace([testingRootItem]);
+    testExecutablePaths.clear();
+    testingRootItem.children.replace([]);
+
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
+        testingRootItem.description = "Open a workspace folder to discover tests";
         return;
     }
+
     const binaries = await listDiscoveredExecutablePaths(workspaceRoot);
+    const items: vscode.TestItem[] = [];
     for (const binaryPath of binaries) {
-        const id = path.normalize(binaryPath).toLowerCase();
+        const id = path.normalize(binaryPath);
         const item = testingController.createTestItem(
             id,
             path.basename(binaryPath),
-            vscode.Uri.file(binaryPath),
         );
         item.description = vscode.workspace.asRelativePath(binaryPath);
         item.canResolveChildren = false;
-        testingController.items.add(item);
+        items.push(item);
+        testExecutablePaths.set(id, binaryPath);
     }
+
+    testingRootItem.description =
+        binaries.length === 0
+            ? "No discovered tests"
+            : `${binaries.length} discovered test${binaries.length === 1 ? "" : "s"}`;
+    testingRootItem.children.replace(items);
     output.log(`Testing API: discovered ${binaries.length} binaries.`);
 }
 
@@ -722,12 +766,26 @@ async function runCoverageFromTestRequest(
         }
         run.started(item);
         statusBar.setRunning();
+        const targetExecutablePath = getExecutablePathForTestItem(item);
+        if (!targetExecutablePath) {
+            run.errored(
+                item,
+                new vscode.TestMessage("covdbg test item is missing an executable path."),
+            );
+            statusBar.setRunFailed();
+            continue;
+        }
         const result = await runCoverageForTarget(
             context,
-            item.uri?.fsPath ?? item.id,
+            targetExecutablePath,
             undefined,
             (ok) =>
                 ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed(),
+        );
+        await handleLicenseStatusUpdate(
+            context,
+            result.licenseStatus,
+            result.success,
         );
         if (result.success) {
             if (result.outputPath) {
@@ -750,12 +808,88 @@ function collectRequestedTests(
     request: vscode.TestRunRequest,
     controller: vscode.TestController,
 ): vscode.TestItem[] {
-    if (request.include && request.include.length > 0) {
-        return [...request.include];
+    const included =
+        request.include && request.include.length > 0
+            ? [...request.include]
+            : collectTopLevelTestItems(controller);
+    const excludedIds = new Set((request.exclude ?? []).map((item) => item.id));
+    const collected = new Map<string, vscode.TestItem>();
+
+    for (const item of included) {
+        collectLeafTestItems(item, excludedIds, collected);
     }
-    const all: vscode.TestItem[] = [];
-    controller.items.forEach((item) => all.push(item));
-    return all;
+
+    return [...collected.values()];
+}
+
+function collectTopLevelTestItems(
+    controller: vscode.TestController,
+): vscode.TestItem[] {
+    const items: vscode.TestItem[] = [];
+    controller.items.forEach((item) => items.push(item));
+    return items;
+}
+
+function collectLeafTestItems(
+    item: vscode.TestItem,
+    excludedIds: Set<string>,
+    collected: Map<string, vscode.TestItem>,
+): void {
+    if (excludedIds.has(item.id)) {
+        return;
+    }
+
+    if (testExecutablePaths.has(item.id)) {
+        collected.set(item.id, item);
+        return;
+    }
+
+    item.children.forEach((child) =>
+        collectLeafTestItems(child, excludedIds, collected),
+    );
+}
+
+async function promptForDiscoveredTestItems(): Promise<vscode.TestItem[] | undefined> {
+    const items = getDiscoveredExecutableTestItems();
+    if (items.length === 0) {
+        vscode.window.showErrorMessage(
+            "covdbg: No discovered test executables found. Adjust covdbg.runner.binaryDiscoveryPattern and refresh test binaries.",
+        );
+        return undefined;
+    }
+
+    const picks = await vscode.window.showQuickPick(
+        items.map((item) => ({
+            label: item.label,
+            description: item.description,
+            detail: getExecutablePathForTestItem(item),
+            item,
+        })),
+        {
+            title: "covdbg: Select discovered tests",
+            placeHolder: "Choose the discovered test executables to run under coverage",
+            canPickMany: true,
+            matchOnDescription: true,
+            matchOnDetail: true,
+        },
+    );
+    return picks?.map((pick) => pick.item);
+}
+
+function getDiscoveredExecutableTestItems(): vscode.TestItem[] {
+    if (!testingRootItem) {
+        return [];
+    }
+
+    const items: vscode.TestItem[] = [];
+    testingRootItem.children.forEach((item) => items.push(item));
+    return items;
+}
+
+function getExecutablePathForTestItem(
+    item: vscode.TestItem,
+): string | undefined {
+    return testExecutablePaths.get(item.id);
 }
 
 /**

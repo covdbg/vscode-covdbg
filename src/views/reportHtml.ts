@@ -155,9 +155,9 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
             html += `<div class="tree-item file depth-${depth}" data-path="${esc(f.absPath)}">`;
             html += `<span class="indent" style="width:${depth * 16}px"></span>`;
             html += hasFns
-                ? `<span class="toggle codicon codicon-chevron-right"></span>`
+                ? `<span class="toggle collapsed"></span>`
                 : `<span class="toggle-placeholder"></span>`;
-            html += `<span class="icon codicon codicon-file"></span>`;
+            html += `<span class="icon file-icon"></span>`;
             html += `<span class="label">${esc(child.name)}</span>`;
             html += `<span class="stats">${f.covered}/${f.total}</span>`;
             html += barHtml(f.pct, c);
@@ -169,7 +169,7 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
                 // Function summary header
                 html += `<div class="fn-summary depth-${depth + 1}">`;
                 html += `<span class="indent" style="width:${(depth + 1) * 16}px"></span>`;
-                html += `<span class="icon codicon codicon-symbol-method"></span>`;
+                html += `<span class="icon function-icon"></span>`;
                 html += `<span class="label dim">${fnHitCount}/${fns.length} functions hit</span>`;
                 html += `</div>`;
                 for (const fn of fns) {
@@ -178,7 +178,7 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
                     html += `<div class="tree-item fn depth-${depth + 1}" data-path="${esc(f.absPath)}" data-line="${fn.startLine}">`;
                     html += `<span class="indent" style="width:${(depth + 1) * 16}px"></span>`;
                     html += `<span class="toggle-placeholder"></span>`;
-                    html += `<span class="icon codicon codicon-symbol-method"></span>`;
+                    html += `<span class="icon function-icon"></span>`;
                     html += `<span class="label fn-name">${esc(fn.functionName)}</span>`;
                     html += `<span class="stats dim">L${fn.startLine}–${fn.endLine}</span>`;
                     html += `<span class="fn-hit" style="color:${fnColor}">${hit ? `${fn.hitCount}x` : 'miss'}</span>`;
@@ -192,8 +192,8 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
             const c = pctCssVar(aggPct);
             html += `<div class="tree-item folder depth-${depth}">`;
             html += `<span class="indent" style="width:${depth * 16}px"></span>`;
-            html += `<span class="toggle codicon codicon-chevron-down"></span>`;
-            html += `<span class="icon codicon codicon-folder"></span>`;
+            html += `<span class="toggle expanded"></span>`;
+            html += `<span class="icon folder-icon"></span>`;
             html += `<span class="label folder-name">${esc(child.name)}</span>`;
             html += `<span class="stats">${child.aggCovered}/${child.aggTotal}</span>`;
             html += barHtml(aggPct, c);
@@ -215,12 +215,10 @@ export interface ReportData {
     fileIndex: Map<string, CovdbFileSummary>;
     functionIndex: Map<string, CovdbFunctionSummary[]>;
     asRelativePath: (p: string) => string;
-    /** Webview-safe URI to the codicon CSS file. */
-    codiconCssUri?: string;
 }
 
 export function generateReportHtml(data: ReportData): string {
-    const { fileIndex, functionIndex, asRelativePath, codiconCssUri } = data;
+    const { fileIndex, functionIndex, asRelativePath } = data;
     const tree = buildTree(fileIndex, functionIndex, asRelativePath);
     const totalPct = tree.aggTotal > 0 ? (tree.aggCovered / tree.aggTotal) * 100 : 0;
     const totalFns = Array.from(functionIndex.values()).reduce((s, a) => s + a.length, 0);
@@ -254,8 +252,14 @@ input[type="text"]:focus{border-color:var(--vscode-focusBorder)}
 .indent{flex-shrink:0;display:inline-block}
 .toggle{flex-shrink:0;width:16px;text-align:center;font-size:12px;cursor:pointer;opacity:.7}
 .toggle:hover{opacity:1}
+.toggle::before{display:inline-block;width:100%}
+.toggle.collapsed::before{content:'▸'}
+.toggle.expanded::before{content:'▾'}
 .toggle-placeholder{flex-shrink:0;width:16px}
 .icon{flex-shrink:0;width:16px;text-align:center;font-size:14px;opacity:.8}
+.file-icon::before{content:'□'}
+.folder-icon::before{content:'▣'}
+.function-icon::before{content:'ƒ'}
 .label{flex:1;overflow:hidden;text-overflow:ellipsis}
 .folder-name{font-weight:600}
 .fn-name{font-family:var(--vscode-editor-font-family,monospace);font-size:0.92em}
@@ -275,16 +279,8 @@ input[type="text"]:focus{border-color:var(--vscode-focusBorder)}
 .fn-group.collapsed .tree-item.fn,
 .fn-group.collapsed .fn-summary{display:none}
 
-/* Codicon chevrons (fallback text if font not loaded) */
-.codicon-chevron-right::before{content:'\\eab6'}
-.codicon-chevron-down::before{content:'\\eab4'}
-.codicon-file::before{content:'\\eb60'}
-.codicon-folder::before{content:'\\ea83'}
-.codicon-symbol-method::before{content:'\\ea8c'}
-
 .hidden{display:none!important}
 </style>
-${codiconCssUri ? `<link href="${codiconCssUri}" rel="stylesheet">` : '<!-- codicon CSS not available -->'}
 </head><body>
 
 <div class="summary">
@@ -327,8 +323,8 @@ document.querySelectorAll('.tree-item.folder').forEach(el => {
         el.classList.toggle('collapsed');
         const chev = el.querySelector('.toggle');
         if (chev) {
-            chev.classList.toggle('codicon-chevron-down');
-            chev.classList.toggle('codicon-chevron-right');
+            chev.classList.toggle('expanded');
+            chev.classList.toggle('collapsed');
         }
     });
 });
@@ -341,8 +337,8 @@ document.querySelectorAll('.tree-item.file .toggle').forEach(el => {
         const fnGroup = fileEl?.nextElementSibling;
         if (fnGroup?.classList.contains('fn-group')) {
             fnGroup.classList.toggle('collapsed');
-            el.classList.toggle('codicon-chevron-down');
-            el.classList.toggle('codicon-chevron-right');
+            el.classList.toggle('expanded');
+            el.classList.toggle('collapsed');
         }
     });
 });

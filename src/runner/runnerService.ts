@@ -159,6 +159,7 @@ async function runCoverageInternal(
         `Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`,
     );
 
+    const licenseRunConfig = buildLicenseRunConfig(settings);
     const args = buildCovdbgArguments(
         {
             ...paths,
@@ -166,10 +167,11 @@ async function runCoverageInternal(
             configPath: effectiveConfigPath,
         },
         settings.targetArgs,
+        licenseRunConfig.args,
     );
     const env = {
         ...process.env,
-        ...buildLicenseEnvironment(settings),
+        ...licenseRunConfig.env,
     };
 
     onStart?.();
@@ -206,13 +208,13 @@ async function runCoverageInternal(
 
     const success = options.showProgress
         ? await vscode.window.withProgress<boolean>(
-              {
-                  location: vscode.ProgressLocation.Notification,
-                  title: "covdbg: Running coverage",
-                  cancellable: false,
-              },
-              async () => executeRun(),
-          )
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "covdbg: Running coverage",
+                cancellable: false,
+            },
+            async () => executeRun(),
+        )
         : await executeRun();
     const licenseStatus = await readLicenseStatus(paths.appDataPath);
     onFinish?.(success);
@@ -228,9 +230,14 @@ async function runCoverageInternal(
     return { success: false, licenseStatus };
 }
 
-function buildLicenseEnvironment(
+interface LicenseRunConfig {
+    args: string[];
+    env: Record<string, string>;
+}
+
+function buildLicenseRunConfig(
     settings: Pick<RunnerSettings, "env" | "licenseServerUrl">,
-): Record<string, string> {
+): LicenseRunConfig {
     const env = { ...settings.env };
 
     if (settings.licenseServerUrl) {
@@ -244,12 +251,10 @@ function buildLicenseEnvironment(
     ].some((value) => typeof value === "string" && value.trim().length > 0);
 
     if (hasExplicitLicense) {
-        return env;
+        return { args: [], env };
     }
 
-    env.COVDBG_FETCH_LICENSE = "true";
-    env.COVDBG_FETCH_LICENSE_MODE = "plugin-demo";
-    env.COVDBG_FETCH_LICENSE_PLUGIN_NAME = "vscode";
+    const args = ["--demo", "--plugin-name", "vscode"];
 
     const extension = vscode.extensions.getExtension("covdbg.covdbg");
     const extensionVersion = extension?.packageJSON?.version;
@@ -257,11 +262,11 @@ function buildLicenseEnvironment(
         typeof extensionVersion === "string" &&
         extensionVersion.trim().length > 0
     ) {
-        env.COVDBG_VSCODE_EXTENSION_VERSION = extensionVersion;
+        args.push("--plugin-ver", extensionVersion.trim());
     }
 
     output.log("covdbg: Auto-requesting plugin demo license for VS Code run.");
-    return env;
+    return { args, env };
 }
 
 interface PreflightError {

@@ -6,7 +6,7 @@ export class StatusBar {
     private _item: vscode.StatusBarItem;
     private _enabled: boolean = true;
     private _loaded: boolean = false;
-    private _renderMode: RenderMode = "line";
+    private _renderMode: RenderMode = "gutter";
     private _runState: "idle" | "running" | "failed" = "idle";
     private _licenseStatus?: LicenseStatusSnapshot;
 
@@ -101,8 +101,8 @@ export class StatusBar {
             this._renderMode === "line"
                 ? "Line"
                 : this._renderMode === "gutter"
-                  ? "Gutter"
-                  : "Both";
+                    ? "Gutter"
+                    : "Both";
         if (this._enabled) {
             this._item.text = `covdbg $(workspace-trusted)${licenseIndicator.text}`;
             this._item.tooltip = `covdbg - Coverage ON (${modeLabel})${licenseIndicator.tooltip}`;
@@ -125,17 +125,15 @@ export class StatusBar {
                 0,
                 this._licenseStatus.daysRemaining ?? 0,
             );
-            const dayLabel =
-                daysRemaining === 0 ? "today" : `${daysRemaining}d`;
             return {
-                text: ` $(clock) ${dayLabel}`,
+                text: "",
                 tooltip: `\nDemo license active: ${daysRemaining} day(s) remaining`,
             };
         }
 
         if (this._licenseStatus.status === "trial-used") {
             return {
-                text: " $(warning) demo",
+                text: "",
                 tooltip: "\nDemo license already used on this machine",
             };
         }

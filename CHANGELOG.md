@@ -6,9 +6,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- Pull request validation workflow for changes targeting `main`, covering lint, build, automated tests, and VSIX artifact upload.
+
 ### Changed
 
 - Ongoing work after `0.2.0` will be tracked here until the next tagged release.
+- Local F5 development now uses a one-shot build flow that prepares the bundled portable `covdbg` archive when it is missing.
+- Release automation now serializes runs per tag and explicitly validates lint, build, and tests before packaging the VSIX.
 
 ## [0.2.0] - 2026-03-18
 
