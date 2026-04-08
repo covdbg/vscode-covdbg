@@ -233,7 +233,7 @@
         "package": "vsce package --skip-license",
         "compile:tests": "tsc -p ./tsconfig.tests.json",
         "pretest": "npm run compile && npm run compile:tests",
-        "test": "node --test \"test-out/test/**/*.test.js\"",
+        "test": "node --test test-out/test/**/*.test.js",
         "lint": "eslint src --ext ts"
     },
     "dependencies": {},
