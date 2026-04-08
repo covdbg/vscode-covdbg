@@ -108,7 +108,7 @@ You can also open any `.covdb` file manually via **covdbg: Select .covdb File...
 
 1. Configure:
     - `covdbg.runner.targetExecutable` (optional on first run, auto-detected if missing)
-    - optional: `covdbg.runner.targetArgs`, `covdbg.runner.configPath`, `covdbg.runner.outputPath`, `covdbg.runner.licenseServerUrl`
+    - optional: `covdbg.runner.targetArgs`, `covdbg.runner.configPath`, `covdbg.runner.outputPath`, `covdbg.runner.licenseServerUrl`, `covdbg.runner.binaryDiscoveryPattern`
 2. Run one of:
     - **`covdbg: Run Coverage`** (direct process run)
     - **Test Explorer → `Run with Coverage`** (auto-discovered binaries)
@@ -118,6 +118,7 @@ For plug-and-play defaults:
 
 - The extension uses bundled portable runtime by default.
 - `covdbg.runner.configPath` can stay empty. The extension/covdbg resolves `.covdbg.yaml` automatically near the target executable.
+- `covdbg.runner.binaryDiscoveryPattern` defaults to `{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*` to focus discovery on likely test binaries.
 - Logs are written under `.covdbg/Logs/covdbg.log` by default via `--appdata .covdbg`.
 - Set `covdbg.runner.licenseServerUrl` when you want demo-license requests to go to a local `covdbg-license` Docker stack instead of production.
 - Official downloads (MSI + Portable): [covdbg Download](https://covdbg.com/download/)

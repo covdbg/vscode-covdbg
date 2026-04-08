@@ -192,7 +192,7 @@
                 },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
-                    "default": "**/*.exe",
+                    "default": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*",
                     "markdownDescription": "Glob pattern used to discover test binaries for the Testing API integration.",
                     "scope": "resource",
                     "order": 10

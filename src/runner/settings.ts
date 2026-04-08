@@ -3,6 +3,9 @@ import * as vscode from "vscode";
 import { ensureArrayOfStrings } from "./runnerArgs";
 import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 
+const DEFAULT_BINARY_DISCOVERY_PATTERN =
+    "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
+
 export function readRunnerSettings(): RunnerSettings {
     const config = vscode.workspace.getConfiguration("covdbg");
     const env = config.get<Record<string, string>>("runner.env", {});
@@ -11,8 +14,11 @@ export function readRunnerSettings(): RunnerSettings {
         portableCachePath: config.get<string>("portableCachePath", "").trim(),
         binaryDiscoveryPattern:
             config
-                .get<string>("runner.binaryDiscoveryPattern", "**/*.exe")
-                .trim() || "**/*.exe",
+                .get<string>(
+                    "runner.binaryDiscoveryPattern",
+                    DEFAULT_BINARY_DISCOVERY_PATTERN,
+                )
+                .trim() || DEFAULT_BINARY_DISCOVERY_PATTERN,
         licenseServerUrl: config
             .get<string>("runner.licenseServerUrl", "")
             .trim(),
