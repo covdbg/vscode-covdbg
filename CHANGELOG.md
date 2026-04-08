@@ -10,7 +10,25 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 
-- Ongoing work after `0.3.0` will be tracked here until the next tagged release.
+- Ongoing work after `0.4.0` will be tracked here until the next tagged release.
+
+## [0.4.0] - 2026-04-09
+
+### Added
+
+- Always-on startup activation so the covdbg status bar entry is available immediately after VS Code finishes starting.
+- In-product setup flow and command for creating a starter `.covdbg.yaml` in the selected workspace folder.
+- Coverage key matching regression tests for ambiguous multi-workspace file paths.
+
+### Changed
+
+- Workspace discovery now searches `.covdbg.yaml` and `.covdb` files per workspace folder in multi-root workspaces.
+- Runner and test executable resolution now honor workspace-folder scoped settings instead of always binding to the first workspace folder.
+- Coverage loading, caching, invalidation, report state, and editor rendering are now tracked per workspace folder so duplicated project layouts do not share coverage overlays.
+
+### Fixed
+
+- Coverage rendering no longer cross-applies results between similarly named files such as duplicated `src/main.cpp` files opened from different workspace folders.
 
 ## [0.3.0] - 2026-04-09
 

@@ -8,6 +8,7 @@ import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
 import { resolveCovdbgExecutable } from "./executableResolver";
 import type { RunnerSettings } from "./runnerTypes";
 import {
+    getPreferredWorkspaceFolder,
     getWorkspaceRoot,
     readRunnerSettings,
     resolveRunnerPaths,
@@ -31,14 +32,15 @@ export async function runCoverageNow(
     onStart?: () => void,
     onFinish?: (success: boolean) => void,
 ): Promise<RunResult> {
-    const targetExecutableSetting = await ensureTargetExecutableSetting(true);
-    if (!targetExecutableSetting) {
+    const targetSelection = await ensureTargetExecutableSetting(true);
+    if (!targetSelection) {
         return { success: false };
     }
     return runCoverageInternal(
         context,
         {
-            targetExecutableOverride: targetExecutableSetting,
+            targetExecutableOverride: targetSelection.targetExecutable,
+            workspaceFolderOverride: targetSelection.workspaceFolder,
             interactiveTargetSelection: true,
             showProgress: true,
         },
@@ -67,6 +69,7 @@ export async function runCoverageForTarget(
 
 interface RunOptions {
     targetExecutableOverride?: string;
+    workspaceFolderOverride?: vscode.WorkspaceFolder;
     interactiveTargetSelection: boolean;
     showProgress: boolean;
 }
@@ -96,10 +99,13 @@ async function runCoverageInternal(
         return { success: false };
     }
 
-    const settings = readRunnerSettings();
+    const workspaceFolder =
+        options.workspaceFolderOverride ??
+        getPreferredWorkspaceFolder(options.targetExecutableOverride);
+    const settings = readRunnerSettings(workspaceFolder?.uri);
     settings.targetExecutable =
         options.targetExecutableOverride ?? settings.targetExecutable;
-    const workspaceRoot = getWorkspaceRoot();
+    const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
         vscode.window.showErrorMessage(
             "covdbg: Open a workspace folder before running coverage.",

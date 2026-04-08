@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 import * as output from '../views/outputChannel';
 import { resolveCovdbgExecutable } from './executableResolver';
-import { getWorkspaceRoot, readRunnerSettings } from './settings';
+import { getPreferredWorkspaceFolder, getWorkspaceRoot, readRunnerSettings } from './settings';
 
 const versionCache = new Map<string, string | undefined>();
 
@@ -17,11 +17,12 @@ export async function getCovdbgVersion(executablePath: string): Promise<string |
 
 export async function logCovdbgResolution(context: vscode.ExtensionContext): Promise<void> {
     try {
-        const workspaceRoot = getWorkspaceRoot();
+        const workspaceFolder = getPreferredWorkspaceFolder();
+        const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
         if (!workspaceRoot) {
             return;
         }
-        const settings = readRunnerSettings();
+        const settings = readRunnerSettings(workspaceFolder?.uri);
         const resolved = await resolveCovdbgExecutable(context, settings, workspaceRoot);
         if (!resolved) {
             output.log('covdbg runtime: executable not resolved at activation');

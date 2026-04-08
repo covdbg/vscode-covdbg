@@ -26,6 +26,7 @@ export interface MenuActions {
     browse(): void;
     showReport(): void;
     configure(): void;
+    createConfig(): void;
     openSettings(): void;
     switchDatabase(covdbPath: string): void;
     closeDatabase(): void;
@@ -124,6 +125,11 @@ export async function showMenu(ctx: MenuContext, actions: MenuActions): Promise<
             action: 'configure'
         });
         items.push({
+            label: '$(new-file)  Create .covdbg.yaml',
+            detail: '    Generate a starter config in a workspace folder',
+            action: 'create-config'
+        });
+        items.push({
             label: '$(beaker)  Run Coverage',
             action: 'run-coverage'
         });
@@ -163,6 +169,9 @@ export async function showMenu(ctx: MenuContext, actions: MenuActions): Promise<
             break;
         case 'configure':
             actions.configure();
+            break;
+        case 'create-config':
+            actions.createConfig();
             break;
         case 'settings':
             actions.openSettings();

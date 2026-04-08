@@ -1,27 +1,34 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { readRunnerSettings, resolvePathFromWorkspace } from './settings';
+import {
+    getWorkspaceFoldersInPreferenceOrder,
+    readRunnerSettings,
+    resolvePathFromWorkspace,
+} from './settings';
 
-interface CandidateExe {
+export interface CandidateExe {
     absolutePath: string;
     label: string;
     score: number;
+    workspaceFolder: vscode.WorkspaceFolder;
 }
 
-export async function ensureTargetExecutableSetting(interactive: boolean): Promise<string | undefined> {
-    const config = vscode.workspace.getConfiguration('covdbg');
-    const configured = config.get<string>('runner.targetExecutable', '').trim();
-    if (configured) {
-        return configured;
+export async function ensureTargetExecutableSetting(interactive: boolean): Promise<{ targetExecutable: string; workspaceFolder: vscode.WorkspaceFolder } | undefined> {
+    const preferredFolders = getWorkspaceFoldersInPreferenceOrder();
+    for (const folder of preferredFolders) {
+        const config = vscode.workspace.getConfiguration('covdbg', folder.uri);
+        const configured = config.get<string>('runner.targetExecutable', '').trim();
+        if (configured) {
+            return { targetExecutable: configured, workspaceFolder: folder };
+        }
     }
 
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) {
+    if (preferredFolders.length === 0) {
         return undefined;
     }
 
-    const candidates = await discoverExecutableCandidates(workspaceRoot);
+    const candidates = await discoverExecutableCandidates();
     if (candidates.length === 0) {
         if (interactive) {
             vscode.window.showErrorMessage('covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern or set covdbg.runner.targetExecutable.');
@@ -33,7 +40,7 @@ export async function ensureTargetExecutableSetting(interactive: boolean): Promi
     if (interactive && candidates.length > 1) {
         const quickPickItems = candidates.slice(0, 30).map(candidate => ({
             label: candidate.label,
-            description: path.relative(workspaceRoot, candidate.absolutePath),
+            description: `${candidate.workspaceFolder.name}: ${path.relative(candidate.workspaceFolder.uri.fsPath, candidate.absolutePath)}`,
             detail: candidate.absolutePath,
             absolutePath: candidate.absolutePath,
         }));
@@ -49,12 +56,13 @@ export async function ensureTargetExecutableSetting(interactive: boolean): Promi
         selected = candidates.find(c => c.absolutePath === chosen.absolutePath) ?? selected;
     }
 
-    const relative = path.relative(workspaceRoot, selected.absolutePath);
-    await config.update('runner.targetExecutable', relative, vscode.ConfigurationTarget.Workspace);
+    const relative = path.relative(selected.workspaceFolder.uri.fsPath, selected.absolutePath);
+    const config = vscode.workspace.getConfiguration('covdbg', selected.workspaceFolder.uri);
+    await config.update('runner.targetExecutable', relative, vscode.ConfigurationTarget.WorkspaceFolder);
     if (interactive) {
         vscode.window.showInformationMessage(`covdbg: Using runner target "${relative}".`);
     }
-    return relative;
+    return { targetExecutable: relative, workspaceFolder: selected.workspaceFolder };
 }
 
 export async function resolveOrSelectTargetExecutable(
@@ -138,35 +146,55 @@ export async function resolveEffectiveConfigPath(
     return undefined;
 }
 
-export async function discoverExecutableCandidates(workspaceRoot: string): Promise<CandidateExe[]> {
-    const settings = readRunnerSettings();
-    const pattern = settings.binaryDiscoveryPattern;
-    const matches = await vscode.workspace.findFiles(pattern, '**/{.git,node_modules,.vscode,assets}/**', 500);
+export async function discoverExecutableCandidates(
+    workspaceRoot?: string,
+): Promise<CandidateExe[]> {
+    const workspaceFolder = workspaceRoot
+        ? vscode.workspace.workspaceFolders?.find(
+            (folder) => folder.uri.fsPath === workspaceRoot,
+        )
+        : undefined;
+    const folders = workspaceFolder
+        ? [workspaceFolder]
+        : getWorkspaceFoldersInPreferenceOrder();
     const candidates: CandidateExe[] = [];
-    for (const uri of matches) {
-        if (!(await isDiscoveredExecutable(uri.fsPath))) {
-            continue;
+
+    for (const folder of folders) {
+        const settings = readRunnerSettings(folder.uri);
+        const pattern = settings.binaryDiscoveryPattern;
+        const matches = await vscode.workspace.findFiles(
+            new vscode.RelativePattern(folder, pattern),
+            '**/{.git,node_modules,.vscode,assets}/**',
+            500,
+        );
+        for (const uri of matches) {
+            if (!(await isDiscoveredExecutable(uri.fsPath))) {
+                continue;
+            }
+            const score = scoreExecutable(uri.fsPath.toLowerCase());
+            candidates.push({
+                absolutePath: uri.fsPath,
+                label: score >= 90 ? `$(beaker) ${path.basename(uri.fsPath)}` : `$(file-binary) ${path.basename(uri.fsPath)}`,
+                score,
+                workspaceFolder: folder,
+            });
         }
-        const fileName = path.basename(uri.fsPath).toLowerCase();
-        const score = scoreExecutable(uri.fsPath.toLowerCase());
-        candidates.push({
-            absolutePath: uri.fsPath,
-            label: score >= 90 ? `$(beaker) ${path.basename(uri.fsPath)}` : `$(file-binary) ${path.basename(uri.fsPath)}`,
-            score,
-        });
     }
     return candidates.sort((a, b) => b.score - a.score || a.absolutePath.localeCompare(b.absolutePath));
 }
 
-export async function listDiscoveredExecutablePaths(workspaceRoot: string): Promise<string[]> {
-    const candidates = await discoverExecutableCandidates(workspaceRoot);
+export async function listDiscoveredExecutablePaths(workspaceRoot?: string): Promise<string[]> {
+    const candidates = workspaceRoot
+        ? await discoverExecutableCandidates(workspaceRoot)
+        : await discoverExecutableCandidates();
     return candidates.map(c => c.absolutePath);
 }
 
 async function persistTargetSetting(absolutePath: string, workspaceRoot: string, showInfo: boolean): Promise<void> {
     const relative = path.relative(workspaceRoot, absolutePath);
-    const config = vscode.workspace.getConfiguration('covdbg');
-    await config.update('runner.targetExecutable', relative, vscode.ConfigurationTarget.Workspace);
+    const workspaceFolder = vscode.workspace.workspaceFolders?.find(folder => folder.uri.fsPath === workspaceRoot);
+    const config = vscode.workspace.getConfiguration('covdbg', workspaceFolder?.uri);
+    await config.update('runner.targetExecutable', relative, workspaceFolder ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace);
     if (showInfo) {
         vscode.window.showInformationMessage(`covdbg: Using runner target "${relative}".`);
     }

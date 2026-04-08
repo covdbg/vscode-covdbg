@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -29,7 +29,8 @@
         "testing"
     ],
     "activationEvents": [
-        "workspaceContains:.covdbg.yaml",
+        "onStartupFinished",
+        "workspaceContains:**/.covdbg.yaml",
         "workspaceContains:**/*.covdb"
     ],
     "main": "./out/extension.js",
@@ -84,6 +85,11 @@
             {
                 "command": "covdbg.runCoverage",
                 "title": "Run Coverage",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.createConfig",
+                "title": "Create .covdbg.yaml",
                 "category": "covdbg"
             },
             {

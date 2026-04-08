@@ -6,8 +6,10 @@ import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 const DEFAULT_BINARY_DISCOVERY_PATTERN =
     "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
 
-export function readRunnerSettings(): RunnerSettings {
-    const config = vscode.workspace.getConfiguration("covdbg");
+export function readRunnerSettings(
+    scope?: vscode.ConfigurationScope,
+): RunnerSettings {
+    const config = vscode.workspace.getConfiguration("covdbg", scope);
     const env = config.get<Record<string, string>>("runner.env", {});
     return {
         executablePath: config.get<string>("executablePath", "").trim(),
@@ -41,7 +43,43 @@ export function readRunnerSettings(): RunnerSettings {
 }
 
 export function getWorkspaceRoot(): string | undefined {
-    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return getPreferredWorkspaceFolder()?.uri.fsPath;
+}
+
+export function getPreferredWorkspaceFolder(
+    filePath?: string,
+): vscode.WorkspaceFolder | undefined {
+    if (filePath && path.isAbsolute(filePath)) {
+        const exactFolder = vscode.workspace.getWorkspaceFolder(
+            vscode.Uri.file(filePath),
+        );
+        if (exactFolder) {
+            return exactFolder;
+        }
+    }
+
+    const activeUri = vscode.window.activeTextEditor?.document.uri;
+    if (activeUri) {
+        const activeFolder = vscode.workspace.getWorkspaceFolder(activeUri);
+        if (activeFolder) {
+            return activeFolder;
+        }
+    }
+
+    return vscode.workspace.workspaceFolders?.[0];
+}
+
+export function getWorkspaceFoldersInPreferenceOrder(): vscode.WorkspaceFolder[] {
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    const preferred = getPreferredWorkspaceFolder();
+    if (!preferred) {
+        return [...workspaceFolders];
+    }
+
+    return [
+        preferred,
+        ...workspaceFolders.filter((folder) => folder.uri.toString() !== preferred.uri.toString()),
+    ];
 }
 
 export function resolvePathFromWorkspace(

@@ -54,6 +54,8 @@ Point covdbg at an existing coverage result or let it discover results in your w
 
 If you already have a coverage result, use `covdbg: Select .covdb File...` and start browsing immediately.
 
+The covdbg status bar entry is always available after startup. If no `.covdbg.yaml` is present yet, the extension can offer to create one for you.
+
 ## Typical Workflows
 
 ### Run a native test binary with coverage
@@ -79,6 +81,7 @@ Use `covdbg: Select .covdb File...` or set `covdbg.covdbPath` to load an existin
 | `covdbg: Set Render Mode` | Switch between line, gutter, or combined rendering. |
 | `covdbg: Select .covdb File...` | Load a specific coverage result manually. |
 | `covdbg: Run Coverage` | Run the configured executable with coverage. |
+| `covdbg: Create .covdbg.yaml` | Create a starter `.covdbg.yaml` in a workspace folder. |
 | `covdbg: Clear Last Run Result` | Clear the last generated run result from the current workflow. |
 | `covdbg: Refresh Test Binaries` | Refresh executable discovery for the Testing UI. |
 
