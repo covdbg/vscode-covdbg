@@ -9,11 +9,11 @@
     "icon": "icon.png",
     "repository": {
         "type": "git",
-        "url": "https://github.com/liasoft/covdbg"
+        "url": "https://github.com/covdbg/vscode-covdbg.git"
     },
-    "homepage": "https://github.com/liasoft/covdbg/tree/main/ide/vscode-extension",
+    "homepage": "https://github.com/covdbg/vscode-covdbg",
     "bugs": {
-        "url": "https://github.com/liasoft/covdbg/issues"
+        "url": "https://github.com/covdbg/vscode-covdbg/issues"
     },
     "engines": {
         "vscode": "^1.85.0"
