@@ -1,12 +1,17 @@
 import { RunnerResolvedPaths } from './runnerTypes';
 
-export function buildCovdbgArguments(paths: RunnerResolvedPaths, targetArgs: string[]): string[] {
+export function buildCovdbgArguments(
+    paths: RunnerResolvedPaths,
+    targetArgs: string[],
+    covdbgArgs: string[] = [],
+): string[] {
     const args: string[] = [];
     args.push('--appdata', paths.appDataPath);
     if (paths.configPath) {
         args.push('--config', paths.configPath);
     }
     args.push('--output', paths.outputPath);
+    args.push(...covdbgArgs);
     args.push(paths.targetExecutablePath, ...targetArgs);
     return args;
 }
