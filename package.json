@@ -1,7 +1,7 @@
 {
     "name": "covdbg",
     "displayName": "covdbg",
-    "description": "The complete C++ code coverage solution for Windows. Open-source VS Code extension for covdbg coverage on Windows. Coverage runs require separately licensed proprietary covdbg software.",
+    "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
     "version": "0.2.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
