@@ -82,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
         context.workspaceState.get<RenderMode>("covdbg.renderMode");
     const configMode = vscode.workspace
         .getConfiguration("covdbg")
-        .get<RenderMode>("renderMode", "line");
+        .get<RenderMode>("renderMode", "gutter");
     const initialMode = savedMode ?? configMode;
     decorator.setRenderMode(initialMode);
     statusBar.setRenderMode(initialMode);
@@ -147,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration("covdbg.renderMode")) {
                 const mode = vscode.workspace
                     .getConfiguration("covdbg")
-                    .get<RenderMode>("renderMode", "line");
+                    .get<RenderMode>("renderMode", "gutter");
                 decorator.setRenderMode(mode);
                 statusBar.setRenderMode(mode);
                 context.workspaceState.update("covdbg.renderMode", mode);

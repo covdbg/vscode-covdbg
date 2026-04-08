@@ -121,7 +121,7 @@
                         "gutter",
                         "both"
                     ],
-                    "default": "line",
+                    "default": "gutter",
                     "enumDescriptions": [
                         "Highlight covered/uncovered lines with background colors",
                         "Show coverage indicators in the gutter only",

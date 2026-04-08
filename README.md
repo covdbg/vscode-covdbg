@@ -179,7 +179,7 @@ After the Extension Development Host opens, run **`covdbg: Run Coverage`** and c
 |---------|---------|-------------|
 | `covdbg.covdbPath` | `""` | Explicit path to a `.covdb` file. Takes priority over auto-discovery. |
 | `covdbg.discoveryPattern` | `"**/*.covdb"` | Glob pattern for auto-discovering `.covdb` files. |
-| `covdbg.renderMode` | `"line"` | Visualisation mode: `line`, `gutter`, or `both`. |
+| `covdbg.renderMode` | `"gutter"` | Visualisation mode: `line`, `gutter`, or `both`. |
 | `covdbg.showExternalFiles` | `false` | Include files outside the workspace in coverage results. |
 
 ## License
