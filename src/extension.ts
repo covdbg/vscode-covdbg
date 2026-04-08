@@ -48,6 +48,8 @@ let activeCovdbMtime: number = 0;
 let fileIndex: Map<string, CovdbFileSummary> = new Map();
 /** Per-file line-level coverage cache (populated lazily on editor open). */
 let coverageCache: Map<string, FileCoverage> = new Map();
+/** Coverage entries invalidated by source edits since the last .covdb reload. */
+let staleCoverageKeys: Set<string> = new Set();
 /** Maximum number of file coverages to keep in cache. */
 const MAX_COVERAGE_CACHE_SIZE = 200;
 /** Interval handle for timestamp polling. */
@@ -123,6 +125,12 @@ export function activate(context: vscode.ExtensionContext) {
             if (editor) {
                 decorateEditor(editor);
             }
+        }),
+        vscode.workspace.onDidChangeTextDocument((event) => {
+            if (event.contentChanges.length === 0) {
+                return;
+            }
+            invalidateCoverageForDocument(event.document);
         }),
     );
 
@@ -250,6 +258,7 @@ async function loadIndex(
             ? result.files
             : filterToWorkspaceFiles(result.files);
         coverageCache.clear();
+        staleCoverageKeys.clear();
         report.clearFunctionIndex();
 
         statusBar.setLoaded();
@@ -342,6 +351,9 @@ async function getOrLoadCoverage(
     if (!key) {
         return undefined;
     }
+    if (staleCoverageKeys.has(key)) {
+        return undefined;
+    }
 
     // Return cached data if available (re-insert to refresh LRU order)
     const cached = coverageCache.get(key);
@@ -387,6 +399,26 @@ async function decorateEditor(editor: vscode.TextEditor): Promise<void> {
 function refreshAllEditors(): void {
     for (const editor of vscode.window.visibleTextEditors) {
         decorateEditor(editor);
+    }
+}
+
+function invalidateCoverageForDocument(document: vscode.TextDocument): void {
+    if (document.uri.scheme !== "file") {
+        return;
+    }
+
+    const key = findIndexKey(document.uri.fsPath);
+    if (!key) {
+        return;
+    }
+
+    coverageCache.delete(key);
+    staleCoverageKeys.add(key);
+
+    for (const editor of vscode.window.visibleTextEditors) {
+        if (editor.document.uri.fsPath === document.uri.fsPath) {
+            decorator.clearDecorations(editor);
+        }
     }
 }
 
@@ -467,6 +499,7 @@ function closeCovdb(): void {
     activeCovdbMtime = 0;
     fileIndex = new Map();
     coverageCache.clear();
+    staleCoverageKeys.clear();
     report.clearFunctionIndex();
     statusBar.setIdle();
     vscode.window.visibleTextEditors.forEach((e) =>
