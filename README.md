@@ -90,7 +90,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Pull requests targeting `main` are validated in GitHub Actions with lint, build, and test steps.
+Pull requests targeting `main` are validated in GitHub Actions with lint, build, test, and VSIX artifact upload steps.
 
 The GitHub Actions workflow then:
 

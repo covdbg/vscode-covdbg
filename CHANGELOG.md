@@ -8,7 +8,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Added
 
-- Pull request validation workflow for changes targeting `main`, covering lint, build, and automated tests.
+- Pull request validation workflow for changes targeting `main`, covering lint, build, automated tests, and VSIX artifact upload.
 
 ### Changed
 
