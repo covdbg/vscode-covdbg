@@ -35,11 +35,16 @@ See [CHANGELOG.md](CHANGELOG.md) for versioned release notes.
     ```bash
     npm install
     ```
-3. Compile the extension:
+3. Build the extension:
     ```bash
-    npm run compile
+    npm run build
     ```
 4. Press `F5` to start the extension in debug mode
+
+The build step prepares the portable archive if needed and then compiles the extension bundle.
+`F5` uses the same default build task, so you can usually just press `F5` after `npm install` and let VS Code run the build for you.
+
+Set `COVDBG_PORTABLE_URL` if you need to test against a different portable artifact.
 
 ### Install as VSIX Package
 
@@ -52,6 +57,23 @@ Then install via Command Palette → "Extensions: Install from VSIX..."
 
 The packaging step downloads the current portable `covdbg` runtime from `https://covdbg.com/download/latest/portable.zip` into `assets/portable/covdbg-portable.zip`.
 Set `COVDBG_PORTABLE_URL` if you need to package a different portable artifact.
+
+### Local Development With Bundled covdbg
+
+If you want the Extension Development Host to resolve the bundled `covdbg.exe` instead of relying on a system install or manual setting:
+
+```bash
+npm install
+npm run build
+```
+
+Then launch the `Run Extension` configuration or press `F5`.
+
+Notes:
+
+- `npm run build` is idempotent with respect to the portable archive. It only downloads when `assets/portable/covdbg-portable.zip` is missing or empty.
+- `F5` triggers the default one-shot build task, so it does not keep a background watcher running.
+- The downloaded archive is ignored by git via `.gitignore`, so it stays local to your development machine.
 
 ## Release Process
 
