@@ -17,3 +17,4 @@ tsconfig.lsif.json
 vscode*.d.ts
 
 assets/portable
+test-out/

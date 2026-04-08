@@ -77,6 +77,12 @@ Notes:
 
 ## Release Process
 
+Before tagging a release:
+
+- update `package.json` to the target version
+- move the relevant `Unreleased` notes in `CHANGELOG.md` into a dated version section
+- make sure the pull request validation workflow is green
+
 Create a Git tag in the form `vX.Y.Z` that matches the version in `package.json`.
 
 ```bash
@@ -84,11 +90,13 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
+Pull requests targeting `main` are validated in GitHub Actions with lint, build, and test steps.
+
 The GitHub Actions workflow then:
 
 - validates that the tag matches `package.json`
 - installs dependencies
-- runs lint and tests
+- runs lint, build, and tests
 - packages the extension as a VSIX
 - downloads the portable `covdbg` runtime during packaging
 - creates a GitHub Release and uploads the `.vsix` plus `SHA256SUMS.txt`
