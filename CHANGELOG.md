@@ -8,11 +8,19 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Added
 
+### Changed
+
+- Ongoing work after `0.3.0` will be tracked here until the next tagged release.
+
+## [0.3.0] - 2026-04-09
+
+### Added
+
 - Pull request validation workflow for changes targeting `main`, covering lint, build, automated tests, and VSIX artifact upload.
+- Release automation now publishes the generated VSIX to the VS Code Marketplace when the `VSCE_PAT` secret is configured.
 
 ### Changed
 
-- Ongoing work after `0.2.0` will be tracked here until the next tagged release.
 - Local F5 development now uses a one-shot build flow that prepares the bundled portable `covdbg` archive when it is missing.
 - Release automation now serializes runs per tag and explicitly validates lint, build, and tests before packaging the VSIX.
 

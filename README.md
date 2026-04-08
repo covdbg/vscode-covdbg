@@ -8,7 +8,7 @@ Run your executables with coverage, inspect covered and uncovered lines in the e
 
 ## See Coverage In VS Code
 
-![Run coverage and inspect covered and uncovered lines directly in VS Code](gif/readme-demo.gif)
+<img src="https://media.githubusercontent.com/media/covdbg/vscode-covdbg/main/gif/readme-demo.gif" width=800 height=500>
 
 covdbg brings the full coverage workflow into the editor: launch a target, reload results automatically, review inline highlights, and drill into file, folder, and function details without bouncing between separate tools.
 

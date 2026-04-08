@@ -29,14 +29,14 @@ test('buildCovdbgArguments inserts covdbg CLI flags before target executable', (
         outputPath: 'C:\\repo\\.covdbg\\coverage.covdb',
         appDataPath: 'C:\\repo\\.covdbg',
         workingDirectory: 'C:\\repo',
-    }, ['--gtest_filter=Suite.*'], ['--demo', '--plugin-name', 'vscode', '--plugin-ver', '0.2.0']);
+    }, ['--gtest_filter=Suite.*'], ['--demo', '--plugin-name', 'vscode', '--plugin-ver', '0.3.0']);
 
     assert.deepEqual(args, [
         '--appdata', 'C:\\repo\\.covdbg',
         '--output', 'C:\\repo\\.covdbg\\coverage.covdb',
         '--demo',
         '--plugin-name', 'vscode',
-        '--plugin-ver', '0.2.0',
+        '--plugin-ver', '0.3.0',
         'C:\\repo\\build\\tests.exe',
         '--gtest_filter=Suite.*',
     ]);

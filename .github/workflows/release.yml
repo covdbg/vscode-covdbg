@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to validate against package.json, e.g. v0.2.0"
+        description: "Release tag to validate against package.json, e.g. v0.3.0"
         required: true
 
 permissions:
@@ -20,6 +20,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
     steps:
       - name: Checkout
@@ -61,6 +63,23 @@ jobs:
 
       - name: Package VSIX
         run: npm run package
+
+      - name: Publish to VS Code Marketplace
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "VSCE_PAT secret is not configured."
+            echo "Create an Azure DevOps PAT with Marketplace (Manage) scope and add it as the VSCE_PAT GitHub Actions secret."
+            exit 1
+          fi
+
+          VSIX_PATH="$(find . -maxdepth 1 -type f -name '*.vsix' | head -n 1)"
+
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX file was produced by the packaging step."
+            exit 1
+          fi
+
+          npx @vscode/vsce publish --packagePath "$VSIX_PATH" -p "$VSCE_PAT"
 
       - name: Generate SHA256 checksum
         run: sha256sum *.vsix > SHA256SUMS.txt

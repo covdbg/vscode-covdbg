@@ -135,8 +135,8 @@ After the Extension Development Host opens, run `covdbg: Run Coverage` and verif
 Create and push a Git tag in the form `vX.Y.Z` that matches the version in `package.json`.
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The release workflow then:
@@ -145,8 +145,20 @@ The release workflow then:
 - installs dependencies
 - runs lint and tests
 - packages the extension as a VSIX
+- publishes the generated VSIX to the VS Code Marketplace
 - downloads the portable covdbg runtime during packaging
 - creates a GitHub Release and uploads the `.vsix` plus `SHA256SUMS.txt`
+
+Before using the workflow for a real release, configure this repository secret:
+
+- `VSCE_PAT`: Azure DevOps Personal Access Token for the Marketplace publisher in `package.json`, created with `Organization: All accessible organizations` and `Marketplace: Manage` scope.
+
+Marketplace prerequisites:
+
+- the `publisher` field in `package.json` must already exist in the Visual Studio Marketplace
+- the PAT must belong to an account that can publish for that publisher
+
+Once the secret is present, a `vX.Y.Z` tag will both publish the extension to the VS Code Marketplace and attach the same VSIX to the GitHub release.
 
 Use this check locally before tagging:
 

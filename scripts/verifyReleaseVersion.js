@@ -4,7 +4,7 @@ const path = require("path");
 async function main() {
     const releaseTag = process.argv[2];
     if (!releaseTag) {
-        throw new Error("Expected release tag argument, for example v0.2.0.");
+        throw new Error("Expected release tag argument, for example v0.3.0.");
     }
 
     const packageJsonPath = path.join(__dirname, "..", "package.json");
