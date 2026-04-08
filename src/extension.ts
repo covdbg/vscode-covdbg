@@ -519,13 +519,6 @@ async function applyRenderMode(
     decorator.setRenderMode(mode);
     statusBar.setRenderMode(mode);
     context.workspaceState.update("covdbg.renderMode", mode);
-    // Keep the VS Code setting in sync so the Settings UI reflects the current mode
-    const config = vscode.workspace.getConfiguration("covdbg");
-    await config.update(
-        "renderMode",
-        mode,
-        vscode.ConfigurationTarget.Workspace,
-    );
     refreshAllEditors();
 }
 
