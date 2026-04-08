@@ -728,7 +728,6 @@ async function runCoverageFromTestRequest(
     }
     const run = testingController.createTestRun(request);
     const targets = collectRequestedTests(request, testingController);
-    const shouldRevealReport = targets.length === 1;
     if (targets.length === 0) {
         run.end();
         return;
@@ -771,9 +770,6 @@ async function runCoverageFromTestRequest(
                 await loadIndex(result.outputPath, "settings");
             } else {
                 await discoverAndLoadIndex();
-            }
-            if (shouldRevealReport) {
-                await showCoverageReportCommand();
             }
         } else {
             run.failed(item, new vscode.TestMessage("Coverage run failed"));
