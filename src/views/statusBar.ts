@@ -125,17 +125,15 @@ export class StatusBar {
                 0,
                 this._licenseStatus.daysRemaining ?? 0,
             );
-            const dayLabel =
-                daysRemaining === 0 ? "today" : `${daysRemaining}d`;
             return {
-                text: ` $(clock) ${dayLabel}`,
+                text: "",
                 tooltip: `\nDemo license active: ${daysRemaining} day(s) remaining`,
             };
         }
 
         if (this._licenseStatus.status === "trial-used") {
             return {
-                text: " $(warning) demo",
+                text: "",
                 tooltip: "\nDemo license already used on this machine",
             };
         }
