@@ -3,7 +3,6 @@ export interface RunnerSettings {
     portableCachePath: string;
     binaryDiscoveryPattern: string;
     licenseServerUrl: string;
-    targetExecutable: string;
     targetArgs: string[];
     configPath: string;
     outputPath: string;
@@ -14,7 +13,6 @@ export interface RunnerSettings {
 
 export interface RunnerResolvedPaths {
     workspaceRoot: string;
-    targetExecutablePath: string;
     configPath?: string;
     outputPath: string;
     appDataPath: string;

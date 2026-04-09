@@ -10,7 +10,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 
-- Ongoing work after `0.4.0` will be tracked here until the next tagged release.
+- Ongoing work after `0.5.0` will be tracked here until the next tagged release.
+
+## [0.5.0] - 2026-04-09
+
+### Added
+
+- AI/chat tool integration for `getUncoveredCode_covdbg`, exposing grouped uncovered segments, surrounding context, truncation metadata, and LLM guidance from native `.covdb` coverage data.
+- AI/chat tool integration for `runTestWithCoverage_covdbg`, allowing an LLM to trigger a coverage run for a chosen executable and reload coverage results into the extension.
+- LLM-oriented guidance in tool responses so iterative fix, rebuild, re-run, and re-query workflows can be chained from chat.
+
+### Changed
+
+- Uncovered code responses now cap segment volume, truncate oversized snippets, and round `coveragePercent` to two decimals for more stable chat payloads.
+
+### Fixed
+
+- Coverage decorations and uncovered-code queries now suppress stale results when the source file is dirty or newer than the loaded `.covdb` snapshot.
 
 ## [0.4.0] - 2026-04-09
 

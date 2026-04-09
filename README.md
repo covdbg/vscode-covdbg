@@ -6,11 +6,53 @@ Run your executables with coverage, inspect covered and uncovered lines in the e
 
 [Get started with covdbg](https://covdbg.com/) | [Product docs and guides](https://covdbg.com/docs/)
 
+## AI Features
+
+covdbg can also expose native coverage data to chat-capable tooling in VS Code.
+
+- `getUncoveredCode_covdbg` returns grouped uncovered code segments for a file, including code snippets, nearby context, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
+- `runTestWithCoverage_covdbg` runs a selected executable with coverage, reloads the resulting `.covdb` into the extension when possible, and returns structured status plus guidance for the next query.
+
+These tools are designed for iterative workflows where an LLM proposes a fix, you rebuild, rerun coverage, and then query the updated uncovered regions again.
+
 ## See Coverage In VS Code
 
 <img src="https://media.githubusercontent.com/media/covdbg/vscode-covdbg/main/gif/readme-demo.gif" width=800 height=500>
 
 covdbg brings the full coverage workflow into the editor: launch a target, reload results automatically, review inline highlights, and drill into file, folder, and function details without bouncing between separate tools.
+
+### Scope coverage with `.covdbg.yaml`
+
+Choose the test executable from covdbg's discovered binaries, then use `.covdbg.yaml` to decide what should actually count in the report. This config is where you include or exclude files and functions for that run and where you keep third-party code, SDKs, vendored dependencies, and helper-only test code out of your numbers.
+
+```yaml
+version: 1
+source_root: "."
+coverage:
+	default:
+		files:
+			include:
+				- "src/**/*.cpp"
+				- "src/**/*.h"
+				- "tests/**/*.cpp"
+			exclude:
+				- "tests/helpers/**"
+				- "third_party/**"
+				- "external/**"
+				- "vendor/**"
+				- "**/Windows Kits/**"
+				- "**/VC/Tools/MSVC/**"
+
+		functions:
+			include:
+				- "*"
+			exclude:
+				- "__scrt_*"
+				- "_RTC_*"
+				- "__security_*"
+```
+
+Use `covdbg: Create .covdbg.yaml` to generate a starter config in the workspace and tailor it to your binaries, test layout, and dependency boundaries.
 
 ## Why covdbg
 
@@ -40,6 +82,14 @@ Open a report with file and folder summaries, per-file statistics, and function-
 
 Discover likely test binaries in your workspace and rerun them with coverage from the built-in Testing view.
 
+### AI-assisted coverage workflows
+
+Use the chat tools to ask for uncovered code in a file, apply a fix, rebuild, run the target again with coverage, and inspect the refreshed gaps without leaving VS Code.
+
+### Sidebar home dashboard
+
+Open the covdbg activity bar item to get a live onboarding and status dashboard for the current workspace: license state, runtime resolution, discovered tests, loaded coverage, config health, and the next actions to take.
+
 ### Flexible result loading
 
 Point covdbg at an existing coverage result or let it discover results in your workspace automatically.
@@ -48,9 +98,10 @@ Point covdbg at an existing coverage result or let it discover results in your w
 
 1. Install the extension on Windows.
 2. Open your C++ workspace in VS Code.
-3. Configure `covdbg.runner.targetExecutable` for the binary you want to run.
-4. Run `covdbg: Run Coverage`.
-5. Review coverage inline or open `covdbg: Show Coverage Report`.
+3. Open the covdbg sidebar to verify runtime, license, config, and target status.
+4. Add or generate `.covdbg.yaml` so the report includes the right project files and excludes SDK or third-party noise.
+5. Run `covdbg: Run Coverage` and choose from the discovered test binaries.
+6. Review coverage inline or open `covdbg: Show Coverage Report`.
 
 If you already have a coverage result, use `covdbg: Select .covdb File...` and start browsing immediately.
 
@@ -60,7 +111,7 @@ The covdbg status bar entry is always available after startup. If no `.covdbg.ya
 
 ### Run a native test binary with coverage
 
-Set `covdbg.runner.targetExecutable`, optionally add `covdbg.runner.targetArgs`, then launch `covdbg: Run Coverage`.
+Run `covdbg: Run Coverage`, choose a discovered test executable, and optionally use `covdbg.runner.targetArgs` for extra arguments.
 
 ### Rerun discovered tests from the Testing view
 
@@ -80,7 +131,7 @@ Use `covdbg: Select .covdb File...` or set `covdbg.covdbPath` to load an existin
 | `covdbg: Browse Covered Files` | Jump to files that have coverage data. |
 | `covdbg: Set Render Mode` | Switch between line, gutter, or combined rendering. |
 | `covdbg: Select .covdb File...` | Load a specific coverage result manually. |
-| `covdbg: Run Coverage` | Run the configured executable with coverage. |
+| `covdbg: Run Coverage` | Run a discovered test executable with coverage. |
 | `covdbg: Create .covdbg.yaml` | Create a starter `.covdbg.yaml` in a workspace folder. |
 | `covdbg: Clear Last Run Result` | Clear the last generated run result from the current workflow. |
 | `covdbg: Refresh Test Binaries` | Refresh executable discovery for the Testing UI. |
@@ -89,7 +140,6 @@ Use `covdbg: Select .covdb File...` or set `covdbg.covdbPath` to load an existin
 
 | Setting | Purpose |
 |---------|---------|
-| `covdbg.runner.targetExecutable` | Windows executable to run with coverage. |
 | `covdbg.runner.targetArgs` | Arguments passed to the target executable. |
 | `covdbg.runner.workingDirectory` | Working directory for coverage runs. |
 | `covdbg.runner.outputPath` | Output path for results generated from VS Code. |

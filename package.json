@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -20,13 +20,17 @@
     },
     "categories": [
         "Testing",
-        "Visualization"
+        "Visualization",
+        "AI",
+        "Chat"
     ],
     "keywords": [
         "coverage",
         "covdbg",
         "code coverage",
-        "testing"
+        "cpp code coverage",
+        "testing",
+        "ai assisted cpp coverage"
     ],
     "activationEvents": [
         "onStartupFinished",
@@ -40,7 +44,6 @@
             "description": "covdbg can view existing .covdb files in Restricted Mode, but running coverage binaries requires workspace trust.",
             "restrictedConfigurations": [
                 "covdbg.executablePath",
-                "covdbg.runner.targetExecutable",
                 "covdbg.runner.workingDirectory",
                 "covdbg.runner.configPath",
                 "covdbg.runner.outputPath",
@@ -83,13 +86,38 @@
                 "category": "covdbg"
             },
             {
+                "command": "covdbg.pickDiscoveredCovdb",
+                "title": "Pick Discovered .covdb",
+                "category": "covdbg"
+            },
+            {
                 "command": "covdbg.runCoverage",
                 "title": "Run Coverage",
                 "category": "covdbg"
             },
             {
+                "command": "covdbg.getUncoveredCode",
+                "title": "Get Uncovered Code",
+                "category": "covdbg"
+            },
+            {
                 "command": "covdbg.createConfig",
                 "title": "Create .covdbg.yaml",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.openConfig",
+                "title": "Open .covdbg.yaml",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.openLog",
+                "title": "Open covdbg.log",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.openAppDataFolder",
+                "title": "Open .covdbg Folder",
                 "category": "covdbg"
             },
             {
@@ -101,8 +129,97 @@
                 "command": "covdbg.refreshTestBinaries",
                 "title": "Refresh Test Binaries",
                 "category": "covdbg"
+            },
+            {
+                "command": "covdbg.refreshDashboard",
+                "title": "Refresh Home Dashboard",
+                "category": "covdbg",
+                "icon": "$(refresh)"
             }
         ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "covdbg-sidebar",
+                    "title": "covdbg",
+                    "icon": "assets/covdbg-sidebar.svg"
+                }
+            ]
+        },
+        "views": {
+            "covdbg-sidebar": [
+                {
+                    "id": "covdbg.homeView",
+                    "name": "Home",
+                    "type": "webview"
+                }
+            ]
+        },
+        "languageModelTools": [
+            {
+                "name": "getUncoveredCode_covdbg",
+                "tags": [
+                    "coverage",
+                    "testing",
+                    "code"
+                ],
+                "toolReferenceName": "getUncoveredCode_covdbg",
+                "displayName": "Get Uncovered Code",
+                "modelDescription": "Returns structured uncovered code segments for a source file from covdbg's active native .covdb coverage data, including grouped uncovered ranges, code snippets, nearby context, and file coverage summary.",
+                "userDescription": "Read uncovered code segments for a file from covdbg coverage data.",
+                "canBeReferencedInPrompt": true,
+                "icon": "$(search-fuzzy)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "filePath": {
+                            "type": "string",
+                            "description": "Optional absolute or workspace-relative source file path. If omitted, the active editor file is used."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "runTestWithCoverage_covdbg",
+                "tags": [
+                    "coverage",
+                    "testing",
+                    "runner"
+                ],
+                "toolReferenceName": "runTestWithCoverage_covdbg",
+                "displayName": "Run Test With Coverage",
+                "modelDescription": "Runs a specified test executable under covdbg coverage instrumentation, refreshes the active coverage database when the run succeeds, and returns whether coverage data was loaded.",
+                "userDescription": "Run a test executable with covdbg coverage and reload results.",
+                "canBeReferencedInPrompt": true,
+                "icon": "$(beaker-run)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "executablePath": {
+                            "type": "string",
+                            "description": "Absolute or workspace-relative path to the test executable to run with coverage."
+                        }
+                    },
+                    "required": [
+                        "executablePath"
+                    ]
+                }
+            }
+        ],
+        "menus": {
+            "view/title": [
+                {
+                    "command": "covdbg.runCoverage",
+                    "when": "view == covdbg.homeView",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "covdbg.refreshDashboard",
+                    "when": "view == covdbg.homeView",
+                    "group": "navigation@2"
+                }
+            ]
+        },
         "configuration": {
             "title": "covdbg",
             "properties": {
@@ -158,71 +275,64 @@
                     "scope": "machine",
                     "order": 4
                 },
-                "covdbg.runner.targetExecutable": {
-                    "type": "string",
-                    "default": "",
-                    "markdownDescription": "Windows C++ test executable to run under coverage (absolute or workspace-relative).",
-                    "scope": "resource",
-                    "order": 5
-                },
                 "covdbg.runner.targetArgs": {
                     "type": "array",
                     "default": [],
                     "items": {
                         "type": "string"
                     },
-                    "markdownDescription": "Arguments passed to `covdbg.runner.targetExecutable`.",
+                    "markdownDescription": "Arguments passed to the selected test executable when running coverage.",
                     "scope": "resource",
-                    "order": 6
+                    "order": 5
                 },
                 "covdbg.runner.configPath": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "Optional path to `.covdbg.yaml` (absolute or workspace-relative). If empty, covdbg config is resolved automatically near the target executable.",
+                    "markdownDescription": "Optional path to `.covdbg.yaml` (absolute or workspace-relative). If empty, covdbg config is resolved automatically near the selected executable.",
                     "scope": "resource",
-                    "order": 7
+                    "order": 6
                 },
                 "covdbg.runner.outputPath": {
                     "type": "string",
                     "default": ".covdbg/coverage.covdb",
                     "markdownDescription": "Output `.covdb` path for runs started from VS Code.",
                     "scope": "resource",
-                    "order": 8
+                    "order": 7
                 },
                 "covdbg.runner.appDataPath": {
                     "type": "string",
                     "default": ".covdbg",
                     "markdownDescription": "Path for covdbg appdata (logs, cache). Default stores logs under `.covdbg/Logs`.",
                     "scope": "resource",
-                    "order": 9
+                    "order": 8
                 },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
                     "default": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*",
                     "markdownDescription": "Glob pattern used to discover test binaries for the Testing API integration.",
                     "scope": "resource",
-                    "order": 10
+                    "order": 9
                 },
                 "covdbg.runner.licenseServerUrl": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Optional override for the covdbg license server base URL. Useful for local VS Code E2E runs against a Dockerized `covdbg-license` server.",
                     "scope": "resource",
-                    "order": 11
+                    "order": 10
                 },
                 "covdbg.runner.workingDirectory": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Working directory used for the covdbg process. Empty value uses workspace root.",
                     "scope": "resource",
-                    "order": 12
+                    "order": 11
                 },
                 "covdbg.runner.env": {
                     "type": "object",
                     "default": {},
                     "markdownDescription": "Additional environment variables passed to covdbg runs (for example `COVDBG_LICENSE`).",
                     "scope": "resource",
-                    "order": 13
+                    "order": 12
                 }
             }
         }

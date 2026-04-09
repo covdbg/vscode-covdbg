@@ -14,7 +14,6 @@ import {
     resolveRunnerPaths,
 } from "./settings";
 import {
-    ensureTargetExecutableSetting,
     resolveEffectiveConfigPath,
     resolveOrSelectTargetExecutable,
 } from "./workspaceDefaults";
@@ -25,28 +24,6 @@ export interface RunResult {
     outputPath?: string;
     targetExecutablePath?: string;
     licenseStatus?: LicenseStatusSnapshot;
-}
-
-export async function runCoverageNow(
-    context: vscode.ExtensionContext,
-    onStart?: () => void,
-    onFinish?: (success: boolean) => void,
-): Promise<RunResult> {
-    const targetSelection = await ensureTargetExecutableSetting(true);
-    if (!targetSelection) {
-        return { success: false };
-    }
-    return runCoverageInternal(
-        context,
-        {
-            targetExecutableOverride: targetSelection.targetExecutable,
-            workspaceFolderOverride: targetSelection.workspaceFolder,
-            interactiveTargetSelection: true,
-            showProgress: true,
-        },
-        onStart,
-        onFinish,
-    );
 }
 
 export async function runCoverageForTarget(
@@ -103,8 +80,6 @@ async function runCoverageInternal(
         options.workspaceFolderOverride ??
         getPreferredWorkspaceFolder(options.targetExecutableOverride);
     const settings = readRunnerSettings(workspaceFolder?.uri);
-    settings.targetExecutable =
-        options.targetExecutableOverride ?? settings.targetExecutable;
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
         vscode.window.showErrorMessage(
@@ -115,13 +90,13 @@ async function runCoverageInternal(
 
     const paths = resolveRunnerPaths(settings, workspaceRoot);
     const effectiveTargetExecutablePath = await resolveOrSelectTargetExecutable(
-        settings.targetExecutable,
+        options.targetExecutableOverride,
         workspaceRoot,
         options.interactiveTargetSelection,
     );
     if (!effectiveTargetExecutablePath) {
         vscode.window.showErrorMessage(
-            `covdbg: Target executable not found: ${paths.targetExecutablePath}`,
+            "covdbg: No runnable test executable found. Refresh test discovery or build a test binary first.",
         );
         return { success: false };
     }
@@ -169,9 +144,9 @@ async function runCoverageInternal(
     const args = buildCovdbgArguments(
         {
             ...paths,
-            targetExecutablePath: effectiveTargetExecutablePath,
             configPath: effectiveConfigPath,
         },
+        effectiveTargetExecutablePath,
         settings.targetArgs,
         licenseRunConfig.args,
     );
