@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -20,13 +20,17 @@
     },
     "categories": [
         "Testing",
-        "Visualization"
+        "Visualization",
+        "AI",
+        "Chat"
     ],
     "keywords": [
         "coverage",
         "covdbg",
         "code coverage",
-        "testing"
+        "cpp code coverage",
+        "testing",
+        "ai assisted cpp coverage"
     ],
     "activationEvents": [
         "onStartupFinished",

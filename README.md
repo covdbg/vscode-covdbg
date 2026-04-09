@@ -6,6 +6,15 @@ Run your executables with coverage, inspect covered and uncovered lines in the e
 
 [Get started with covdbg](https://covdbg.com/) | [Product docs and guides](https://covdbg.com/docs/)
 
+## AI Features
+
+covdbg can also expose native coverage data to chat-capable tooling in VS Code.
+
+- `getUncoveredCode_covdbg` returns grouped uncovered code segments for a file, including code snippets, nearby context, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
+- `runTestWithCoverage_covdbg` runs a selected executable with coverage, reloads the resulting `.covdb` into the extension when possible, and returns structured status plus guidance for the next query.
+
+These tools are designed for iterative workflows where an LLM proposes a fix, you rebuild, rerun coverage, and then query the updated uncovered regions again.
+
 ## See Coverage In VS Code
 
 <img src="https://media.githubusercontent.com/media/covdbg/vscode-covdbg/main/gif/readme-demo.gif" width=800 height=500>
@@ -72,6 +81,10 @@ Open a report with file and folder summaries, per-file statistics, and function-
 ### Testing UI integration
 
 Discover likely test binaries in your workspace and rerun them with coverage from the built-in Testing view.
+
+### AI-assisted coverage workflows
+
+Use the chat tools to ask for uncovered code in a file, apply a fix, rebuild, run the target again with coverage, and inspect the refreshed gaps without leaving VS Code.
 
 ### Sidebar home dashboard
 
