@@ -105,6 +105,10 @@ export async function showMenu(ctx: MenuContext, actions: MenuActions): Promise<
             action: 'open-tests'
         });
         items.push({
+            label: '$(new-file)  Open or Create .covdbg.yaml',
+            action: 'create-config'
+        });
+        items.push({
             label: '$(trash)  Clear Last Run Result',
             action: 'clear-last-run'
         });

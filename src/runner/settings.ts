@@ -24,9 +24,6 @@ export function readRunnerSettings(
         licenseServerUrl: config
             .get<string>("runner.licenseServerUrl", "")
             .trim(),
-        targetExecutable: config
-            .get<string>("runner.targetExecutable", "")
-            .trim(),
         targetArgs: ensureArrayOfStrings(config.get("runner.targetArgs", [])),
         configPath: config.get<string>("runner.configPath", "").trim(),
         outputPath: config
@@ -96,10 +93,6 @@ export function resolveRunnerPaths(
     settings: RunnerSettings,
     workspaceRoot: string,
 ): RunnerResolvedPaths {
-    const targetExecutablePath = resolvePathFromWorkspace(
-        settings.targetExecutable,
-        workspaceRoot,
-    );
     const outputPath = resolvePathFromWorkspace(
         settings.outputPath || ".covdbg/coverage.covdb",
         workspaceRoot,
@@ -118,7 +111,6 @@ export function resolveRunnerPaths(
 
     return {
         workspaceRoot,
-        targetExecutablePath,
         configPath,
         outputPath,
         appDataPath,

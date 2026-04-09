@@ -14,24 +14,19 @@ export interface CandidateExe {
     workspaceFolder: vscode.WorkspaceFolder;
 }
 
-export async function ensureTargetExecutableSetting(interactive: boolean): Promise<{ targetExecutable: string; workspaceFolder: vscode.WorkspaceFolder } | undefined> {
+export async function selectCoverageTargetExecutable(
+    interactive: boolean,
+    workspaceRoot?: string,
+): Promise<CandidateExe | undefined> {
     const preferredFolders = getWorkspaceFoldersInPreferenceOrder();
-    for (const folder of preferredFolders) {
-        const config = vscode.workspace.getConfiguration('covdbg', folder.uri);
-        const configured = config.get<string>('runner.targetExecutable', '').trim();
-        if (configured) {
-            return { targetExecutable: configured, workspaceFolder: folder };
-        }
-    }
-
     if (preferredFolders.length === 0) {
         return undefined;
     }
 
-    const candidates = await discoverExecutableCandidates();
+    const candidates = await discoverExecutableCandidates(workspaceRoot);
     if (candidates.length === 0) {
         if (interactive) {
-            vscode.window.showErrorMessage('covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern or set covdbg.runner.targetExecutable.');
+            vscode.window.showErrorMessage('covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern.');
         }
         return undefined;
     }
@@ -56,73 +51,26 @@ export async function ensureTargetExecutableSetting(interactive: boolean): Promi
         selected = candidates.find(c => c.absolutePath === chosen.absolutePath) ?? selected;
     }
 
-    const relative = path.relative(selected.workspaceFolder.uri.fsPath, selected.absolutePath);
-    const config = vscode.workspace.getConfiguration('covdbg', selected.workspaceFolder.uri);
-    await config.update('runner.targetExecutable', relative, vscode.ConfigurationTarget.WorkspaceFolder);
-    if (interactive) {
-        vscode.window.showInformationMessage(`covdbg: Using runner target "${relative}".`);
-    }
-    return { targetExecutable: relative, workspaceFolder: selected.workspaceFolder };
+    return selected;
 }
 
 export async function resolveOrSelectTargetExecutable(
-    configuredTarget: string,
+    requestedTarget: string | undefined,
     workspaceRoot: string,
     interactive: boolean
 ): Promise<string | undefined> {
-    const resolvedConfigured = resolvePathFromWorkspace(configuredTarget, workspaceRoot);
-    if (await isFile(resolvedConfigured)) {
-        return resolvedConfigured;
-    }
-
-    const basename = path.basename(resolvedConfigured);
-    const multiConfigCandidates = [
-        path.join(path.dirname(resolvedConfigured), 'Debug', basename),
-        path.join(path.dirname(resolvedConfigured), 'Release', basename),
-        path.join(path.dirname(resolvedConfigured), 'RelWithDebInfo', basename),
-        path.join(path.dirname(resolvedConfigured), 'MinSizeRel', basename),
-    ];
-    for (const candidate of multiConfigCandidates) {
-        if (await isFile(candidate)) {
-            await persistTargetSetting(candidate, workspaceRoot, interactive);
-            return candidate;
+    if (requestedTarget) {
+        const resolvedRequested = resolvePathFromWorkspace(requestedTarget, workspaceRoot);
+        if (await isFile(resolvedRequested)) {
+            return resolvedRequested;
+        }
+        if (!interactive) {
+            return undefined;
         }
     }
 
-    const allCandidates = await discoverExecutableCandidates(workspaceRoot);
-    const basenameMatches = allCandidates.filter(candidate =>
-        path.basename(candidate.absolutePath).toLowerCase() === basename.toLowerCase()
-    );
-    const shortlist = basenameMatches.length > 0 ? basenameMatches : allCandidates;
-    if (shortlist.length === 0) {
-        return undefined;
-    }
-
-    if (!interactive) {
-        await persistTargetSetting(shortlist[0].absolutePath, workspaceRoot, false);
-        return shortlist[0].absolutePath;
-    }
-
-    const picked = await vscode.window.showQuickPick(
-        shortlist.slice(0, 40).map(candidate => ({
-            label: candidate.label,
-            description: path.relative(workspaceRoot, candidate.absolutePath),
-            detail: candidate.absolutePath,
-            absolutePath: candidate.absolutePath,
-        })),
-        {
-            title: 'covdbg: Target executable not found',
-            placeHolder: `Configured target missing (${configuredTarget}). Select an existing executable.`,
-            matchOnDescription: true,
-            matchOnDetail: true,
-        }
-    );
-    if (!picked) {
-        return undefined;
-    }
-
-    await persistTargetSetting(picked.absolutePath, workspaceRoot, true);
-    return picked.absolutePath;
+    const picked = await selectCoverageTargetExecutable(interactive, workspaceRoot);
+    return picked?.absolutePath;
 }
 
 export async function resolveEffectiveConfigPath(
@@ -188,16 +136,6 @@ export async function listDiscoveredExecutablePaths(workspaceRoot?: string): Pro
         ? await discoverExecutableCandidates(workspaceRoot)
         : await discoverExecutableCandidates();
     return candidates.map(c => c.absolutePath);
-}
-
-async function persistTargetSetting(absolutePath: string, workspaceRoot: string, showInfo: boolean): Promise<void> {
-    const relative = path.relative(workspaceRoot, absolutePath);
-    const workspaceFolder = vscode.workspace.workspaceFolders?.find(folder => folder.uri.fsPath === workspaceRoot);
-    const config = vscode.workspace.getConfiguration('covdbg', workspaceFolder?.uri);
-    await config.update('runner.targetExecutable', relative, workspaceFolder ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace);
-    if (showInfo) {
-        vscode.window.showInformationMessage(`covdbg: Using runner target "${relative}".`);
-    }
 }
 
 function scoreExecutable(p: string): number {
