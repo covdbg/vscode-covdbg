@@ -10,10 +10,58 @@ Run your executables with coverage, inspect covered and uncovered lines in the e
 
 covdbg can also expose native coverage data to chat-capable tooling in VS Code.
 
-- `getUncoveredCode_covdbg` returns grouped uncovered code segments for a file, including code snippets, nearby context, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
-- `runTestWithCoverage_covdbg` runs a selected executable with coverage, reloads the resulting `.covdb` into the extension when possible, and returns structured status plus guidance for the next query.
+- `runTestWithCoverage_covdbg` runs one or more real test executables with coverage, produces a merged workspace result when multiple executables are used, reloads that result into the extension, and returns structured status plus next-step guidance.
+- `exploreUncoveredFiles_covdbg` lists currently uncovered files from the active workspace coverage result, sorted to help an LLM choose the next file to inspect.
+- `getUncoveredCode_covdbg` returns grouped uncovered code segments for a source file, including code snippets, nearby context, file metadata, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
 
-These tools are designed for iterative workflows where an LLM proposes a fix, you rebuild, rerun coverage, and then query the updated uncovered regions again.
+These tools are designed for iterative workflows where an LLM proposes a fix, you rebuild real test binaries, rerun coverage, and then query the updated uncovered regions again.
+
+### AI Workflow Rules
+
+- Pass real built test executable paths to `runTestWithCoverage_covdbg`. Do not invent a synthetic aggregate executable such as `all_tests` unless that executable actually exists in the workspace.
+- Do not pass `.covdb` paths back into the LLM workflow. The extension generates, merges, loads, and switches the active coverage result automatically.
+- After coverage is loaded, pass only a source file path to `getUncoveredCode_covdbg`. The extension resolves that query against the currently loaded workspace coverage result, including the merged batch result when applicable.
+
+### Example Tool Sequence
+
+Run one or more real test executables and let the extension merge coverage automatically:
+
+```json
+{
+	"tool": "runTestWithCoverage_covdbg",
+	"input": {
+		"executablePaths": [
+			"build/tests-suite1.exe",
+			"build/tests-suite2.exe"
+		]
+	}
+}
+```
+
+Ask the extension which files are still uncovered in the active merged workspace result:
+
+```json
+{
+	"tool": "exploreUncoveredFiles_covdbg",
+	"input": {
+		"limit": 10,
+		"maxCoveragePercent": 80
+	}
+}
+```
+
+Inspect a specific source file from that active workspace result:
+
+```json
+{
+	"tool": "getUncoveredCode_covdbg",
+	"input": {
+		"filePath": "src/widget.cpp"
+	}
+}
+```
+
+The intended loop is: build real test executables, run coverage, let the extension load the merged workspace result, inspect uncovered files, fix code, rebuild, and rerun coverage.
 
 ## See Coverage In VS Code
 

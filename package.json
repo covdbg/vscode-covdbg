@@ -180,6 +180,33 @@
                 }
             },
             {
+                "name": "exploreUncoveredFiles_covdbg",
+                "tags": [
+                    "coverage",
+                    "testing",
+                    "exploration"
+                ],
+                "toolReferenceName": "exploreUncoveredFiles_covdbg",
+                "displayName": "Explore Uncovered Files",
+                "modelDescription": "Returns the currently indexed source files with uncovered lines from covdbg's active native .covdb coverage data, sorted to help an LLM choose the next file to inspect or fix.",
+                "userDescription": "List uncovered files from the active covdbg coverage database.",
+                "canBeReferencedInPrompt": true,
+                "icon": "$(list-tree)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {
+                            "type": "number",
+                            "description": "Optional maximum number of uncovered files to return. Defaults to 20."
+                        },
+                        "maxCoveragePercent": {
+                            "type": "number",
+                            "description": "Optional upper coverage-percent filter. Only files at or below this percent are returned."
+                        }
+                    }
+                }
+            },
+            {
                 "name": "runTestWithCoverage_covdbg",
                 "tags": [
                     "coverage",
@@ -188,21 +215,25 @@
                 ],
                 "toolReferenceName": "runTestWithCoverage_covdbg",
                 "displayName": "Run Test With Coverage",
-                "modelDescription": "Runs a specified test executable under covdbg coverage instrumentation, refreshes the active coverage database when the run succeeds, and returns whether coverage data was loaded.",
-                "userDescription": "Run a test executable with covdbg coverage and reload results.",
+                "modelDescription": "Runs one or more specified test executables under covdbg coverage instrumentation, queues them sequentially, refreshes the active coverage database when runs succeed, and returns per-executable results.",
+                "userDescription": "Run one or more test executables with covdbg coverage and reload results.",
                 "canBeReferencedInPrompt": true,
                 "icon": "$(beaker-run)",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
+                        "executablePaths": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Absolute or workspace-relative test executable paths to run sequentially with coverage."
+                        },
                         "executablePath": {
                             "type": "string",
-                            "description": "Absolute or workspace-relative path to the test executable to run with coverage."
+                            "description": "Deprecated singular alias for one executable path. Prefer executablePaths."
                         }
-                    },
-                    "required": [
-                        "executablePath"
-                    ]
+                    }
                 }
             }
         ],

@@ -1,6 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { ensureArrayOfStrings } from "./runnerArgs";
+import { deriveCoverageBatchOutputPath } from "./outputPaths";
 import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 
 const DEFAULT_BINARY_DISCOVERY_PATTERN =
@@ -93,7 +94,7 @@ export function resolveRunnerPaths(
     settings: RunnerSettings,
     workspaceRoot: string,
 ): RunnerResolvedPaths {
-    const outputPath = resolvePathFromWorkspace(
+    const configuredOutputPath = resolvePathFromWorkspace(
         settings.outputPath || ".covdbg/coverage.covdb",
         workspaceRoot,
     );
@@ -112,7 +113,8 @@ export function resolveRunnerPaths(
     return {
         workspaceRoot,
         configPath,
-        outputPath,
+        configuredOutputPath,
+        outputPath: configuredOutputPath,
         appDataPath,
         workingDirectory,
     };

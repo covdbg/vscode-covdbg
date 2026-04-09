@@ -14,6 +14,7 @@ export interface RunnerSettings {
 export interface RunnerResolvedPaths {
     workspaceRoot: string;
     configPath?: string;
+    configuredOutputPath: string;
     outputPath: string;
     appDataPath: string;
     workingDirectory: string;

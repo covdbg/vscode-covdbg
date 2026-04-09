@@ -1,16 +1,29 @@
+import * as path from "path";
+import {
+    buildCoverageSummaryFromFileCoverage,
+    emptyCoverageSummary,
+    type CoverageSummary,
+} from "./coverageSummary";
+import {
+    buildNoCoverageLoadedGuidance,
+    buildUncoveredCodeLlmGuidance,
+} from "./toolGuidance";
 import { FileCoverage } from "./covdbParser";
 
 export type UncoveredCodeResult = {
     file: string;
-    coverage: {
-        linesTotal: number;
-        linesCovered: number;
-        linesUncovered: number;
-        coveragePercent: number;
-    };
+    fileMetadata: UncoveredCodeFileMetadata;
+    coverage: CoverageSummary;
     uncoveredSegments: UncoveredSegment[];
     llmGuidance: string[];
     truncation?: UncoveredCodeTruncation;
+};
+
+export type UncoveredCodeFileMetadata = {
+    absolutePath: string;
+    fileName: string;
+    workspaceRelativePath?: string;
+    coverageSourcePath?: string;
 };
 
 export type UncoveredSegment = {
@@ -40,17 +53,16 @@ const DEFAULT_MAX_RETURNED_SEGMENTS = 25;
 const DEFAULT_MAX_CODE_CHARS = 1200;
 const DEFAULT_MAX_CONTEXT_CHARS = 400;
 
-export function emptyUncoveredCodeResult(file: string): UncoveredCodeResult {
+export function emptyUncoveredCodeResult(
+    file: string,
+    llmGuidance = buildUncoveredCodeLlmGuidance(),
+): UncoveredCodeResult {
     return {
         file,
-        coverage: {
-            linesTotal: 0,
-            linesCovered: 0,
-            linesUncovered: 0,
-            coveragePercent: 0,
-        },
+        fileMetadata: buildFileMetadata(file),
+        coverage: emptyCoverageSummary(),
         uncoveredSegments: [],
-        llmGuidance: buildLlmGuidance(),
+        llmGuidance,
     };
 }
 
@@ -111,9 +123,13 @@ export function buildUncoveredCodeResult(
     file: string,
     documentText: string,
     coverage?: FileCoverage,
+    metadata?: Partial<UncoveredCodeFileMetadata>,
 ): UncoveredCodeResult {
     if (!coverage) {
-        return emptyUncoveredCodeResult(file);
+        return {
+            ...emptyUncoveredCodeResult(file),
+            fileMetadata: buildFileMetadata(file, undefined, metadata),
+        };
     }
 
     const documentLines = documentText.split(/\r?\n/);
@@ -133,14 +149,10 @@ export function buildUncoveredCodeResult(
 
     return {
         file,
-        coverage: {
-            linesTotal: coverage.totalLines,
-            linesCovered: coverage.coveredLines,
-            linesUncovered: Math.max(0, coverage.totalLines - coverage.coveredLines),
-            coveragePercent: roundCoveragePercent(coverage.coveragePercent),
-        },
+        fileMetadata: buildFileMetadata(file, coverage, metadata),
+        coverage: buildCoverageSummaryFromFileCoverage(coverage),
         uncoveredSegments,
-        llmGuidance: buildLlmGuidance(),
+        llmGuidance: buildUncoveredCodeLlmGuidance(),
         truncation:
             omittedSegmentCount > 0
                 ? {
@@ -149,6 +161,19 @@ export function buildUncoveredCodeResult(
                     omittedSegmentCount,
                 }
                 : undefined,
+    };
+}
+
+function buildFileMetadata(
+    file: string,
+    coverage?: FileCoverage,
+    metadata?: Partial<UncoveredCodeFileMetadata>,
+): UncoveredCodeFileMetadata {
+    return {
+        absolutePath: file,
+        fileName: path.basename(file),
+        coverageSourcePath: coverage?.sourceFile ?? file,
+        workspaceRelativePath: metadata?.workspaceRelativePath,
     };
 }
 
@@ -189,13 +214,6 @@ function buildUncoveredSegment(
         contextAfter: contextAfter.text || undefined,
         ...(truncated ? { truncated: true } : {}),
     };
-}
-
-function buildLlmGuidance(): string[] {
-    return [
-        "After making a fix and rebuilding the target binary, call the runTestWithCoverage_covdbg tool with the relevant executable path to backtest the change.",
-        "After the coverage run completes, call the getUncoveredCode_covdbg tool again for this file to inspect the updated uncovered segments.",
-    ];
 }
 
 function inferReason(
@@ -243,10 +261,6 @@ function truncateSnippet(
         text: text.slice(0, keep).trimEnd() + marker,
         truncated: true,
     };
-}
-
-function roundCoveragePercent(value: number): number {
-    return Math.round(value * 100) / 100;
 }
 
 function trimBoundaryWhitespace(lines: string[]): string[] {
