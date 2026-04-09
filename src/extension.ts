@@ -8,6 +8,11 @@ import {
     CovdbFileSummary,
     FileCoverage,
 } from "./coverage/covdbParser";
+import {
+    buildUncoveredCodeResult,
+    emptyUncoveredCodeResult,
+    UncoveredCodeResult,
+} from "./coverage/uncoveredCode";
 import { findBestCoverageKey } from "./coverage/coverageKeyMatcher";
 import { StatusBar } from "./views/statusBar";
 import { CoverageReport } from "./views/coverageReport";
@@ -32,6 +37,15 @@ import {
 import {
     getPreferredWorkspaceFolder,
 } from "./runner/settings";
+import {
+    GET_UNCOVERED_CODE_TOOL_NAME,
+    GetUncoveredCodeTool,
+} from "./tools/getUncoveredCodeTool";
+import {
+    RUN_TEST_WITH_COVERAGE_TOOL_NAME,
+    RunTestWithCoverageTool,
+    RunTestWithCoverageToolResult,
+} from "./tools/runTestWithCoverageTool";
 
 // ---------------------------------------------------------------------------
 // State
@@ -75,7 +89,15 @@ interface CoverageWorkspaceState {
     staleCoverageKeys: Set<string>;
 }
 
+interface UncoveredCodeCacheEntry {
+    covdbPath?: string;
+    covdbMtime: number;
+    documentVersion: number;
+    result: UncoveredCodeResult;
+}
+
 const coverageStates = new Map<string, CoverageWorkspaceState>();
+const uncoveredCodeCache = new Map<string, UncoveredCodeCacheEntry>();
 
 // ---------------------------------------------------------------------------
 // Activation
@@ -143,11 +165,25 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand("covdbg.runCoverage", () =>
             runCoverageCommand(context),
         ),
+        vscode.commands.registerCommand(
+            "covdbg.getUncoveredCode",
+            (filePath?: string) => getUncoveredCode(filePath),
+        ),
         vscode.commands.registerCommand("covdbg.clearLastRunResult", () =>
             clearLastRunResultCommand(),
         ),
         vscode.commands.registerCommand("covdbg.refreshTestBinaries", () =>
             refreshTestControllerItems(),
+        ),
+        vscode.lm.registerTool(
+            GET_UNCOVERED_CODE_TOOL_NAME,
+            new GetUncoveredCodeTool(getUncoveredCode),
+        ),
+        vscode.lm.registerTool(
+            RUN_TEST_WITH_COVERAGE_TOOL_NAME,
+            new RunTestWithCoverageTool((executablePath) =>
+                runTestWithCoverage(context, executablePath),
+            ),
         ),
     );
 
@@ -334,6 +370,7 @@ async function loadIndex(
             : filterToWorkspaceFiles(result.files, targetWorkspaceFolder);
         state.coverageCache.clear();
         state.staleCoverageKeys.clear();
+        uncoveredCodeCache.clear();
 
         const excluded = result.files.size - state.fileIndex.size;
         const excludedMsg =
@@ -375,6 +412,8 @@ async function checkCovdbTimestamp(): Promise<void> {
             );
         }
     }
+
+    refreshAllEditors();
 }
 
 // ---------------------------------------------------------------------------
@@ -410,7 +449,7 @@ async function getOrLoadCoverage(
     if (!key) {
         return undefined;
     }
-    if (state.staleCoverageKeys.has(key)) {
+    if (await isCoverageStaleForPath(editorPath, key, state)) {
         return undefined;
     }
 
@@ -434,6 +473,33 @@ async function getOrLoadCoverage(
         return result.coverage;
     }
     return undefined;
+}
+
+async function isCoverageStaleForPath(
+    editorPath: string,
+    key: string,
+    state: CoverageWorkspaceState,
+): Promise<boolean> {
+    if (state.staleCoverageKeys.has(key)) {
+        return true;
+    }
+
+    const openDocument = vscode.workspace.textDocuments.find(
+        (document) =>
+            document.uri.scheme === "file" &&
+            path.normalize(document.uri.fsPath).toLowerCase() ===
+                path.normalize(editorPath).toLowerCase(),
+    );
+    if (openDocument?.isDirty) {
+        return true;
+    }
+
+    if (state.activeCovdbMtime <= 0) {
+        return false;
+    }
+
+    const sourceMtime = await getMtime(editorPath);
+    return sourceMtime > 0 && sourceMtime > state.activeCovdbMtime;
 }
 
 // ---------------------------------------------------------------------------
@@ -478,6 +544,7 @@ function invalidateCoverageForDocument(document: vscode.TextDocument): void {
 
     state.coverageCache.delete(key);
     state.staleCoverageKeys.add(key);
+    uncoveredCodeCache.delete(getUncoveredCodeCacheKey(document.uri.fsPath));
 
     for (const editor of vscode.window.visibleTextEditors) {
         if (editor.document.uri.fsPath === document.uri.fsPath) {
@@ -726,6 +793,187 @@ async function showCoverageReportCommand(): Promise<void> {
         activeState?.activeCovdbPath,
         extensionUri,
     );
+}
+
+async function getUncoveredCode(
+    filePath?: string,
+): Promise<UncoveredCodeResult> {
+    const resolvedPath = resolveRequestedFilePath(filePath);
+    if (!resolvedPath) {
+        output.logError(
+            "getUncoveredCode: no file path provided and no active editor available",
+        );
+        return emptyUncoveredCodeResult(filePath ?? "");
+    }
+
+    const document = await openDocumentIfExists(resolvedPath);
+    if (!document) {
+        output.logError(`getUncoveredCode: file not found: ${resolvedPath}`);
+        return emptyUncoveredCodeResult(resolvedPath);
+    }
+
+    const state = getCoverageStateForPath(resolvedPath);
+    const cacheKey = getUncoveredCodeCacheKey(resolvedPath);
+    const cached = uncoveredCodeCache.get(cacheKey);
+    if (
+        cached &&
+        cached.covdbPath === state?.activeCovdbPath &&
+        cached.covdbMtime === (state?.activeCovdbMtime ?? 0) &&
+        cached.documentVersion === document.version
+    ) {
+        return cached.result;
+    }
+
+    const coverage = await getOrLoadCoverage(resolvedPath);
+    const result = buildUncoveredCodeResult(
+        resolvedPath,
+        document.getText(),
+        coverage,
+    );
+
+    uncoveredCodeCache.set(cacheKey, {
+        covdbPath: state?.activeCovdbPath,
+        covdbMtime: state?.activeCovdbMtime ?? 0,
+        documentVersion: document.version,
+        result,
+    });
+
+    return result;
+}
+
+async function runTestWithCoverage(
+    context: vscode.ExtensionContext,
+    executablePath: string,
+): Promise<RunTestWithCoverageToolResult> {
+    const resolvedExecutablePath = resolveWorkspaceRelativePath(executablePath);
+    if (!resolvedExecutablePath) {
+        return {
+            success: false,
+            executablePath,
+            coverageLoaded: false,
+            message: "No executable path provided.",
+            llmGuidance: buildRunCoverageLlmGuidance(),
+        };
+    }
+
+    if (!(await fileExists(resolvedExecutablePath))) {
+        return {
+            success: false,
+            executablePath: resolvedExecutablePath,
+            coverageLoaded: false,
+            message: `Executable not found: ${resolvedExecutablePath}`,
+            llmGuidance: buildRunCoverageLlmGuidance(),
+        };
+    }
+
+    statusBar.setRunning();
+    const result = await runCoverageForTarget(
+        context,
+        resolvedExecutablePath,
+        undefined,
+        (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
+    );
+
+    await handleLicenseStatusUpdate(
+        context,
+        result.licenseStatus,
+        result.success,
+    );
+
+    let coverageLoaded = false;
+    if (result.success) {
+        if (result.outputPath) {
+            lastRunOutputPath = result.outputPath;
+        }
+        if (result.outputPath && (await fileExists(result.outputPath))) {
+            await loadIndex(result.outputPath, "settings");
+            coverageLoaded = true;
+        } else {
+            await discoverAndLoadIndex(context);
+            coverageLoaded = Boolean(getActiveCoverageState()?.activeCovdbPath);
+        }
+    }
+
+    return {
+        success: result.success,
+        executablePath: resolvedExecutablePath,
+        outputPath: result.outputPath,
+        coverageLoaded,
+        message: result.success
+            ? coverageLoaded
+                ? "Coverage run completed and coverage data was loaded."
+                : "Coverage run completed, but no coverage database was loaded afterwards."
+            : "Coverage run failed.",
+        llmGuidance: buildRunCoverageLlmGuidance(),
+    };
+}
+
+function buildRunCoverageLlmGuidance(): string[] {
+    return [
+        "After a successful coverage run, call the getUncoveredCode_covdbg tool for the source file you changed to inspect the updated uncovered segments.",
+        "If you make another fix and rebuild the target binary, call runTestWithCoverage_covdbg again to backtest the new build.",
+    ];
+}
+
+async function openDocumentIfExists(
+    filePath: string,
+): Promise<vscode.TextDocument | undefined> {
+    try {
+        return await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+    } catch {
+        return undefined;
+    }
+}
+
+function resolveRequestedFilePath(filePath?: string): string | undefined {
+    const candidate =
+        filePath?.trim() || vscode.window.activeTextEditor?.document.uri.fsPath;
+    if (!candidate) {
+        return undefined;
+    }
+
+    if (path.isAbsolute(candidate)) {
+        return path.normalize(candidate);
+    }
+
+    const editorPath = vscode.window.activeTextEditor?.document.uri.fsPath;
+    const workspaceFolder = editorPath
+        ? getWorkspaceFolderForPath(editorPath)
+        : getPreferredWorkspaceFolder();
+    const basePath =
+        workspaceFolder?.uri.fsPath
+        ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    return basePath
+        ? path.normalize(path.resolve(basePath, candidate))
+        : path.normalize(path.resolve(candidate));
+}
+
+function resolveWorkspaceRelativePath(inputPath?: string): string | undefined {
+    const candidate = inputPath?.trim();
+    if (!candidate) {
+        return undefined;
+    }
+
+    if (path.isAbsolute(candidate)) {
+        return path.normalize(candidate);
+    }
+
+    const editorPath = vscode.window.activeTextEditor?.document.uri.fsPath;
+    const workspaceFolder = editorPath
+        ? getWorkspaceFolderForPath(editorPath)
+        : getPreferredWorkspaceFolder();
+    const basePath =
+        workspaceFolder?.uri.fsPath
+        ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+    return basePath
+        ? path.normalize(path.resolve(basePath, candidate))
+        : path.normalize(path.resolve(candidate));
+}
+
+function getUncoveredCodeCacheKey(filePath: string): string {
+    return path.normalize(filePath).toLowerCase();
 }
 
 function resolveWorkspacePathForFolder(
@@ -1179,6 +1427,7 @@ function clearCoverageState(
     state.fileIndex = new Map();
     state.coverageCache.clear();
     state.staleCoverageKeys.clear();
+    uncoveredCodeCache.clear();
 
     if (clearEditors) {
         for (const editor of vscode.window.visibleTextEditors) {
