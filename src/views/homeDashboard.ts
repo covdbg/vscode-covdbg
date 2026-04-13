@@ -375,13 +375,11 @@ details.workspace-card:not([open]) > summary.workspace-toggle::before {
 <body>
 <div class="view">
     <details class="section" open>
-        <summary class="section-toggle"><span class="section-label">Status</span></summary>
+        <summary class="section-toggle"><span class="section-label">Quick Actions</span></summary>
         <div class="section-body">
-            <div class="status-list">${statusHtml}</div>
+            <ul class="action-list">${actionsHtml}</ul>
         </div>
     </details>
-
-    ${workspaceHtml || '<details class="section" open><summary class="section-toggle"><span class="section-label">Workspace</span></summary><div class="section-body"><span class="workspace-detail">Open a workspace folder to see per-folder coverage status.</span></div></details>'}
 
     <details class="section"${data.setupExpanded ? " open" : ""}>
         <summary class="section-toggle"><span class="section-label">Setup</span></summary>
@@ -391,11 +389,13 @@ details.workspace-card:not([open]) > summary.workspace-toggle::before {
     </details>
 
     <details class="section" open>
-        <summary class="section-toggle"><span class="section-label">Quick Actions</span></summary>
+        <summary class="section-toggle"><span class="section-label">Status</span></summary>
         <div class="section-body">
-            <ul class="action-list">${actionsHtml}</ul>
+            <div class="status-list">${statusHtml}</div>
         </div>
     </details>
+
+    ${workspaceHtml || '<details class="section" open><summary class="section-toggle"><span class="section-label">Workspace</span></summary><div class="section-body"><span class="workspace-detail">Open a workspace folder to see per-folder coverage status.</span></div></details>'}
 
     <details class="section" open>
         <summary class="section-toggle"><span class="section-label">Logs</span></summary>

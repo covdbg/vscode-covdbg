@@ -36,6 +36,7 @@ import {
 } from "./runner/licenseStatus";
 import {
     getPreferredWorkspaceFolder,
+    resolvePathFromWorkspace,
 } from "./runner/settings";
 import {
     GET_UNCOVERED_CODE_TOOL_NAME,
@@ -77,6 +78,7 @@ let setupPromptInFlight = false;
 
 const CONFIG_PROMPT_ACK_KEY = "covdbg.createConfigPromptAcknowledged";
 const CONFIG_FILE_NAME = ".covdbg.yaml";
+const CONFIG_FILE_GLOB = `**/${CONFIG_FILE_NAME}`;
 const DISCOVERY_EXCLUDE_GLOB = "**/{.git,node_modules,.vscode,assets}/**";
 const MAX_DISCOVERED_COVDB_FILES = 50;
 
@@ -240,6 +242,22 @@ export function activate(context: vscode.ExtensionContext) {
                 await sidebar.refreshLicenseStatusFromDisk();
             }
             sidebar.scheduleRefresh();
+        }),
+    );
+
+    const configWatcher = vscode.workspace.createFileSystemWatcher(
+        CONFIG_FILE_GLOB,
+    );
+    context.subscriptions.push(
+        configWatcher,
+        configWatcher.onDidCreate((uri) => {
+            void handleCovdbgConfigFileChange(context, uri);
+        }),
+        configWatcher.onDidChange((uri) => {
+            void handleCovdbgConfigFileChange(context, uri);
+        }),
+        configWatcher.onDidDelete((uri) => {
+            void handleCovdbgConfigFileChange(context, uri, true);
         }),
     );
 
@@ -704,6 +722,108 @@ async function createConfigInWorkspace(
     sidebar.scheduleRefresh();
 }
 
+async function handleCovdbgConfigFileChange(
+    context: vscode.ExtensionContext,
+    configUri: vscode.Uri,
+    deleted = false,
+): Promise<void> {
+    if (deleted) {
+        await clearDeletedRunnerConfigPath(configUri);
+        if (!(await workspaceContainsCovdbgYaml())) {
+            await maybeOfferToCreateConfig(context, false);
+        }
+    }
+
+    sidebar.scheduleRefresh();
+}
+
+async function clearDeletedRunnerConfigPath(
+    configUri: vscode.Uri,
+): Promise<void> {
+    const workspaceFolder = getWorkspaceFolderForPath(configUri.fsPath);
+    if (!workspaceFolder) {
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration(
+        "covdbg",
+        workspaceFolder.uri,
+    );
+    const inspected = config.inspect<string>("runner.configPath");
+    if (!inspected) {
+        return;
+    }
+
+    const workspaceRoot = workspaceFolder.uri.fsPath;
+    let cleared = false;
+
+    if (
+        configuredRunnerConfigMatches(
+            inspected.workspaceFolderValue,
+            workspaceRoot,
+            configUri.fsPath,
+        )
+    ) {
+        await config.update(
+            "runner.configPath",
+            undefined,
+            vscode.ConfigurationTarget.WorkspaceFolder,
+        );
+        cleared = true;
+    }
+
+    if (
+        configuredRunnerConfigMatches(
+            inspected.workspaceValue,
+            workspaceRoot,
+            configUri.fsPath,
+        )
+    ) {
+        await config.update(
+            "runner.configPath",
+            undefined,
+            vscode.ConfigurationTarget.Workspace,
+        );
+        cleared = true;
+    }
+
+    if (
+        configuredRunnerConfigMatches(
+            inspected.globalValue,
+            workspaceRoot,
+            configUri.fsPath,
+        )
+    ) {
+        await config.update(
+            "runner.configPath",
+            undefined,
+            vscode.ConfigurationTarget.Global,
+        );
+        cleared = true;
+    }
+
+    if (cleared) {
+        output.log(
+            `covdbg: cleared stale runner.configPath after ${CONFIG_FILE_NAME} was deleted: ${configUri.fsPath}`,
+        );
+    }
+}
+
+function configuredRunnerConfigMatches(
+    configuredPath: string | undefined,
+    workspaceRoot: string,
+    targetPath: string,
+): boolean {
+    if (!configuredPath || configuredPath.trim().length === 0) {
+        return false;
+    }
+
+    return (
+        path.normalize(resolvePathFromWorkspace(configuredPath, workspaceRoot))
+            .toLowerCase() === path.normalize(targetPath).toLowerCase()
+    );
+}
+
 async function runCoverageCommand(
     context: vscode.ExtensionContext,
 ): Promise<void> {
@@ -1096,11 +1216,9 @@ async function findCovdbgConfigFiles(
     workspaceFolder?: vscode.WorkspaceFolder,
     maxResults = MAX_DISCOVERED_COVDB_FILES,
 ): Promise<vscode.Uri[]> {
-    const pattern = `**/${CONFIG_FILE_NAME}`;
-
     if (workspaceFolder) {
         return vscode.workspace.findFiles(
-            new vscode.RelativePattern(workspaceFolder, pattern),
+            new vscode.RelativePattern(workspaceFolder, CONFIG_FILE_GLOB),
             DISCOVERY_EXCLUDE_GLOB,
             maxResults,
         );
@@ -1109,7 +1227,7 @@ async function findCovdbgConfigFiles(
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
         return vscode.workspace.findFiles(
-            pattern,
+            CONFIG_FILE_GLOB,
             DISCOVERY_EXCLUDE_GLOB,
             maxResults,
         );
@@ -1118,7 +1236,7 @@ async function findCovdbgConfigFiles(
     const found: vscode.Uri[] = [];
     for (const folder of workspaceFolders) {
         const matches = await vscode.workspace.findFiles(
-            new vscode.RelativePattern(folder, pattern),
+            new vscode.RelativePattern(folder, CONFIG_FILE_GLOB),
             DISCOVERY_EXCLUDE_GLOB,
             maxResults,
         );
