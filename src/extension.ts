@@ -9,10 +9,25 @@ import {
     FileCoverage,
 } from "./coverage/covdbParser";
 import {
+    buildCoverageSummaryFromFileIndex,
+    emptyCoverageSummary,
+    type CoverageSummary,
+} from "./coverage/coverageSummary";
+import {
+    buildExploreUncoveredFilesResult,
+    ExploreUncoveredFilesInput,
+    ExploreUncoveredFilesResult,
+} from "./coverage/exploreUncoveredFiles";
+import {
     buildUncoveredCodeResult,
     emptyUncoveredCodeResult,
     UncoveredCodeResult,
 } from "./coverage/uncoveredCode";
+import {
+    buildNoActiveCoverageExploreGuidance,
+    buildNoCoverageLoadedGuidance,
+} from "./coverage/toolGuidance";
+import { runTestWithCoverageWorkflow } from "./coverage/runTestWithCoverageWorkflow";
 import { findBestCoverageKey } from "./coverage/coverageKeyMatcher";
 import { StatusBar } from "./views/statusBar";
 import { CoverageReport } from "./views/coverageReport";
@@ -27,7 +42,10 @@ import {
     CovdbgSidebarController,
     SidebarCoverageState,
 } from "./views/sidebar";
-import { runCoverageForTarget } from "./runner/runnerService";
+import {
+    mergeCoverageFiles,
+    runCoverageForTarget,
+} from "./runner/runnerService";
 import {
     listDiscoveredExecutablePaths,
 } from "./runner/workspaceDefaults";
@@ -37,16 +55,29 @@ import {
 import {
     getPreferredWorkspaceFolder,
     resolvePathFromWorkspace,
+    readRunnerSettings,
+    resolveRunnerPaths,
+    getWorkspaceRoot,
 } from "./runner/settings";
+import {
+    dedupeNormalizedPaths,
+    deriveCoverageBatchOutputPath,
+} from "./runner/outputPaths";
+import {
+    EXPLORE_UNCOVERED_FILES_TOOL_NAME,
+    ExploreUncoveredFilesTool,
+} from "./tools/exploreUncoveredFilesTool";
 import {
     GET_UNCOVERED_CODE_TOOL_NAME,
     GetUncoveredCodeTool,
 } from "./tools/getUncoveredCodeTool";
 import {
-    RUN_TEST_WITH_COVERAGE_TOOL_NAME,
     RunTestWithCoverageTool,
-    RunTestWithCoverageToolResult,
 } from "./tools/runTestWithCoverageTool";
+import {
+    RUN_TEST_WITH_COVERAGE_TOOL_NAME,
+    type RunTestWithCoverageToolResult,
+} from "./tools/runTestWithCoverageModel";
 
 // ---------------------------------------------------------------------------
 // State
@@ -72,8 +103,11 @@ let testingController: vscode.TestController | undefined;
 let testingRootItem: vscode.TestItem | undefined;
 /** Executable path lookup for file-less test items. */
 const testExecutablePaths: Map<string, string> = new Map();
+/** Watches discovered binary locations so Test Explorer updates after builds. */
+let testDiscoveryWatcherDisposable: vscode.Disposable | undefined;
+let testDiscoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 /** Track last run output for clear command. */
-let lastRunOutputPath: string | undefined;
+let lastRunOutputPaths: string[] = [];
 let setupPromptInFlight = false;
 
 const CONFIG_PROMPT_ACK_KEY = "covdbg.createConfigPromptAcknowledged";
@@ -182,9 +216,13 @@ export function activate(context: vscode.ExtensionContext) {
             new GetUncoveredCodeTool(getUncoveredCode),
         ),
         vscode.lm.registerTool(
+            EXPLORE_UNCOVERED_FILES_TOOL_NAME,
+            new ExploreUncoveredFilesTool(exploreUncoveredFiles),
+        ),
+        vscode.lm.registerTool(
             RUN_TEST_WITH_COVERAGE_TOOL_NAME,
-            new RunTestWithCoverageTool((executablePath) =>
-                runTestWithCoverage(context, executablePath),
+            new RunTestWithCoverageTool((executablePaths) =>
+                runTestWithCoverage(context, executablePaths),
             ),
         ),
     );
@@ -227,6 +265,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (
                 e.affectsConfiguration("covdbg.runner.binaryDiscoveryPattern")
             ) {
+                resetTestDiscoveryWatchers();
                 await refreshTestControllerItems();
             }
             if (
@@ -241,6 +280,12 @@ export function activate(context: vscode.ExtensionContext) {
             ) {
                 await sidebar.refreshLicenseStatusFromDisk();
             }
+            sidebar.scheduleRefresh();
+        }),
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            resetTestDiscoveryWatchers();
+            void refreshTestControllerItems();
+            void discoverAndLoadIndex(context);
             sidebar.scheduleRefresh();
         }),
     );
@@ -261,6 +306,8 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
+    resetTestDiscoveryWatchers();
+
     // Ensure poll timer is cleaned up on extension dispose
     context.subscriptions.push({
         dispose: () => {
@@ -268,6 +315,12 @@ export function activate(context: vscode.ExtensionContext) {
                 clearInterval(pollTimer);
                 pollTimer = undefined;
             }
+            if (testDiscoveryRefreshTimer) {
+                clearTimeout(testDiscoveryRefreshTimer);
+                testDiscoveryRefreshTimer = undefined;
+            }
+            testDiscoveryWatcherDisposable?.dispose();
+            testDiscoveryWatcherDisposable = undefined;
         },
     });
 
@@ -506,7 +559,7 @@ async function isCoverageStaleForPath(
         (document) =>
             document.uri.scheme === "file" &&
             path.normalize(document.uri.fsPath).toLowerCase() ===
-                path.normalize(editorPath).toLowerCase(),
+            path.normalize(editorPath).toLowerCase(),
     );
     if (openDocument?.isDirty) {
         return true;
@@ -873,36 +926,53 @@ async function handleLicenseStatusUpdate(
     if (!runSucceeded && licenseStatus.status === "trial-used") {
         void vscode.window.showWarningMessage(
             licenseStatus.message ||
-                "covdbg: The 30-day demo has already been used on this machine.",
+            "covdbg: The 30-day demo has already been used on this machine.",
         );
     }
 }
 
 async function clearLastRunResultCommand(): Promise<void> {
-    const toDelete = lastRunOutputPath;
+    const toDelete = [...lastRunOutputPaths];
     closeCovdb();
     statusBar.clearLastRunResult();
 
-    if (toDelete && (await fileExists(toDelete))) {
-        try {
-            await fs.unlink(toDelete);
-            output.log(`Cleared last run result: ${toDelete}`);
+    if (toDelete.length > 0) {
+        let deletedCount = 0;
+        for (const outputPath of toDelete) {
+            if (!(await fileExists(outputPath))) {
+                continue;
+            }
+
+            try {
+                await fs.unlink(outputPath);
+                deletedCount++;
+                output.log(`Cleared last run result: ${outputPath}`);
+            } catch (error) {
+                const message =
+                    error instanceof Error ? error.message : String(error);
+                output.logError(`Failed to clear last run result: ${message}`);
+                vscode.window.showWarningMessage(
+                    `covdbg: Failed to delete last .covdb: ${message}`,
+                );
+                break;
+            }
+        }
+
+        if (deletedCount > 0) {
             vscode.window.showInformationMessage(
                 "covdbg: Last run result cleared.",
             );
-        } catch (error) {
-            const message =
-                error instanceof Error ? error.message : String(error);
-            output.logError(`Failed to clear last run result: ${message}`);
-            vscode.window.showWarningMessage(
-                `covdbg: Failed to delete last .covdb: ${message}`,
+        } else {
+            output.log("Cleared UI state for last run result.");
+            vscode.window.showInformationMessage(
+                "covdbg: Cleared last run state.",
             );
         }
     } else {
         output.log("Cleared UI state for last run result.");
         vscode.window.showInformationMessage("covdbg: Cleared last run state.");
     }
-    lastRunOutputPath = undefined;
+    lastRunOutputPaths = [];
     sidebar.scheduleRefresh();
 }
 
@@ -932,6 +1002,13 @@ async function getUncoveredCode(
         return emptyUncoveredCodeResult(resolvedPath);
     }
 
+    if (!getActiveCoverageState()?.activeCovdbPath) {
+        return emptyUncoveredCodeResult(
+            resolvedPath,
+            buildNoCoverageLoadedGuidance(),
+        );
+    }
+
     const state = getCoverageStateForPath(resolvedPath);
     const cacheKey = getUncoveredCodeCacheKey(resolvedPath);
     const cached = uncoveredCodeCache.get(cacheKey);
@@ -949,6 +1026,12 @@ async function getUncoveredCode(
         resolvedPath,
         document.getText(),
         coverage,
+        {
+            workspaceRelativePath: vscode.workspace.asRelativePath(
+                resolvedPath,
+                false,
+            ),
+        },
     );
 
     uncoveredCodeCache.set(cacheKey, {
@@ -961,35 +1044,80 @@ async function getUncoveredCode(
     return result;
 }
 
+async function exploreUncoveredFiles(
+    input: ExploreUncoveredFilesInput,
+): Promise<ExploreUncoveredFilesResult> {
+    const activeState = getActiveCoverageState();
+    if (!activeState?.activeCovdbPath || activeState.fileIndex.size === 0) {
+        return {
+            activeCovdbPath: activeState?.activeCovdbPath,
+            coverageSummary: emptyCoverageSummary(
+                activeState?.fileIndex.size ?? 0,
+            ),
+            totalIndexedFiles: activeState?.fileIndex.size ?? 0,
+            returnedFileCount: 0,
+            files: [],
+            llmGuidance: buildNoActiveCoverageExploreGuidance(),
+            message: "No active coverage database is loaded.",
+        };
+    }
+
+    return buildExploreUncoveredFilesResult(activeState.fileIndex, {
+        ...input,
+        activeCovdbPath: activeState.activeCovdbPath,
+        workspaceRelativePathForFile: (candidatePath) =>
+            vscode.workspace.asRelativePath(candidatePath, false),
+    });
+}
+
 async function runTestWithCoverage(
     context: vscode.ExtensionContext,
-    executablePath: string,
+    executablePaths: string[],
 ): Promise<RunTestWithCoverageToolResult> {
-    const resolvedExecutablePath = resolveWorkspaceRelativePath(executablePath);
-    if (!resolvedExecutablePath) {
-        return {
-            success: false,
-            executablePath,
-            coverageLoaded: false,
-            message: "No executable path provided.",
-            llmGuidance: buildRunCoverageLlmGuidance(),
-        };
-    }
+    const workflow = await runTestWithCoverageWorkflow(executablePaths, {
+        resolveExecutablePath: (inputPath) =>
+            resolveWorkspaceRelativePath(inputPath),
+        fileExists,
+        buildBatchIntermediateOutputPath,
+        executeCoverageRun: (resolvedExecutablePath, outputPathOverride) =>
+            executeCoverageRun(
+                context,
+                resolvedExecutablePath,
+                outputPathOverride,
+            ),
+        finalizeBatchCoverageOutputs: (
+            successfulOutputPaths,
+            generatedOutputPaths,
+        ) =>
+            finalizeBatchCoverageOutputs(
+                context,
+                successfulOutputPaths,
+                generatedOutputPaths,
+            ),
+        dedupePaths: dedupeNormalizedPaths,
+    });
 
-    if (!(await fileExists(resolvedExecutablePath))) {
-        return {
-            success: false,
-            executablePath: resolvedExecutablePath,
-            coverageLoaded: false,
-            message: `Executable not found: ${resolvedExecutablePath}`,
-            llmGuidance: buildRunCoverageLlmGuidance(),
-        };
-    }
+    lastRunOutputPaths = workflow.lastRunOutputPaths;
+    return workflow.toolResult;
+}
 
+async function executeCoverageRun(
+    context: vscode.ExtensionContext,
+    targetExecutablePath: string,
+    outputPathOverride?: string,
+): Promise<{
+    success: boolean;
+    outputPath?: string;
+    configuredOutputPath?: string;
+    coverageLoaded: boolean;
+    coverageSummary?: CoverageSummary;
+    licenseStatus?: LicenseStatusSnapshot;
+}> {
     statusBar.setRunning();
     const result = await runCoverageForTarget(
         context,
-        resolvedExecutablePath,
+        targetExecutablePath,
+        outputPathOverride,
         undefined,
         (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
     );
@@ -1001,38 +1129,184 @@ async function runTestWithCoverage(
     );
 
     let coverageLoaded = false;
+    let coverageSummary: CoverageSummary | undefined;
     if (result.success) {
-        if (result.outputPath) {
-            lastRunOutputPath = result.outputPath;
-        }
         if (result.outputPath && (await fileExists(result.outputPath))) {
             await loadIndex(result.outputPath, "settings");
             coverageLoaded = true;
         } else {
             await discoverAndLoadIndex(context);
-            coverageLoaded = Boolean(getActiveCoverageState()?.activeCovdbPath);
+            coverageLoaded = Boolean(
+                getCoverageStateForPath(targetExecutablePath)?.activeCovdbPath ??
+                getActiveCoverageState()?.activeCovdbPath,
+            );
         }
+
+        coverageSummary = getCoverageSummaryForExecutable(targetExecutablePath);
     }
 
     return {
         success: result.success,
-        executablePath: resolvedExecutablePath,
         outputPath: result.outputPath,
+        configuredOutputPath: result.configuredOutputPath,
         coverageLoaded,
-        message: result.success
-            ? coverageLoaded
-                ? "Coverage run completed and coverage data was loaded."
-                : "Coverage run completed, but no coverage database was loaded afterwards."
-            : "Coverage run failed.",
-        llmGuidance: buildRunCoverageLlmGuidance(),
+        coverageSummary,
+        licenseStatus: result.licenseStatus,
     };
 }
 
-function buildRunCoverageLlmGuidance(): string[] {
-    return [
-        "After a successful coverage run, call the getUncoveredCode_covdbg tool for the source file you changed to inspect the updated uncovered segments.",
-        "If you make another fix and rebuild the target binary, call runTestWithCoverage_covdbg again to backtest the new build.",
-    ];
+function getCoverageSummaryForExecutable(
+    targetExecutablePath: string,
+): CoverageSummary | undefined {
+    const state = getCoverageStateForPath(targetExecutablePath)
+        ?? getActiveCoverageState();
+    if (!state?.activeCovdbPath || state.fileIndex.size === 0) {
+        return undefined;
+    }
+
+    return buildCoverageSummaryFromFileIndex(state.fileIndex);
+}
+
+async function finalizeBatchCoverageOutputs(
+    context: vscode.ExtensionContext,
+    successfulOutputPaths: string[],
+    generatedOutputPaths: string[],
+): Promise<{
+    coverageLoaded: boolean;
+    finalizedOutputPath?: string;
+    mergePerformed: boolean;
+    mergedInputCount: number;
+    coverageSummary?: CoverageSummary;
+    lastRunOutputPaths: string[];
+}> {
+    lastRunOutputPaths = dedupeNormalizedPaths(generatedOutputPaths);
+
+    if (successfulOutputPaths.length === 0) {
+        return {
+            coverageLoaded: false,
+            finalizedOutputPath: undefined,
+            mergePerformed: false,
+            mergedInputCount: 0,
+            lastRunOutputPaths,
+        };
+    }
+
+    const canonicalOutputPath = getCanonicalCoverageOutputPath(
+        successfulOutputPaths[0],
+    );
+    if (!canonicalOutputPath) {
+        return {
+            coverageLoaded: Boolean(getActiveCoverageState()?.activeCovdbPath),
+            finalizedOutputPath: undefined,
+            mergePerformed: successfulOutputPaths.length > 1,
+            mergedInputCount: successfulOutputPaths.length,
+            coverageSummary: getCoverageSummaryForPath(
+                successfulOutputPaths[successfulOutputPaths.length - 1],
+            ),
+            lastRunOutputPaths,
+        };
+    }
+
+    const finalized =
+        successfulOutputPaths.length === 1
+            ? await copyCoverageFile(successfulOutputPaths[0], canonicalOutputPath)
+            : await mergeCoverageFiles(
+                context,
+                successfulOutputPaths,
+                canonicalOutputPath,
+                getWorkspaceFolderForPath(canonicalOutputPath),
+            );
+
+    if (!finalized || !(await fileExists(canonicalOutputPath))) {
+        statusBar.setRunFailed();
+        return {
+            coverageLoaded: Boolean(getActiveCoverageState()?.activeCovdbPath),
+            finalizedOutputPath: canonicalOutputPath,
+            mergePerformed: successfulOutputPaths.length > 1,
+            mergedInputCount: successfulOutputPaths.length,
+            coverageSummary: getCoverageSummaryForPath(
+                successfulOutputPaths[successfulOutputPaths.length - 1],
+            ),
+            lastRunOutputPaths,
+        };
+    }
+
+    lastRunOutputPaths = dedupeNormalizedPaths([
+        ...generatedOutputPaths,
+        canonicalOutputPath,
+    ]);
+    await loadIndex(canonicalOutputPath, "settings");
+    statusBar.setRunSucceeded();
+
+    return {
+        coverageLoaded: true,
+        finalizedOutputPath: canonicalOutputPath,
+        mergePerformed: successfulOutputPaths.length > 1,
+        mergedInputCount: successfulOutputPaths.length,
+        coverageSummary: getCoverageSummaryForPath(canonicalOutputPath),
+        lastRunOutputPaths,
+    };
+}
+
+function buildBatchIntermediateOutputPath(
+    targetExecutablePath: string,
+): string | undefined {
+    const workspaceFolder = getPreferredWorkspaceFolder(targetExecutablePath);
+    const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
+    if (!workspaceRoot) {
+        return undefined;
+    }
+
+    const settings = readRunnerSettings(workspaceFolder?.uri);
+    const paths = resolveRunnerPaths(settings, workspaceRoot);
+    return deriveCoverageBatchOutputPath(
+        paths.configuredOutputPath,
+        targetExecutablePath,
+    );
+}
+
+function getCanonicalCoverageOutputPath(
+    targetPathForWorkspace: string,
+): string | undefined {
+    const workspaceFolder = getPreferredWorkspaceFolder(targetPathForWorkspace);
+    const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
+    if (!workspaceRoot) {
+        return undefined;
+    }
+
+    const settings = readRunnerSettings(workspaceFolder?.uri);
+    return resolveRunnerPaths(settings, workspaceRoot).configuredOutputPath;
+}
+
+async function copyCoverageFile(
+    sourcePath: string,
+    targetPath: string,
+): Promise<boolean> {
+    try {
+        if (
+            path.normalize(sourcePath).toLowerCase() ===
+            path.normalize(targetPath).toLowerCase()
+        ) {
+            return true;
+        }
+        await fs.mkdir(path.dirname(targetPath), { recursive: true });
+        await fs.copyFile(sourcePath, targetPath);
+        output.log(`Copied coverage output to ${targetPath}`);
+        return true;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        output.logError(`Failed to copy coverage output: ${message}`);
+        return false;
+    }
+}
+
+function getCoverageSummaryForPath(filePath: string): CoverageSummary | undefined {
+    const state = getCoverageStateForPath(filePath) ?? getActiveCoverageState();
+    if (!state?.activeCovdbPath || state.fileIndex.size === 0) {
+        return undefined;
+    }
+
+    return buildCoverageSummaryFromFileIndex(state.fileIndex);
 }
 
 async function openDocumentIfExists(
@@ -1338,10 +1612,8 @@ function buildStarterConfigContents(): string {
         "      # not discovered via linked debug info (PDB). If they are never executed, they",
         "      # will appear as 0% coverage (LCOV-like behavior).",
         "      include:",
-        "        - \"src/**/*.cpp\"",
-        "        - \"src/**/*.h\"",
-        "        - \"tests/cpp/**/*.h\"",
-        "        - \"tests/cpp/**/*.cpp\"",
+        "        - \"**/*.cpp\"",
+        "        - \"**/*.h\"",
         "",
         "      # Exclude specific files or directories from the report.",
         "      # Exclude rules always take precedence over include rules.",
@@ -1643,6 +1915,54 @@ function initializeTestingController(context: vscode.ExtensionContext): void {
     void refreshTestControllerItems();
 }
 
+function scheduleRefreshTestControllerItems(delayMs = 250): void {
+    if (testDiscoveryRefreshTimer) {
+        clearTimeout(testDiscoveryRefreshTimer);
+    }
+
+    testDiscoveryRefreshTimer = setTimeout(() => {
+        testDiscoveryRefreshTimer = undefined;
+        void refreshTestControllerItems();
+    }, delayMs);
+}
+
+function resetTestDiscoveryWatchers(): void {
+    testDiscoveryWatcherDisposable?.dispose();
+
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    if (workspaceFolders.length === 0) {
+        testDiscoveryWatcherDisposable = undefined;
+        return;
+    }
+
+    const disposables: vscode.Disposable[] = [];
+
+    for (const folder of workspaceFolders) {
+        const pattern = readRunnerSettings(folder.uri).binaryDiscoveryPattern.trim();
+        if (!pattern) {
+            continue;
+        }
+
+        const watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, pattern),
+        );
+        const triggerRefresh = () => scheduleRefreshTestControllerItems();
+
+        disposables.push(
+            watcher,
+            watcher.onDidCreate(triggerRefresh),
+            watcher.onDidChange(triggerRefresh),
+            watcher.onDidDelete(triggerRefresh),
+        );
+    }
+
+    testDiscoveryWatcherDisposable = new vscode.Disposable(() => {
+        for (const disposable of disposables) {
+            disposable.dispose();
+        }
+    });
+}
+
 async function refreshTestControllerItems(): Promise<void> {
     if (!testingController || !testingRootItem) {
         return;
@@ -1696,6 +2016,10 @@ async function runCoverageFromTestRequest(
         return;
     }
 
+    const successfulOutputPaths: string[] = [];
+    const generatedOutputPaths: string[] = [];
+    const batchMode = targets.length > 1;
+
     for (const item of targets) {
         if (token.isCancellationRequested) {
             run.skipped(item);
@@ -1712,31 +2036,34 @@ async function runCoverageFromTestRequest(
             statusBar.setRunFailed();
             continue;
         }
-        const result = await runCoverageForTarget(
+        const execution = await executeCoverageRun(
             context,
             targetExecutablePath,
-            undefined,
-            (ok) =>
-                ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed(),
+            batchMode
+                ? buildBatchIntermediateOutputPath(targetExecutablePath)
+                : undefined,
         );
-        await handleLicenseStatusUpdate(
-            context,
-            result.licenseStatus,
-            result.success,
-        );
-        if (result.success) {
-            if (result.outputPath) {
-                lastRunOutputPath = result.outputPath;
+        if (execution.outputPath) {
+            generatedOutputPaths.push(execution.outputPath);
+        }
+        if (execution.success) {
+            if (execution.outputPath) {
+                successfulOutputPaths.push(execution.outputPath);
             }
             run.passed(item);
-            if (result.outputPath && (await fileExists(result.outputPath))) {
-                await loadIndex(result.outputPath, "settings");
-            } else {
-                await discoverAndLoadIndex();
-            }
         } else {
             run.failed(item, new vscode.TestMessage("Coverage run failed"));
         }
+    }
+
+    if (batchMode) {
+        await finalizeBatchCoverageOutputs(
+            context,
+            successfulOutputPaths,
+            generatedOutputPaths,
+        );
+    } else {
+        lastRunOutputPaths = dedupeNormalizedPaths(generatedOutputPaths);
     }
     run.end();
 }

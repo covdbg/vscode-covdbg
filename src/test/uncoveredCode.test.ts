@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FileCoverage } from "../coverage/covdbParser";
+import { buildNoCoverageLoadedGuidance } from "../coverage/toolGuidance";
 import {
     buildUncoveredCodeResult,
+    emptyUncoveredCodeResult,
     groupLineNumbersIntoRanges,
 } from "../coverage/uncoveredCode";
 
@@ -53,6 +55,12 @@ test("buildUncoveredCodeResult returns grouped uncovered segments with context",
     assert.equal(result.coverage.linesCovered, 2);
     assert.equal(result.coverage.linesUncovered, 3);
     assert.equal(result.coverage.coveragePercent, 40.13);
+    assert.deepEqual(result.fileMetadata, {
+        absolutePath: "D:\\Code\\covdbg\\vscode-covdbg\\src\\sample.cpp",
+        fileName: "sample.cpp",
+        coverageSourcePath: "D:\\Code\\covdbg\\vscode-covdbg\\src\\sample.cpp",
+        workspaceRelativePath: undefined,
+    });
     assert.equal(result.uncoveredSegments.length, 2);
     assert.equal(result.llmGuidance.length, 2);
     assert.equal(result.truncation, undefined);
@@ -110,4 +118,44 @@ test("buildUncoveredCodeResult truncates oversized snippets and reports omitted 
     assert.equal(result.truncation?.omittedSegmentCount, 5);
     assert.match(result.uncoveredSegments[0].code, /\[truncated\]/);
     assert.equal(result.uncoveredSegments[0].truncated, true);
+});
+
+test("buildUncoveredCodeResult carries workspace-relative file metadata", () => {
+    const coverage: FileCoverage = {
+        sourceFile: "D:\\repo\\src\\widget.cpp",
+        lines: new Map([
+            [7, { lineNumber: 7, executionCount: 0, isCovered: false }],
+        ]),
+        totalLines: 1,
+        coveredLines: 0,
+        coveragePercent: 0,
+    };
+
+    const result = buildUncoveredCodeResult(
+        "D:\\repo\\src\\widget.cpp",
+        "return buildWidget();",
+        coverage,
+        { workspaceRelativePath: "src/widget.cpp" },
+    );
+
+    assert.equal(result.fileMetadata.workspaceRelativePath, "src/widget.cpp");
+    assert.equal(result.fileMetadata.fileName, "widget.cpp");
+    assert.equal(
+        result.fileMetadata.coverageSourcePath,
+        "D:\\repo\\src\\widget.cpp",
+    );
+});
+
+test("emptyUncoveredCodeResult can return no-database guidance", () => {
+    const result = emptyUncoveredCodeResult(
+        "D:\\repo\\src\\widget.cpp",
+        buildNoCoverageLoadedGuidance(),
+    );
+
+    assert.equal(result.uncoveredSegments.length, 0);
+    assert.equal(result.coverage.linesTotal, 0);
+    assert.deepEqual(result.llmGuidance, [
+        "No coverage database is loaded yet. Build the real test executable or executables you want to validate, then call runTestWithCoverage_covdbg with those executable paths. Do not invent an aggregate executable name such as all_tests.",
+        "The extension will generate and load the workspace coverage result automatically, including the merged batch result when multiple executables are run. After that, call exploreUncoveredFiles_covdbg to choose a file, then call getUncoveredCode_covdbg with only that file path.",
+    ]);
 });
