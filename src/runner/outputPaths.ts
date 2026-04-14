@@ -4,10 +4,16 @@ export function deriveCoverageBatchOutputPath(
     configuredOutputPath: string,
     targetExecutablePath: string,
 ): string {
-    const parsedOutputPath = path.parse(path.normalize(configuredOutputPath));
-    const parsedTargetPath = path.parse(path.normalize(targetExecutablePath));
+    const outputPathLib = getPathLibrary(configuredOutputPath);
+    const targetPathLib = getPathLibrary(targetExecutablePath);
+    const parsedOutputPath = outputPathLib.parse(
+        outputPathLib.normalize(configuredOutputPath),
+    );
+    const parsedTargetPath = targetPathLib.parse(
+        targetPathLib.normalize(targetExecutablePath),
+    );
     const targetBaseName = sanitizeOutputSegment(parsedTargetPath.name) || "coverage";
-    return path.join(parsedOutputPath.dir, `${targetBaseName}.covdb`);
+    return outputPathLib.join(parsedOutputPath.dir, `${targetBaseName}.covdb`);
 }
 
 export function dedupeNormalizedPaths(paths: string[]): string[] {
@@ -32,4 +38,10 @@ function sanitizeOutputSegment(value: string): string {
         .replace(/\s+/g, "-")
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "");
+}
+
+function getPathLibrary(filePath: string): typeof path.posix | typeof path.win32 {
+    return /^[a-zA-Z]:[\\/]|^\\\\/.test(filePath) || filePath.includes("\\")
+        ? path.win32
+        : path.posix;
 }
