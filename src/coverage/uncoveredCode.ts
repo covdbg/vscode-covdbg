@@ -171,10 +171,15 @@ function buildFileMetadata(
 ): UncoveredCodeFileMetadata {
     return {
         absolutePath: file,
-        fileName: path.basename(file),
+        fileName: getPathFileName(file),
         coverageSourcePath: coverage?.sourceFile ?? file,
         workspaceRelativePath: metadata?.workspaceRelativePath,
     };
+}
+
+function getPathFileName(filePath: string): string {
+    const normalizedPath = filePath.replace(/\\/g, "/");
+    return path.posix.basename(normalizedPath);
 }
 
 function buildUncoveredSegment(
@@ -183,17 +188,17 @@ function buildUncoveredSegment(
 ): UncoveredSegment {
     const contextBefore = truncateSnippet(
         sliceLines(
-        documentLines,
-        Math.max(1, range.startLine - DEFAULT_CONTEXT_LINE_COUNT),
-        range.startLine - 1,
+            documentLines,
+            Math.max(1, range.startLine - DEFAULT_CONTEXT_LINE_COUNT),
+            range.startLine - 1,
         ),
         DEFAULT_MAX_CONTEXT_CHARS,
     );
     const contextAfter = truncateSnippet(
         sliceLines(
-        documentLines,
-        range.endLine + 1,
-        Math.min(documentLines.length, range.endLine + DEFAULT_CONTEXT_LINE_COUNT),
+            documentLines,
+            range.endLine + 1,
+            Math.min(documentLines.length, range.endLine + DEFAULT_CONTEXT_LINE_COUNT),
         ),
         DEFAULT_MAX_CONTEXT_CHARS,
     );
