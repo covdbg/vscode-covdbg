@@ -103,6 +103,9 @@ let testingController: vscode.TestController | undefined;
 let testingRootItem: vscode.TestItem | undefined;
 /** Executable path lookup for file-less test items. */
 const testExecutablePaths: Map<string, string> = new Map();
+/** Watches discovered binary locations so Test Explorer updates after builds. */
+let testDiscoveryWatcherDisposable: vscode.Disposable | undefined;
+let testDiscoveryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 /** Track last run output for clear command. */
 let lastRunOutputPaths: string[] = [];
 let setupPromptInFlight = false;
@@ -262,6 +265,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (
                 e.affectsConfiguration("covdbg.runner.binaryDiscoveryPattern")
             ) {
+                resetTestDiscoveryWatchers();
                 await refreshTestControllerItems();
             }
             if (
@@ -276,6 +280,12 @@ export function activate(context: vscode.ExtensionContext) {
             ) {
                 await sidebar.refreshLicenseStatusFromDisk();
             }
+            sidebar.scheduleRefresh();
+        }),
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            resetTestDiscoveryWatchers();
+            void refreshTestControllerItems();
+            void discoverAndLoadIndex(context);
             sidebar.scheduleRefresh();
         }),
     );
@@ -296,6 +306,8 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
+    resetTestDiscoveryWatchers();
+
     // Ensure poll timer is cleaned up on extension dispose
     context.subscriptions.push({
         dispose: () => {
@@ -303,6 +315,12 @@ export function activate(context: vscode.ExtensionContext) {
                 clearInterval(pollTimer);
                 pollTimer = undefined;
             }
+            if (testDiscoveryRefreshTimer) {
+                clearTimeout(testDiscoveryRefreshTimer);
+                testDiscoveryRefreshTimer = undefined;
+            }
+            testDiscoveryWatcherDisposable?.dispose();
+            testDiscoveryWatcherDisposable = undefined;
         },
     });
 
@@ -1594,10 +1612,8 @@ function buildStarterConfigContents(): string {
         "      # not discovered via linked debug info (PDB). If they are never executed, they",
         "      # will appear as 0% coverage (LCOV-like behavior).",
         "      include:",
-        "        - \"src/**/*.cpp\"",
-        "        - \"src/**/*.h\"",
-        "        - \"tests/cpp/**/*.h\"",
-        "        - \"tests/cpp/**/*.cpp\"",
+        "        - \"**/*.cpp\"",
+        "        - \"**/*.h\"",
         "",
         "      # Exclude specific files or directories from the report.",
         "      # Exclude rules always take precedence over include rules.",
@@ -1897,6 +1913,54 @@ function initializeTestingController(context: vscode.ExtensionContext): void {
     );
 
     void refreshTestControllerItems();
+}
+
+function scheduleRefreshTestControllerItems(delayMs = 250): void {
+    if (testDiscoveryRefreshTimer) {
+        clearTimeout(testDiscoveryRefreshTimer);
+    }
+
+    testDiscoveryRefreshTimer = setTimeout(() => {
+        testDiscoveryRefreshTimer = undefined;
+        void refreshTestControllerItems();
+    }, delayMs);
+}
+
+function resetTestDiscoveryWatchers(): void {
+    testDiscoveryWatcherDisposable?.dispose();
+
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    if (workspaceFolders.length === 0) {
+        testDiscoveryWatcherDisposable = undefined;
+        return;
+    }
+
+    const disposables: vscode.Disposable[] = [];
+
+    for (const folder of workspaceFolders) {
+        const pattern = readRunnerSettings(folder.uri).binaryDiscoveryPattern.trim();
+        if (!pattern) {
+            continue;
+        }
+
+        const watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, pattern),
+        );
+        const triggerRefresh = () => scheduleRefreshTestControllerItems();
+
+        disposables.push(
+            watcher,
+            watcher.onDidCreate(triggerRefresh),
+            watcher.onDidChange(triggerRefresh),
+            watcher.onDidDelete(triggerRefresh),
+        );
+    }
+
+    testDiscoveryWatcherDisposable = new vscode.Disposable(() => {
+        for (const disposable of disposables) {
+            disposable.dispose();
+        }
+    });
 }
 
 async function refreshTestControllerItems(): Promise<void> {

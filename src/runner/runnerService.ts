@@ -6,6 +6,10 @@ import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
 import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
 import { resolveCovdbgExecutable } from "./executableResolver";
+import {
+    COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK,
+    getCovdbgRunFailureMessage,
+} from "./exitCodes";
 import type { RunnerSettings } from "./runnerTypes";
 import {
     getPreferredWorkspaceFolder,
@@ -186,7 +190,13 @@ async function runCoverageInternal(
             child.on("close", (code) => {
                 const ok = code === 0;
                 if (!ok) {
-                    output.logError(`covdbg exited with code ${code}`);
+                    const failureMessage = getCovdbgRunFailureMessage(code);
+                    output.logError(failureMessage);
+                    if (code === COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK) {
+                        void vscode.window.showWarningMessage(
+                            `covdbg: ${failureMessage}`,
+                        );
+                    }
                 } else {
                     output.log(
                         `Coverage run finished. Output: ${outputPath}`,

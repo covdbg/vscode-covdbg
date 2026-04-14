@@ -80,9 +80,8 @@ coverage:
 	default:
 		files:
 			include:
-				- "src/**/*.cpp"
-				- "src/**/*.h"
-				- "tests/**/*.cpp"
+				- "**/*.cpp"
+				- "**/*.h"
 			exclude:
 				- "tests/helpers/**"
 				- "third_party/**"

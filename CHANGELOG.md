@@ -10,7 +10,24 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 
-- Ongoing work after `0.5.0` will be tracked here until the next tagged release.
+
+## [0.6.0] - 2026-04-14
+
+### Added
+
+- AI/chat tool integration for `exploreUncoveredFiles_covdbg`, exposing the active workspace coverage summary and the highest-priority uncovered files without requiring a `.covdb` path.
+- Batched coverage runs for `runTestWithCoverage_covdbg`, allowing multiple real test executables to be run in one workflow and merged into a single active workspace coverage result.
+- Richer uncovered-code payload metadata, including file identity details and reusable coverage summaries for downstream chat workflows.
+
+### Changed
+
+- Tool guidance for coverage exploration and reruns now assumes the extension-managed active workspace coverage result instead of asking chat clients to thread `.covdb` paths through each step.
+- Sidebar onboarding now refreshes immediately when `.covdbg.yaml` files are created, updated, or deleted, and surfaces an explicit runtime-checking state while the active workspace is still being resolved.
+
+### Fixed
+
+- Deleting a `.covdbg.yaml` file now clears matching stale `covdbg.runner.configPath` settings automatically.
+- Sidebar quick actions no longer appear blocked while covdbg runtime detection is still in progress.
 
 ## [0.5.0] - 2026-04-09
 
