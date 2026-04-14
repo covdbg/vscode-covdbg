@@ -30,6 +30,7 @@ export interface SidebarCoverageState {
 }
 
 interface RuntimeSummary {
+    checked: boolean;
     source?: "setting" | "bundled" | "path" | "install" | "cache";
     path?: string;
     version?: string;
@@ -71,7 +72,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
     private readonly homeDashboard = new CovdbgHomeDashboardView();
     private lastLicenseStatus: LicenseStatusSnapshot | undefined;
     private lastDiscoveredTestCount = 0;
-    private lastRuntimeSummary: RuntimeSummary | undefined;
+    private lastRuntimeSummary: RuntimeSummary = { checked: false };
     private dashboardRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
     constructor(
@@ -155,6 +156,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
         if (!workspaceRoot) {
             this.lastRuntimeSummary = {
+                checked: true,
                 error: "Open a workspace folder to resolve the covdbg runtime.",
             };
             this.scheduleRefresh();
@@ -169,6 +171,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         );
         if (!resolved) {
             this.lastRuntimeSummary = {
+                checked: true,
                 error: "covdbg.exe was not resolved. Use the bundled portable or set covdbg.executablePath.",
             };
             output.log("covdbg runtime: executable not resolved at activation");
@@ -178,11 +181,11 @@ export class CovdbgSidebarController implements vscode.Disposable {
 
         const version = await getCovdbgVersion(resolved.path);
         this.lastRuntimeSummary = {
+            checked: true,
             source: resolved.source,
             path: resolved.path,
             version,
         };
-
         const versionInfo = version ? ` (${version})` : "";
         output.log(
             `covdbg runtime: using ${resolved.source} executable ${resolved.path}${versionInfo}`,
@@ -422,6 +425,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         }
 
         const hasConfig = Boolean(resolvedConfigPath || activeConfigFiles.length > 0);
+        const runtimeChecked = this.lastRuntimeSummary.checked;
         const runtimeReady = Boolean(this.lastRuntimeSummary?.path);
         const coverageLoaded = Boolean(activeState?.activeCovdbPath);
         const fileIndex = activeState?.fileIndex ?? new Map();
@@ -429,13 +433,17 @@ export class CovdbgSidebarController implements vscode.Disposable {
         const statusItems: HomeStatusItem[] = [
             {
                 label: "Runtime",
-                value: runtimeReady
+                value: !runtimeChecked
+                    ? "Checking..."
+                    : runtimeReady
                     ? `${this.formatRuntimeSource(this.lastRuntimeSummary?.source)}${this.lastRuntimeSummary?.version ? " " + this.lastRuntimeSummary.version : ""}`
                     : "Not resolved",
-                detail: runtimeReady
+                detail: !runtimeChecked
+                    ? "Resolving covdbg runtime for the active workspace."
+                    : runtimeReady
                     ? this.shortenPath(this.lastRuntimeSummary?.path, activeWorkspace)
                     : this.lastRuntimeSummary?.error,
-                tone: runtimeReady ? "good" : "bad",
+                tone: !runtimeChecked ? "muted" : runtimeReady ? "good" : "bad",
             },
             {
                 label: "License",
@@ -508,11 +516,13 @@ export class CovdbgSidebarController implements vscode.Disposable {
             },
             {
                 label: "covdbg runtime resolved",
-                detail: runtimeReady
+                detail: !runtimeChecked
+                    ? "Checking the covdbg runtime for the active workspace."
+                    : runtimeReady
                     ? `Using ${this.formatRuntimeSource(this.lastRuntimeSummary?.source).toLowerCase()}.`
                     : "Set covdbg.executablePath or use the bundled portable.",
                 done: runtimeReady,
-                blocked: !runtimeReady,
+                blocked: runtimeChecked && !runtimeReady,
                 command: "covdbg.openSettings",
                 commandLabel: "Settings",
             },
