@@ -6,9 +6,23 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+### Changed
+
+- Active `.covdb` files now reload from event-driven file watchers instead of timestamp polling, and external changes are deferred until coverage workflows are idle so background refreshes do not interfere with active test execution.
+
+## [0.7.0] - 2026-04-15
+
 ### Added
 
+- Optional `covdbg.runner.binaryDiscoveryExcludePattern` setting so projects can hide copied or post-build duplicated test executables from Testing API discovery.
+- Optional `covdbg.runner.analyzeInputs` setting so VS Code coverage runs can build baseline symbol `.covdb` files with `covdbg analyze` and merge them into the active workspace result.
+- Optional `covdbg.runner.analyzeInputsByTarget` setting so different test executables can choose different analyze baselines or opt out of baseline analysis entirely.
+
 ### Changed
+
+- Test binary discovery now refreshes from explicit Testing API resolve/refresh flows instead of filesystem watchers.
+- Discovered test binary search now applies user exclude globs after the include glob, so excluded paths win even when they still match `covdbg.runner.binaryDiscoveryPattern`.
+- Coverage finalization now also runs for single-executable workflows when baseline analyze inputs are configured, so the final `.covdb` can include uncovered lines from application binaries.
 
 
 ## [0.6.0] - 2026-04-14

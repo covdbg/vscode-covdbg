@@ -6,6 +6,7 @@ import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 
 const DEFAULT_BINARY_DISCOVERY_PATTERN =
     "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
+const DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN = "";
 
 export function readRunnerSettings(
     scope?: vscode.ConfigurationScope,
@@ -22,10 +23,22 @@ export function readRunnerSettings(
                     DEFAULT_BINARY_DISCOVERY_PATTERN,
                 )
                 .trim() || DEFAULT_BINARY_DISCOVERY_PATTERN,
+        binaryDiscoveryExcludePattern: config
+            .get<string>(
+                "runner.binaryDiscoveryExcludePattern",
+                DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
+            )
+            .trim(),
         licenseServerUrl: config
             .get<string>("runner.licenseServerUrl", "")
             .trim(),
         targetArgs: ensureArrayOfStrings(config.get("runner.targetArgs", [])),
+        analyzeInputs: ensureArrayOfStrings(
+            config.get("runner.analyzeInputs", []),
+        ),
+        analyzeInputsByTarget: sanitizeAnalyzeInputsByTarget(
+            config.get("runner.analyzeInputsByTarget", {}),
+        ),
         configPath: config.get<string>("runner.configPath", "").trim(),
         outputPath: config
             .get<string>("runner.outputPath", ".covdbg/coverage.covdb")
@@ -127,6 +140,23 @@ function sanitizeEnv(env: Record<string, string>): Record<string, string> {
             continue;
         }
         result[key] = value;
+    }
+    return result;
+}
+
+function sanitizeAnalyzeInputsByTarget(
+    value: unknown,
+): Record<string, string[]> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+    }
+
+    const result: Record<string, string[]> = {};
+    for (const [pattern, inputs] of Object.entries(value)) {
+        if (!pattern.trim()) {
+            continue;
+        }
+        result[pattern.trim()] = ensureArrayOfStrings(inputs);
     }
     return result;
 }

@@ -6,6 +6,7 @@ import {
     readRunnerSettings,
     resolvePathFromWorkspace,
 } from './settings';
+import { buildExecutableDiscoveryExcludePattern } from './discoveryPatterns';
 
 export interface CandidateExe {
     absolutePath: string;
@@ -26,7 +27,7 @@ export async function selectCoverageTargetExecutable(
     const candidates = await discoverExecutableCandidates(workspaceRoot);
     if (candidates.length === 0) {
         if (interactive) {
-            vscode.window.showErrorMessage('covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern.');
+            vscode.window.showErrorMessage('covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern or covdbg.runner.binaryDiscoveryExcludePattern.');
         }
         return undefined;
     }
@@ -110,9 +111,12 @@ export async function discoverExecutableCandidates(
     for (const folder of folders) {
         const settings = readRunnerSettings(folder.uri);
         const pattern = settings.binaryDiscoveryPattern;
+        const excludePattern = buildExecutableDiscoveryExcludePattern(
+            settings.binaryDiscoveryExcludePattern,
+        );
         const matches = await vscode.workspace.findFiles(
             new vscode.RelativePattern(folder, pattern),
-            '**/{.git,node_modules,.vscode,assets}/**',
+            excludePattern,
             500,
         );
         for (const uri of matches) {

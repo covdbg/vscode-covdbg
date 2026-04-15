@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCovdbgArguments, ensureArrayOfStrings } from '../runner/runnerArgs';
-import { deriveCoverageBatchOutputPath } from '../runner/outputPaths';
+import {
+    deriveCoverageAnalyzeOutputPath,
+    deriveCoverageBatchOutputPath,
+} from '../runner/outputPaths';
 
 test('buildCovdbgArguments builds expected covdbg CLI shape', () => {
     const args = buildCovdbgArguments({
@@ -65,6 +68,16 @@ test('deriveCoverageBatchOutputPath ignores the configured output basename for i
             'C:\\repo\\build\\suite.tests.exe',
         ),
         'C:\\repo\\.covdbg\\suite.tests.covdb',
+    );
+});
+
+test('deriveCoverageAnalyzeOutputPath keeps analyze outputs distinct from test-run intermediates', () => {
+    assert.equal(
+        deriveCoverageAnalyzeOutputPath(
+            'C:\\repo\\.covdbg\\coverage.covdb',
+            'C:\\repo\\build\\app-ui.exe',
+        ),
+        'C:\\repo\\.covdbg\\app-ui.analyze.covdb',
     );
 });
 

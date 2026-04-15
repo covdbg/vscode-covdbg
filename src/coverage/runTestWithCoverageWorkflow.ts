@@ -16,6 +16,7 @@ export type CoverageRunExecutionResult = {
 };
 
 export type CoverageBatchFinalizationResult = {
+    success: boolean;
     coverageLoaded: boolean;
     finalizedOutputPath?: string;
     mergePerformed: boolean;
@@ -27,6 +28,7 @@ export type CoverageBatchFinalizationResult = {
 type RunTestWithCoverageWorkflowDependencies = {
     resolveExecutablePath: (inputPath: string) => string | undefined;
     fileExists: (filePath: string) => Promise<boolean>;
+    shouldFinalizeOutputs: () => boolean;
     buildBatchIntermediateOutputPath: (
         resolvedExecutablePath: string,
     ) => string | undefined;
@@ -55,10 +57,12 @@ export async function runTestWithCoverageWorkflow(
     const successfulOutputPaths: string[] = [];
     const generatedOutputPaths: string[] = [];
     const batchMode = executablePaths.length > 1;
+    const requiresFinalization = batchMode || dependencies.shouldFinalizeOutputs();
     let finalizedOutputPath: string | undefined;
     let mergePerformed = false;
     let mergedInputCount = 0;
     let lastRunOutputPaths: string[] = [];
+    let finalizationSucceeded = true;
 
     for (const executablePath of executablePaths) {
         const resolvedExecutablePath = dependencies.resolveExecutablePath(
@@ -88,7 +92,7 @@ export async function runTestWithCoverageWorkflow(
 
         const runResult = await dependencies.executeCoverageRun(
             resolvedExecutablePath,
-            batchMode
+            requiresFinalization
                 ? dependencies.buildBatchIntermediateOutputPath(
                     resolvedExecutablePath,
                 )
@@ -115,11 +119,12 @@ export async function runTestWithCoverageWorkflow(
     }
 
     let finalCoverageSummary = findLatestCoverageSummary(results);
-    if (batchMode) {
+    if (requiresFinalization) {
         const finalized = await dependencies.finalizeBatchCoverageOutputs(
             successfulOutputPaths,
             generatedOutputPaths,
         );
+        finalizationSucceeded = finalized.success;
         anyCoverageLoaded = finalized.coverageLoaded;
         finalizedOutputPath = finalized.finalizedOutputPath;
         mergePerformed = finalized.mergePerformed;
@@ -134,7 +139,10 @@ export async function runTestWithCoverageWorkflow(
         mergedInputCount = successfulOutputPaths.length;
     }
 
-    const success = results.length > 0 && results.every((result) => result.success);
+    const success =
+        results.length > 0 &&
+        results.every((result) => result.success) &&
+        finalizationSucceeded;
     return {
         toolResult: {
             success,
