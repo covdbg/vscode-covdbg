@@ -155,7 +155,7 @@ test("emptyUncoveredCodeResult can return no-database guidance", () => {
     assert.equal(result.uncoveredSegments.length, 0);
     assert.equal(result.coverage.linesTotal, 0);
     assert.deepEqual(result.llmGuidance, [
-        "No coverage database is loaded yet. Build the real test executable or executables you want to validate, then call runTestWithCoverage_covdbg with those executable paths. Do not invent an aggregate executable name such as all_tests.",
-        "The extension will generate and load the workspace coverage result automatically, including the merged batch result when multiple executables are run. After that, call exploreUncoveredFiles_covdbg to choose a file, then call getUncoveredCode_covdbg with only that file path.",
+        "No coverage database is loaded yet. Build the real test executable or executables you want to validate, then call covdbg_run with those executable paths. Do not invent an aggregate executable name such as all_tests.",
+        "The extension will generate and load the workspace coverage result automatically, including the merged batch result when multiple executables are run. After that, call covdbg_files to inspect which source files are still uncovered, then call covdbg_code with only that file path.",
     ]);
 });

@@ -10,18 +10,19 @@ Run your executables with coverage, inspect covered and uncovered lines in the e
 
 covdbg can also expose native coverage data to chat-capable tooling in VS Code.
 
-- `runTestWithCoverage_covdbg` runs one or more real test executables with coverage, produces a merged workspace result when multiple executables are used, reloads that result into the extension, and returns structured status plus next-step guidance.
+- `covdbg_run` runs one or more real test executables with coverage, produces a merged workspace result when multiple executables are used, reloads that result into the extension, and returns structured status plus next-step guidance.
 - If `covdbg.runner.analyzeInputs` is configured, the extension also runs `covdbg analyze` on those binaries and merges the resulting baseline symbol databases into the active workspace result so uncovered-but-never-executed code still shows up.
-- `exploreUncoveredFiles_covdbg` lists currently uncovered files from the active workspace coverage result, sorted to help an LLM choose the next file to inspect.
-- `getUncoveredCode_covdbg` returns grouped uncovered code segments for a source file, including code snippets, nearby context, file metadata, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
+- `covdbg_explore` is the workspace-environment discovery entry point for LLMs. It reports where discovered test binaries are, where `.covdbg.yaml` is configured or resolved, where coverage databases are located, and which runtime and runner paths are active.
+- `covdbg_files` lists currently uncovered files from the active loaded workspace coverage result, sorted to help an LLM choose the next file to inspect.
+- `covdbg_code` returns grouped uncovered code segments for a source file, including code snippets, nearby context, file metadata, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
 
 These tools are designed for iterative workflows where an LLM proposes a fix, you rebuild real test binaries, rerun coverage, and then query the updated uncovered regions again.
 
 ### AI Workflow Rules
 
-- Pass real built test executable paths to `runTestWithCoverage_covdbg`. Do not invent a synthetic aggregate executable such as `all_tests` unless that executable actually exists in the workspace.
+- Pass real built test executable paths to `covdbg_run`. Do not invent a synthetic aggregate executable such as `all_tests` unless that executable actually exists in the workspace.
 - Do not pass `.covdb` paths back into the LLM workflow. The extension generates, merges, loads, and switches the active coverage result automatically.
-- After coverage is loaded, pass only a source file path to `getUncoveredCode_covdbg`. The extension resolves that query against the currently loaded workspace coverage result, including the merged batch result when applicable.
+- After coverage is loaded, inspect candidate files with `covdbg_files`, then pass only a source file path to `covdbg_code`. The extension resolves that query against the currently loaded workspace coverage result, including the merged batch result when applicable.
 
 ### Example Tool Sequence
 
@@ -29,7 +30,7 @@ Run one or more real test executables and let the extension merge coverage autom
 
 ```json
 {
-	"tool": "runTestWithCoverage_covdbg",
+	"tool": "covdbg_run",
 	"input": {
 		"executablePaths": [
 			"build/tests-suite1.exe",
@@ -39,11 +40,23 @@ Run one or more real test executables and let the extension merge coverage autom
 }
 ```
 
+Ask the extension where covdbg resources are located in the current workspace:
+
+```json
+{
+	"tool": "covdbg_explore",
+	"input": {
+		"workspaceRoot": "D:/repo",
+		"limit": 10
+	}
+}
+```
+
 Ask the extension which files are still uncovered in the active merged workspace result:
 
 ```json
 {
-	"tool": "exploreUncoveredFiles_covdbg",
+	"tool": "covdbg_files",
 	"input": {
 		"limit": 10,
 		"maxCoveragePercent": 80
@@ -55,7 +68,7 @@ Inspect a specific source file from that active workspace result:
 
 ```json
 {
-	"tool": "getUncoveredCode_covdbg",
+	"tool": "covdbg_code",
 	"input": {
 		"filePath": "src/widget.cpp"
 	}

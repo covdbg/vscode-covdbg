@@ -4,26 +4,25 @@ import {
     ExploreUncoveredFilesResult,
 } from "../coverage/exploreUncoveredFiles";
 
-export const EXPLORE_UNCOVERED_FILES_TOOL_NAME =
-    "exploreUncoveredFiles_covdbg";
+export const EXPLORE_ACTIVE_COVERAGE_FILES_TOOL_NAME =
+    "covdbg_files";
 
 type ExploreUncoveredFilesHandler = (
     input: ExploreUncoveredFilesInput,
 ) => Promise<ExploreUncoveredFilesResult>;
 
-export class ExploreUncoveredFilesTool
-    implements vscode.LanguageModelTool<ExploreUncoveredFilesInput>
-{
+export class ExploreActiveCoverageFilesTool
+    implements vscode.LanguageModelTool<ExploreUncoveredFilesInput> {
     constructor(
         private readonly exploreUncoveredFiles: ExploreUncoveredFilesHandler,
-    ) {}
+    ) { }
 
     prepareInvocation(
         options: vscode.LanguageModelToolInvocationPrepareOptions<ExploreUncoveredFilesInput>,
     ): vscode.PreparedToolInvocation {
         const limit = options.input.limit ?? 20;
         return {
-            invocationMessage: `Exploring up to ${limit} uncovered files`,
+            invocationMessage: `Inspecting up to ${limit} uncovered files from the active loaded coverage database`,
         };
     }
 

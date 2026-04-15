@@ -159,13 +159,40 @@
         },
         "languageModelTools": [
             {
-                "name": "getUncoveredCode_covdbg",
+                "name": "covdbg_explore",
+                "tags": [
+                    "coverage",
+                    "testing",
+                    "workspace"
+                ],
+                "toolReferenceName": "covdbg_explore",
+                "displayName": "Explore covdbg Environment",
+                "modelDescription": "Preferred discovery tool for covdbg workspace setup. Use it to find where discovered test binaries are located, where .covdbg.yaml is configured or resolved, which coverage databases are present, and which runtime and runner paths are active before deciding what to run next.",
+                "userDescription": "Inspect the current covdbg workspace environment, including test binaries, config files, runtime, and coverage database locations.",
+                "canBeReferencedInPrompt": true,
+                "icon": "$(compass)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "workspaceRoot": {
+                            "type": "string",
+                            "description": "Optional absolute workspace root to inspect. If omitted, the preferred active workspace is used."
+                        },
+                        "limit": {
+                            "type": "number",
+                            "description": "Optional maximum number of discovered paths to return per category. Defaults to 20."
+                        }
+                    }
+                }
+            },
+            {
+                "name": "covdbg_code",
                 "tags": [
                     "coverage",
                     "testing",
                     "code"
                 ],
-                "toolReferenceName": "getUncoveredCode_covdbg",
+                "toolReferenceName": "covdbg_code",
                 "displayName": "Get Uncovered Code",
                 "modelDescription": "Returns structured uncovered code segments for a source file from covdbg's active native .covdb coverage data, including grouped uncovered ranges, code snippets, nearby context, and file coverage summary.",
                 "userDescription": "Read uncovered code segments for a file from covdbg coverage data.",
@@ -182,16 +209,16 @@
                 }
             },
             {
-                "name": "exploreUncoveredFiles_covdbg",
+                "name": "covdbg_files",
                 "tags": [
                     "coverage",
                     "testing",
                     "exploration"
                 ],
-                "toolReferenceName": "exploreUncoveredFiles_covdbg",
-                "displayName": "Explore Uncovered Files",
-                "modelDescription": "Returns the currently indexed source files with uncovered lines from covdbg's active native .covdb coverage data, sorted to help an LLM choose the next file to inspect or fix.",
-                "userDescription": "List uncovered files from the active covdbg coverage database.",
+                "toolReferenceName": "covdbg_files",
+                "displayName": "Explore Active Coverage Files",
+                "modelDescription": "Reads the active loaded workspace coverage database and returns the currently indexed source files with uncovered lines, sorted to help an LLM choose the next file to inspect or fix.",
+                "userDescription": "List uncovered files from the active loaded covdbg coverage result.",
                 "canBeReferencedInPrompt": true,
                 "icon": "$(list-tree)",
                 "inputSchema": {
@@ -209,13 +236,13 @@
                 }
             },
             {
-                "name": "runTestWithCoverage_covdbg",
+                "name": "covdbg_run",
                 "tags": [
                     "coverage",
                     "testing",
                     "runner"
                 ],
-                "toolReferenceName": "runTestWithCoverage_covdbg",
+                "toolReferenceName": "covdbg_run",
                 "displayName": "Run Test With Coverage",
                 "modelDescription": "Runs one or more specified test executables under covdbg coverage instrumentation, queues them sequentially, refreshes the active coverage database when runs succeed, and returns per-executable results.",
                 "userDescription": "Run one or more test executables with covdbg coverage and reload results.",

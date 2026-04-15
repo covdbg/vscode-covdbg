@@ -18,7 +18,7 @@ type ManifestConfigurationProperty = {
     default?: unknown;
 };
 
-test("tool manifest contributes the three covdbg LM tools", () => {
+test("tool manifest contributes the covdbg LM tools", () => {
     const manifest = JSON.parse(
         fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
     ) as {
@@ -31,23 +31,23 @@ test("tool manifest contributes the three covdbg LM tools", () => {
     const toolNames = tools.map((tool) => tool.name).sort();
 
     assert.deepEqual(toolNames, [
-        "exploreUncoveredFiles_covdbg",
-        "getUncoveredCode_covdbg",
+        "covdbg_code",
+        "covdbg_explore",
+        "covdbg_files",
         RUN_TEST_WITH_COVERAGE_TOOL_NAME,
     ]);
 
     const runTool = tools.find((tool) => tool.name === RUN_TEST_WITH_COVERAGE_TOOL_NAME);
-    const exploreTool = tools.find(
-        (tool) => tool.name === "exploreUncoveredFiles_covdbg",
-    );
-    const uncoveredTool = tools.find(
-        (tool) => tool.name === "getUncoveredCode_covdbg",
-    );
+    const environmentTool = tools.find((tool) => tool.name === "covdbg_explore");
+    const activeCoverageTool = tools.find((tool) => tool.name === "covdbg_files");
+    const uncoveredTool = tools.find((tool) => tool.name === "covdbg_code");
 
     assert.ok(runTool?.inputSchema?.properties?.executablePaths);
     assert.ok(runTool?.inputSchema?.properties?.executablePath);
-    assert.ok(exploreTool?.inputSchema?.properties?.limit);
-    assert.ok(exploreTool?.inputSchema?.properties?.maxCoveragePercent);
+    assert.ok(environmentTool?.inputSchema?.properties?.workspaceRoot);
+    assert.ok(environmentTool?.inputSchema?.properties?.limit);
+    assert.ok(activeCoverageTool?.inputSchema?.properties?.limit);
+    assert.ok(activeCoverageTool?.inputSchema?.properties?.maxCoveragePercent);
     assert.ok(uncoveredTool?.inputSchema?.properties?.filePath);
 });
 

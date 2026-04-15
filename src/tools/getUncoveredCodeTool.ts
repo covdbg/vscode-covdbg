@@ -2,7 +2,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { UncoveredCodeResult } from "../coverage/uncoveredCode";
 
-export const GET_UNCOVERED_CODE_TOOL_NAME = "getUncoveredCode_covdbg";
+export const GET_UNCOVERED_CODE_TOOL_NAME = "covdbg_code";
 
 export type GetUncoveredCodeToolInput = {
     filePath?: string;
@@ -13,9 +13,8 @@ type GetUncoveredCodeHandler = (
 ) => Promise<UncoveredCodeResult>;
 
 export class GetUncoveredCodeTool
-    implements vscode.LanguageModelTool<GetUncoveredCodeToolInput>
-{
-    constructor(private readonly getUncoveredCode: GetUncoveredCodeHandler) {}
+    implements vscode.LanguageModelTool<GetUncoveredCodeToolInput> {
+    constructor(private readonly getUncoveredCode: GetUncoveredCodeHandler) { }
 
     prepareInvocation(
         options: vscode.LanguageModelToolInvocationPrepareOptions<GetUncoveredCodeToolInput>,

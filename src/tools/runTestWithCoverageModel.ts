@@ -1,6 +1,6 @@
 import type { CoverageSummary } from "../coverage/coverageSummary";
 
-export const RUN_TEST_WITH_COVERAGE_TOOL_NAME = "runTestWithCoverage_covdbg";
+export const RUN_TEST_WITH_COVERAGE_TOOL_NAME = "covdbg_run";
 
 export type RunTestWithCoverageToolInput = {
     executablePaths?: string[];
