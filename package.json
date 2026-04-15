@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -49,6 +49,8 @@
                 "covdbg.runner.outputPath",
                 "covdbg.runner.appDataPath",
                 "covdbg.runner.binaryDiscoveryPattern",
+                "covdbg.runner.analyzeInputs",
+                "covdbg.runner.analyzeInputsByTarget",
                 "covdbg.runner.env"
             ]
         }
@@ -316,54 +318,84 @@
                     "scope": "resource",
                     "order": 5
                 },
+                "covdbg.runner.analyzeInputs": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "string"
+                    },
+                    "markdownDescription": "Optional application binaries to pass through `covdbg analyze` after each run. Their symbol coverage is merged into the final workspace `.covdb` so never-executed lines still appear as uncovered.",
+                    "scope": "resource",
+                    "order": 6
+                },
+                "covdbg.runner.analyzeInputsByTarget": {
+                    "type": "object",
+                    "default": {},
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "markdownDescription": "Optional per-test-target analyze rules. Each key matches a test executable by exact path, basename, or glob, and the value lists binaries to analyze for that target. Use an empty array to disable baseline analysis for a matching executable even when `#covdbg.runner.analyzeInputs#` is set globally.",
+                    "scope": "resource",
+                    "order": 7
+                },
                 "covdbg.runner.configPath": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Optional path to `.covdbg.yaml` (absolute or workspace-relative). If empty, covdbg config is resolved automatically near the selected executable.",
                     "scope": "resource",
-                    "order": 6
+                    "order": 8
                 },
                 "covdbg.runner.outputPath": {
                     "type": "string",
                     "default": ".covdbg/coverage.covdb",
                     "markdownDescription": "Output `.covdb` path for runs started from VS Code.",
                     "scope": "resource",
-                    "order": 7
+                    "order": 9
                 },
                 "covdbg.runner.appDataPath": {
                     "type": "string",
                     "default": ".covdbg",
                     "markdownDescription": "Path for covdbg appdata (logs, cache). Default stores logs under `.covdbg/Logs`.",
                     "scope": "resource",
-                    "order": 8
+                    "order": 10
                 },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
                     "default": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*",
                     "markdownDescription": "Glob pattern used to discover test binaries for the Testing API integration.",
                     "scope": "resource",
-                    "order": 9
+                    "order": 11
+                },
+                "covdbg.runner.binaryDiscoveryExcludePattern": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Optional glob pattern used to exclude discovered test binaries. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`, which is useful when post-build steps copy matching executables into additional folders.",
+                    "scope": "resource",
+                    "order": 12
                 },
                 "covdbg.runner.licenseServerUrl": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Optional override for the covdbg license server base URL. Useful for local VS Code E2E runs against a Dockerized `covdbg-license` server.",
                     "scope": "resource",
-                    "order": 10
+                    "order": 13
                 },
                 "covdbg.runner.workingDirectory": {
                     "type": "string",
                     "default": "",
                     "markdownDescription": "Working directory used for the covdbg process. Empty value uses workspace root.",
                     "scope": "resource",
-                    "order": 11
+                    "order": 14
                 },
                 "covdbg.runner.env": {
                     "type": "object",
                     "default": {},
                     "markdownDescription": "Additional environment variables passed to covdbg runs (for example `COVDBG_LICENSE`).",
                     "scope": "resource",
-                    "order": 12
+                    "order": 15
                 }
             }
         }

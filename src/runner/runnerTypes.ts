@@ -2,8 +2,11 @@ export interface RunnerSettings {
     executablePath: string;
     portableCachePath: string;
     binaryDiscoveryPattern: string;
+    binaryDiscoveryExcludePattern: string;
     licenseServerUrl: string;
     targetArgs: string[];
+    analyzeInputs: string[];
+    analyzeInputsByTarget: Record<string, string[]>;
     configPath: string;
     outputPath: string;
     appDataPath: string;
