@@ -10,12 +10,13 @@ export function resolveAnalyzeInputsForTarget(
     workspaceRoot: string,
     targetPath: string,
 ): string[] {
+    const pathLib = getPathLibrary(workspaceRoot, targetPath, ...settings.analyzeInputs, ...Object.keys(settings.analyzeInputsByTarget));
     const absoluteTargetPath = resolvePathFromWorkspace(targetPath, workspaceRoot);
     const normalizedAbsolutePath = normalizePathForMatch(absoluteTargetPath);
     const relativeTargetPath = normalizePathForMatch(
-        path.relative(workspaceRoot, absoluteTargetPath),
+        pathLib.relative(workspaceRoot, absoluteTargetPath),
     );
-    const baseName = normalizePathForMatch(path.basename(absoluteTargetPath));
+    const baseName = normalizePathForMatch(pathLib.basename(absoluteTargetPath));
 
     for (const [pattern, inputPaths] of Object.entries(
         settings.analyzeInputsByTarget,
@@ -36,10 +37,11 @@ export function resolvePathFromWorkspace(
     inputPath: string,
     workspaceRoot: string,
 ): string {
-    if (path.isAbsolute(inputPath)) {
-        return path.normalize(inputPath);
+    const pathLib = getPathLibrary(inputPath, workspaceRoot);
+    if (pathLib.isAbsolute(inputPath)) {
+        return pathLib.normalize(inputPath);
     }
-    return path.normalize(path.resolve(workspaceRoot, inputPath));
+    return pathLib.normalize(pathLib.resolve(workspaceRoot, inputPath));
 }
 
 function dedupeAnalyzeInputPaths(
@@ -99,4 +101,14 @@ function globToRegex(pattern: string): string {
 
 function escapeRegexCharacter(value: string): string {
     return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+}
+
+function getPathLibrary(
+    ...filePaths: Array<string | undefined>
+): typeof path.posix | typeof path.win32 {
+    return filePaths.some(
+        (filePath) => filePath && (/^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith("\\\\")),
+    )
+        ? path.win32
+        : path.posix;
 }

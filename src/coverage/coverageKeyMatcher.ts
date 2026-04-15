@@ -10,6 +10,7 @@ export function findBestCoverageKey(
         key,
         normalized: normalizeComparablePath(key),
     }));
+    const pathLib = getPathLibrary(editorPath, workspaceRoot, ...keyEntries.map((entry) => entry.key));
 
     const exact = keyEntries.find((entry) => entry.normalized === normalizedEditor);
     if (exact) {
@@ -17,8 +18,8 @@ export function findBestCoverageKey(
     }
 
     if (workspaceRoot) {
-        const relativeEditor = path.relative(workspaceRoot, editorPath);
-        if (!relativeEditor.startsWith("..") && !path.isAbsolute(relativeEditor)) {
+        const relativeEditor = pathLib.relative(workspaceRoot, editorPath);
+        if (!relativeEditor.startsWith("..") && !pathLib.isAbsolute(relativeEditor)) {
             const normalizedRelative = normalizeComparablePath(relativeEditor);
             const relativeMatches = keyEntries.filter((entry) =>
                 entry.normalized === normalizedRelative ||
@@ -46,4 +47,14 @@ function normalizeComparablePath(inputPath: string): string {
         .normalize(inputPath)
         .replace(/\\/g, "/")
         .toLowerCase();
+}
+
+function getPathLibrary(
+    ...filePaths: Array<string | undefined>
+): typeof path.posix | typeof path.win32 {
+    return filePaths.some(
+        (filePath) => filePath && (/^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith("\\\\")),
+    )
+        ? path.win32
+        : path.posix;
 }
