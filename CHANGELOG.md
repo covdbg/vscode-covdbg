@@ -6,9 +6,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-25
+
 ### Changed
 
 - Active `.covdb` files now reload from event-driven file watchers instead of timestamp polling, and external changes are deferred until coverage workflows are idle so background refreshes do not interfere with active test execution.
+- Bundled portable runtime updated to embedded `covdbg` 1.2.0.
+- Removed the deprecated VS Code-side analyze-inputs workflow and related settings now that covdbg can resolve analysis directly from `.conf` / `.covdbg.yaml` configuration.
 
 ## [0.7.0] - 2026-04-15
 

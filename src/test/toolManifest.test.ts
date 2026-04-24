@@ -14,10 +14,6 @@ type ContributedTool = {
     };
 };
 
-type ManifestConfigurationProperty = {
-    default?: unknown;
-};
-
 test("tool manifest contributes the covdbg LM tools", () => {
     const manifest = JSON.parse(
         fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
@@ -69,19 +65,4 @@ test("normalizeExecutablePathsInput falls back to the deprecated singular field"
         ["build\\suite.exe"],
     );
     assert.deepEqual(normalizeExecutablePathsInput({}), []);
-});
-
-test("tool manifest contributes target-specific analyze configuration", () => {
-    const manifest = JSON.parse(
-        fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
-    ) as {
-        contributes?: {
-            configuration?: {
-                properties?: Record<string, ManifestConfigurationProperty>;
-            };
-        };
-    };
-
-    const properties = manifest.contributes?.configuration?.properties ?? {};
-    assert.deepEqual(properties["covdbg.runner.analyzeInputsByTarget"]?.default, {});
 });

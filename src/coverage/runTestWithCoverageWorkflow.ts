@@ -28,7 +28,6 @@ export type CoverageBatchFinalizationResult = {
 type RunTestWithCoverageWorkflowDependencies = {
     resolveExecutablePath: (inputPath: string) => string | undefined;
     fileExists: (filePath: string) => Promise<boolean>;
-    shouldFinalizeOutputs: () => boolean;
     buildBatchIntermediateOutputPath: (
         resolvedExecutablePath: string,
     ) => string | undefined;
@@ -57,7 +56,6 @@ export async function runTestWithCoverageWorkflow(
     const successfulOutputPaths: string[] = [];
     const generatedOutputPaths: string[] = [];
     const batchMode = executablePaths.length > 1;
-    const requiresFinalization = batchMode || dependencies.shouldFinalizeOutputs();
     let finalizedOutputPath: string | undefined;
     let mergePerformed = false;
     let mergedInputCount = 0;
@@ -92,7 +90,7 @@ export async function runTestWithCoverageWorkflow(
 
         const runResult = await dependencies.executeCoverageRun(
             resolvedExecutablePath,
-            requiresFinalization
+            batchMode
                 ? dependencies.buildBatchIntermediateOutputPath(
                     resolvedExecutablePath,
                 )
@@ -119,7 +117,7 @@ export async function runTestWithCoverageWorkflow(
     }
 
     let finalCoverageSummary = findLatestCoverageSummary(results);
-    if (requiresFinalization) {
+    if (batchMode) {
         const finalized = await dependencies.finalizeBatchCoverageOutputs(
             successfulOutputPaths,
             generatedOutputPaths,

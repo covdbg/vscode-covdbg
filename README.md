@@ -11,7 +11,6 @@ Run your executables with coverage, inspect covered and uncovered lines in the e
 covdbg can also expose native coverage data to chat-capable tooling in VS Code.
 
 - `covdbg_run` runs one or more real test executables with coverage, produces a merged workspace result when multiple executables are used, reloads that result into the extension, and returns structured status plus next-step guidance.
-- If `covdbg.runner.analyzeInputs` is configured, the extension also runs `covdbg analyze` on those binaries and merges the resulting baseline symbol databases into the active workspace result so uncovered-but-never-executed code still shows up.
 - `covdbg_explore` is the workspace-environment discovery entry point for LLMs. It reports where discovered test binaries are, where `.covdbg.yaml` is configured or resolved, where coverage databases are located, and which runtime and runner paths are active.
 - `covdbg_files` lists currently uncovered files from the active loaded workspace coverage result, sorted to help an LLM choose the next file to inspect.
 - `covdbg_code` returns grouped uncovered code segments for a source file, including code snippets, nearby context, file metadata, coverage summary, truncation metadata, and workflow guidance for follow-up actions.
@@ -174,32 +173,6 @@ The covdbg status bar entry is always available after startup. If no `.covdbg.ya
 
 Run `covdbg: Run Coverage`, choose a discovered test executable, and optionally use `covdbg.runner.targetArgs` for extra arguments.
 
-### Include uncovered lines from app binaries
-
-Set `covdbg.runner.analyzeInputs` to one or more workspace-relative or absolute binary paths when you want a default baseline for every test target in the workspace.
-
-If different test executables need different baselines, use `covdbg.runner.analyzeInputsByTarget` instead. Each key can be an exact executable path, a basename such as `ui-tests.exe`, or a glob such as `build/**/integration-tests.exe`. The value is the list of binaries to analyze for that test target. Use an empty array to explicitly disable baseline analysis for a matching test executable even when the global default is set.
-
-The extension resolves target-specific rules first and falls back to `covdbg.runner.analyzeInputs` when no rule matches.
-
-```json
-{
-	"covdbg.runner.analyzeInputs": [
-		"build/app.exe"
-	],
-	"covdbg.runner.analyzeInputsByTarget": {
-		"build/ui-tests.exe": [
-			"build/app-ui.exe"
-		],
-		"build/unit-tests.exe": [],
-		"**/integration-tests.exe": [
-			"build/app.exe",
-			"build/plugin-host.exe"
-		]
-	}
-}
-```
-
 ### Rerun discovered tests from the Testing view
 
 Use `covdbg: Refresh Test Binaries` to discover likely test executables and run them with coverage from the Test Explorer.
@@ -228,8 +201,6 @@ Use `covdbg: Select .covdb File...` or set `covdbg.covdbPath` to load an existin
 | Setting | Purpose |
 |---------|---------|
 | `covdbg.runner.targetArgs` | Arguments passed to the target executable. |
-| `covdbg.runner.analyzeInputs` | Default binaries to analyze and merge into the final workspace result as uncovered baseline coverage. |
-| `covdbg.runner.analyzeInputsByTarget` | Optional per-test-target analyze rules that override the default baseline for specific executables. |
 | `covdbg.runner.workingDirectory` | Working directory for coverage runs. |
 | `covdbg.runner.outputPath` | Output path for results generated from VS Code. |
 | `covdbg.runner.binaryDiscoveryPattern` | Pattern used to discover test binaries for the Testing UI. |
