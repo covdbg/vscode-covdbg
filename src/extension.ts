@@ -45,7 +45,6 @@ import {
     SidebarCoverageState,
 } from "./views/sidebar";
 import {
-    analyzeCoverageBinaries,
     mergeCoverageFiles,
     runCoverageForTarget,
 } from "./runner/runnerService";
@@ -62,9 +61,6 @@ import {
 import {
     LicenseStatusSnapshot,
 } from "./runner/licenseStatus";
-import {
-    resolveAnalyzeInputsForTarget,
-} from "./runner/analyzeInputs";
 import {
     getPreferredWorkspaceFolder,
     resolvePathFromWorkspace,
@@ -1311,12 +1307,6 @@ async function runTestWithCoverage(
             resolveExecutablePath: (inputPath) =>
                 resolveWorkspaceRelativePath(inputPath),
             fileExists,
-            shouldFinalizeOutputs: () =>
-                executablePaths.some((candidatePath) =>
-                    shouldFinalizeCoverageOutputs(
-                        resolveWorkspaceRelativePath(candidatePath) ?? candidatePath,
-                    ),
-                ),
             buildBatchIntermediateOutputPath,
             executeCoverageRun: (resolvedExecutablePath, outputPathOverride) =>
                 executeCoverageRun(
@@ -1450,22 +1440,8 @@ async function finalizeBatchCoverageOutputs(
         };
     }
 
-    const analyzeResults = await analyzeCoverageConfiguredInputs(
-        context,
-        canonicalOutputPath,
-    );
-    const analyzedOutputPaths = analyzeResults
-        .filter((result) => result.success)
-        .map((result) => result.outputPath);
-    const finalInputPaths = dedupeNormalizedPaths([
-        ...successfulOutputPaths,
-        ...analyzedOutputPaths,
-    ]);
-    const analysisSucceeded = analyzeResults.every((result) => result.success);
-    lastRunOutputPaths = dedupeNormalizedPaths([
-        ...generatedOutputPaths,
-        ...analyzedOutputPaths,
-    ]);
+    const finalInputPaths = dedupeNormalizedPaths(successfulOutputPaths);
+    lastRunOutputPaths = dedupeNormalizedPaths(generatedOutputPaths);
 
     const finalized =
         finalInputPaths.length === 1
@@ -1494,18 +1470,13 @@ async function finalizeBatchCoverageOutputs(
 
     lastRunOutputPaths = dedupeNormalizedPaths([
         ...generatedOutputPaths,
-        ...analyzedOutputPaths,
         canonicalOutputPath,
     ]);
     await loadIndex(canonicalOutputPath, "settings");
-    if (analysisSucceeded) {
-        statusBar.setRunSucceeded();
-    } else {
-        statusBar.setRunFailed();
-    }
+    statusBar.setRunSucceeded();
 
     return {
-        success: analysisSucceeded,
+        success: true,
         coverageLoaded: true,
         finalizedOutputPath: canonicalOutputPath,
         mergePerformed: finalInputPaths.length > 1,
@@ -1513,24 +1484,6 @@ async function finalizeBatchCoverageOutputs(
         coverageSummary: getCoverageSummaryForPath(canonicalOutputPath),
         lastRunOutputPaths,
     };
-}
-
-async function analyzeCoverageConfiguredInputs(
-    context: vscode.ExtensionContext,
-    canonicalOutputPath: string,
-): Promise<Array<{ inputPath: string; outputPath: string; success: boolean }>> {
-    const workspaceFolder = getWorkspaceFolderForPath(canonicalOutputPath);
-    const analyzeInputs = getConfiguredAnalyzeInputPaths(canonicalOutputPath);
-    if (analyzeInputs.length === 0) {
-        return [];
-    }
-
-    return analyzeCoverageBinaries(
-        context,
-        analyzeInputs,
-        canonicalOutputPath,
-        workspaceFolder,
-    );
 }
 
 function buildBatchIntermediateOutputPath(
@@ -1561,29 +1514,6 @@ function getCanonicalCoverageOutputPath(
 
     const settings = readRunnerSettings(workspaceFolder?.uri);
     return resolveRunnerPaths(settings, workspaceRoot).configuredOutputPath;
-}
-
-function shouldFinalizeCoverageOutputs(
-    targetPathForWorkspace: string,
-): boolean {
-    return getConfiguredAnalyzeInputPaths(targetPathForWorkspace).length > 0;
-}
-
-function getConfiguredAnalyzeInputPaths(
-    targetPathForWorkspace: string,
-): string[] {
-    const workspaceFolder = getPreferredWorkspaceFolder(targetPathForWorkspace);
-    const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
-    if (!workspaceRoot) {
-        return [];
-    }
-
-    const settings = readRunnerSettings(workspaceFolder?.uri);
-    return resolveAnalyzeInputsForTarget(
-        settings,
-        workspaceRoot,
-        targetPathForWorkspace,
-    );
 }
 
 async function copyCoverageFile(
@@ -2325,18 +2255,13 @@ async function runCoverageFromTestRequest(
                     statusBar.setRunFailed();
                     continue;
                 }
-                const needsTargetFinalization = shouldFinalizeCoverageOutputs(
-                    targetExecutablePath,
-                );
                 const execution = await executeCoverageRun(
                     context,
                     targetExecutablePath,
-                    batchMode || needsTargetFinalization
+                    batchMode
                         ? buildBatchIntermediateOutputPath(targetExecutablePath)
                         : undefined,
                 );
-                requiresFinalization =
-                    requiresFinalization || needsTargetFinalization;
                 if (execution.outputPath) {
                     generatedOutputPaths.push(execution.outputPath);
                 }

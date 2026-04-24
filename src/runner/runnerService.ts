@@ -5,7 +5,6 @@ import * as vscode from "vscode";
 import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
 import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
-import { deriveCoverageAnalyzeOutputPath } from "./outputPaths";
 import { resolveCovdbgExecutable } from "./executableResolver";
 import {
     COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK,
@@ -30,12 +29,6 @@ export interface RunResult {
     configuredOutputPath?: string;
     targetExecutablePath?: string;
     licenseStatus?: LicenseStatusSnapshot;
-}
-
-export interface AnalyzeBinaryResult {
-    inputPath: string;
-    outputPath: string;
-    success: boolean;
 }
 
 export async function runCoverageForTarget(
@@ -311,152 +304,6 @@ export async function mergeCoverageFiles(
             resolve(ok);
         });
     });
-}
-
-export async function analyzeCoverageBinaries(
-    context: vscode.ExtensionContext,
-    inputPaths: string[],
-    configuredOutputPath: string,
-    workspaceFolder?: vscode.WorkspaceFolder,
-): Promise<AnalyzeBinaryResult[]> {
-    const trustErr = await ensurePreflight();
-    if (trustErr) {
-        output.logError(`covdbg analyze unavailable: ${trustErr.message}`);
-        return inputPaths.map((inputPath) => ({
-            inputPath,
-            outputPath: deriveCoverageAnalyzeOutputPath(
-                configuredOutputPath,
-                inputPath,
-            ),
-            success: false,
-        }));
-    }
-
-    if (inputPaths.length === 0) {
-        return [];
-    }
-
-    const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
-    if (!workspaceRoot) {
-        output.logError("covdbg analyze requires an open workspace folder.");
-        return inputPaths.map((inputPath) => ({
-            inputPath,
-            outputPath: deriveCoverageAnalyzeOutputPath(
-                configuredOutputPath,
-                inputPath,
-            ),
-            success: false,
-        }));
-    }
-
-    const settings = readRunnerSettings(workspaceFolder?.uri);
-    const paths = resolveRunnerPaths(settings, workspaceRoot);
-    const resolvedExe = await resolveCovdbgExecutable(
-        context,
-        settings,
-        workspaceRoot,
-    );
-    if (!resolvedExe) {
-        output.logError("covdbg analyze failed: covdbg executable not found.");
-        return inputPaths.map((inputPath) => ({
-            inputPath,
-            outputPath: deriveCoverageAnalyzeOutputPath(
-                configuredOutputPath,
-                inputPath,
-            ),
-            success: false,
-        }));
-    }
-
-    await fs.mkdir(paths.appDataPath, { recursive: true });
-    const licenseRunConfig = buildLicenseRunConfig(settings);
-    const results: AnalyzeBinaryResult[] = [];
-
-    for (const inputPath of inputPaths) {
-        const outputPath = deriveCoverageAnalyzeOutputPath(
-            configuredOutputPath,
-            inputPath,
-        );
-        const explicitConfig = settings.configPath.trim();
-        const effectiveConfigPath = await resolveEffectiveConfigPath(
-            explicitConfig,
-            inputPath,
-            workspaceRoot,
-        );
-        if (explicitConfig && !effectiveConfigPath) {
-            output.logError(
-                `covdbg analyze config file not found: ${paths.configPath ?? explicitConfig}`,
-            );
-            results.push({ inputPath, outputPath, success: false });
-            continue;
-        }
-
-        try {
-            const stats = await fs.stat(inputPath);
-            if (!stats.isFile()) {
-                output.logError(`covdbg analyze input is not a file: ${inputPath}`);
-                results.push({ inputPath, outputPath, success: false });
-                continue;
-            }
-        } catch {
-            output.logError(`covdbg analyze input not found: ${inputPath}`);
-            results.push({ inputPath, outputPath, success: false });
-            continue;
-        }
-
-        await fs.mkdir(path.dirname(outputPath), { recursive: true });
-        const args = [
-            "analyze",
-            "--input",
-            inputPath,
-            "--output",
-            outputPath,
-            "--appdata",
-            paths.appDataPath,
-        ];
-        if (effectiveConfigPath) {
-            args.push("--config", effectiveConfigPath);
-        }
-        args.push(...licenseRunConfig.args);
-
-        output.log(`Analyzing binary for uncovered coverage: ${inputPath}`);
-        const success = await new Promise<boolean>((resolve) => {
-            const child = spawn(resolvedExe.path, args, {
-                cwd: paths.workingDirectory,
-                env: {
-                    ...process.env,
-                    ...licenseRunConfig.env,
-                },
-                windowsHide: true,
-            });
-
-            child.stdout.on("data", (chunk) =>
-                output.log(String(chunk).trimEnd()),
-            );
-            child.stderr.on("data", (chunk) =>
-                output.log(String(chunk).trimEnd()),
-            );
-            child.on("error", (error) => {
-                output.logError(
-                    `Failed to start covdbg analyze: ${error.message}`,
-                );
-                resolve(false);
-            });
-            child.on("close", (code) => {
-                const ok = code === 0;
-                if (!ok) {
-                    output.logError(`covdbg analyze exited with code ${code}`);
-                } else {
-                    output.log(`Analyze finished. Output: ${outputPath}`);
-                }
-                resolve(ok);
-            });
-        });
-
-        results.push({ inputPath, outputPath, success });
-    }
-
-    return results;
 }
 
 interface LicenseRunConfig {

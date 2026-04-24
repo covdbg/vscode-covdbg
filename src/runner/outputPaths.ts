@@ -10,17 +10,6 @@ export function deriveCoverageBatchOutputPath(
     );
 }
 
-export function deriveCoverageAnalyzeOutputPath(
-    configuredOutputPath: string,
-    targetBinaryPath: string,
-): string {
-    return deriveCoverageIntermediateOutputPath(
-        configuredOutputPath,
-        targetBinaryPath,
-        ".analyze",
-    );
-}
-
 function deriveCoverageIntermediateOutputPath(
     configuredOutputPath: string,
     inputPath: string,
