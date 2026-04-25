@@ -50,17 +50,13 @@ type ExploreEnvironmentHandler = (
     input: ExploreEnvironmentToolInput,
 ) => Promise<ExploreEnvironmentToolResult>;
 
-export class ExploreEnvironmentTool
-    implements vscode.LanguageModelTool<ExploreEnvironmentToolInput> {
-    constructor(
-        private readonly exploreEnvironment: ExploreEnvironmentHandler,
-    ) { }
+export class ExploreEnvironmentTool implements vscode.LanguageModelTool<ExploreEnvironmentToolInput> {
+    constructor(private readonly exploreEnvironment: ExploreEnvironmentHandler) {}
 
     prepareInvocation(
         options: vscode.LanguageModelToolInvocationPrepareOptions<ExploreEnvironmentToolInput>,
     ): vscode.PreparedToolInvocation {
-        const workspaceLabel =
-            options.input.workspaceRoot?.trim() || "the active workspace";
+        const workspaceLabel = options.input.workspaceRoot?.trim() || "the active workspace";
         return {
             invocationMessage: `Inspecting covdbg environment details for ${workspaceLabel}`,
         };
@@ -93,8 +89,7 @@ export class ExploreEnvironmentTool
                                 paths: [],
                             },
                             llmGuidance: [],
-                            message:
-                                "covdbg environment exploration cancelled before start.",
+                            message: "covdbg environment exploration cancelled before start.",
                         },
                         null,
                         2,

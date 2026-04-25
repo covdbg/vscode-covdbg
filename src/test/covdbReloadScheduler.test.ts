@@ -11,17 +11,13 @@ test("CovdbReloadScheduler defers reloads while coverage execution is active", (
     assert.equal(scheduler.hasActiveExecution(), true);
     assert.equal(scheduler.hasPendingReloads(), true);
     assert.deepEqual(
-        scheduler.drainPendingReloads(
-            new Map([["workspace-a", "D:\\repo\\coverage.covdb"]]),
-        ),
+        scheduler.drainPendingReloads(new Map([["workspace-a", "D:\\repo\\coverage.covdb"]])),
         [],
     );
 
     assert.equal(scheduler.endExecution(), true);
     assert.deepEqual(
-        scheduler.drainPendingReloads(
-            new Map([["workspace-a", "D:\\repo\\coverage.covdb"]]),
-        ),
+        scheduler.drainPendingReloads(new Map([["workspace-a", "D:\\repo\\coverage.covdb"]])),
         [
             {
                 stateKey: "workspace-a",
@@ -38,9 +34,7 @@ test("CovdbReloadScheduler drops queued reloads for stale covdb paths", () => {
     scheduler.queueReload("workspace-a", "D:\\repo\\old.covdb");
 
     assert.deepEqual(
-        scheduler.drainPendingReloads(
-            new Map([["workspace-a", "D:\\repo\\new.covdb"]]),
-        ),
+        scheduler.drainPendingReloads(new Map([["workspace-a", "D:\\repo\\new.covdb"]])),
         [],
     );
     assert.equal(scheduler.hasPendingReloads(), false);
@@ -55,17 +49,13 @@ test("CovdbReloadScheduler tracks nested executions before draining", () => {
 
     assert.equal(scheduler.endExecution(), false);
     assert.deepEqual(
-        scheduler.drainPendingReloads(
-            new Map([["workspace-a", "D:\\repo\\coverage.covdb"]]),
-        ),
+        scheduler.drainPendingReloads(new Map([["workspace-a", "D:\\repo\\coverage.covdb"]])),
         [],
     );
 
     assert.equal(scheduler.endExecution(), true);
     assert.deepEqual(
-        scheduler.drainPendingReloads(
-            new Map([["workspace-a", "D:\\repo\\coverage.covdb"]]),
-        ),
+        scheduler.drainPendingReloads(new Map([["workspace-a", "D:\\repo\\coverage.covdb"]])),
         [
             {
                 stateKey: "workspace-a",

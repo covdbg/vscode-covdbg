@@ -1,7 +1,4 @@
-import {
-    buildCoverageSummaryFromFileIndex,
-    type CoverageSummary,
-} from "./coverageSummary";
+import { buildCoverageSummaryFromFileIndex, type CoverageSummary } from "./coverageSummary";
 import { CovdbFileSummary } from "./covdbParser";
 import { buildExploreUncoveredFilesLlmGuidance } from "./toolGuidance";
 
@@ -42,27 +39,16 @@ export function buildExploreUncoveredFilesResult(
     fileIndex: Map<string, CovdbFileSummary>,
     options: BuildExploreUncoveredFilesOptions = {},
 ): ExploreUncoveredFilesResult {
-    const maxCoveragePercent = Math.max(
-        0,
-        Math.min(100, options.maxCoveragePercent ?? 100),
-    );
-    const limit = Math.max(
-        1,
-        Math.min(MAX_LIMIT, Math.floor(options.limit ?? DEFAULT_LIMIT)),
-    );
+    const maxCoveragePercent = Math.max(0, Math.min(100, options.maxCoveragePercent ?? 100));
+    const limit = Math.max(1, Math.min(MAX_LIMIT, Math.floor(options.limit ?? DEFAULT_LIMIT)));
 
     const files = [...fileIndex.values()]
         .map((summary) => {
-            const linesUncovered = Math.max(
-                0,
-                summary.totalLines - summary.coveredLines,
-            );
+            const linesUncovered = Math.max(0, summary.totalLines - summary.coveredLines);
 
             return {
                 filePath: summary.filePath,
-                workspaceRelativePath: options.workspaceRelativePathForFile?.(
-                    summary.filePath,
-                ),
+                workspaceRelativePath: options.workspaceRelativePathForFile?.(summary.filePath),
                 fileName: summary.filePath.replace(/^.*[\\/]/, ""),
                 coveragePercent: roundCoveragePercent(summary.coveragePercent),
                 linesCovered: summary.coveredLines,
@@ -70,11 +56,7 @@ export function buildExploreUncoveredFilesResult(
                 linesTotal: summary.totalLines,
             } satisfies ExploreUncoveredFileEntry;
         })
-        .filter(
-            (entry) =>
-                entry.linesUncovered > 0 &&
-                entry.coveragePercent <= maxCoveragePercent,
-        )
+        .filter((entry) => entry.linesUncovered > 0 && entry.coveragePercent <= maxCoveragePercent)
         .sort((left, right) => {
             if (left.linesUncovered !== right.linesUncovered) {
                 return right.linesUncovered - left.linesUncovered;

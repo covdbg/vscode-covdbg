@@ -11,10 +11,7 @@ export class StatusBar {
     private _licenseStatus?: LicenseStatusSnapshot;
 
     constructor() {
-        this._item = vscode.window.createStatusBarItem(
-            vscode.StatusBarAlignment.Right,
-            100,
-        );
+        this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this._item.command = "covdbg.showMenu";
         this._item.text = "$(shield) covdbg";
         this._item.tooltip = "covdbg — Click to open";
@@ -101,8 +98,8 @@ export class StatusBar {
             this._renderMode === "line"
                 ? "Line"
                 : this._renderMode === "gutter"
-                    ? "Gutter"
-                    : "Both";
+                  ? "Gutter"
+                  : "Both";
         if (this._enabled) {
             this._item.text = `covdbg $(workspace-trusted)${licenseIndicator.text}`;
             this._item.tooltip = `covdbg - Coverage ON (${modeLabel})${licenseIndicator.tooltip}`;
@@ -113,18 +110,12 @@ export class StatusBar {
     }
 
     private getLicenseIndicator(): { text: string; tooltip: string } {
-        if (
-            !this._licenseStatus ||
-            this._licenseStatus.source !== "plugin-demo"
-        ) {
+        if (!this._licenseStatus || this._licenseStatus.source !== "plugin-demo") {
             return { text: "", tooltip: "" };
         }
 
         if (this._licenseStatus.status === "active") {
-            const daysRemaining = Math.max(
-                0,
-                this._licenseStatus.daysRemaining ?? 0,
-            );
+            const daysRemaining = Math.max(0, this._licenseStatus.daysRemaining ?? 0);
             return {
                 text: "",
                 tooltip: `\nDemo license active: ${daysRemaining} day(s) remaining`,

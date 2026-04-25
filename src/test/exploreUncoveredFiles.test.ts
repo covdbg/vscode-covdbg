@@ -36,8 +36,7 @@ test("buildExploreUncoveredFilesResult sorts by uncovered lines and coverage", (
 
     const result = buildExploreUncoveredFilesResult(fileIndex, {
         activeCovdbPath: "D:\\repo\\.covdbg\\coverage.covdb",
-        workspaceRelativePathForFile: (filePath) =>
-            filePath.replace("D:\\repo\\", ""),
+        workspaceRelativePathForFile: (filePath) => filePath.replace("D:\\repo\\", ""),
     });
 
     assert.equal(result.coverageSummary.linesTotal, 260);

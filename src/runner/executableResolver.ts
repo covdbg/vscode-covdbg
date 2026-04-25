@@ -1,53 +1,53 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { spawn } from 'child_process';
-import * as output from '../views/outputChannel';
-import { ResolvedExecutable, RunnerSettings } from './runnerTypes';
+import * as fs from "fs/promises";
+import * as path from "path";
+import * as vscode from "vscode";
+import { spawn } from "child_process";
+import * as output from "../views/outputChannel";
+import { ResolvedExecutable, RunnerSettings } from "./runnerTypes";
 import {
     portableArchiveStampMatches,
     readPortableArchiveStamp,
     writePortableArchiveStamp,
-} from './portableCacheState';
-import { resolvePathFromWorkspace } from './settings';
-import { getKnownInstallPaths } from './installPaths';
+} from "./portableCacheState";
+import { resolvePathFromWorkspace } from "./settings";
+import { getKnownInstallPaths } from "./installPaths";
 
-const COVDBG_EXE = 'covdbg.exe';
-const BUNDLED_PORTABLE_ZIP = 'covdbg-portable.zip';
-const BUNDLED_PORTABLE_STATE = 'bundled-state.json';
+const COVDBG_EXE = "covdbg.exe";
+const BUNDLED_PORTABLE_ZIP = "covdbg-portable.zip";
+const BUNDLED_PORTABLE_STATE = "bundled-state.json";
 
 export async function resolveCovdbgExecutable(
     context: vscode.ExtensionContext,
     settings: RunnerSettings,
-    workspaceRoot: string
+    workspaceRoot: string,
 ): Promise<ResolvedExecutable | undefined> {
     if (settings.executablePath) {
         const resolved = resolvePathFromWorkspace(settings.executablePath, workspaceRoot);
         if (await fileExists(resolved)) {
-            return { path: resolved, source: 'setting' };
+            return { path: resolved, source: "setting" };
         }
         output.logError(`Configured covdbg.executablePath not found: ${resolved}`);
     }
 
     const bundled = await resolveBundledPortable(context, settings);
     if (bundled) {
-        return { path: bundled, source: 'bundled' };
+        return { path: bundled, source: "bundled" };
     }
 
     const onPath = await findExecutableOnPath();
     if (onPath) {
-        return { path: onPath, source: 'path' };
+        return { path: onPath, source: "path" };
     }
 
     for (const candidate of getKnownInstallPaths()) {
         if (await fileExists(candidate)) {
-            return { path: candidate, source: 'install' };
+            return { path: candidate, source: "install" };
         }
     }
 
     const cached = await findCachedPortableExecutable(getPortableRoot(context, settings));
     if (cached) {
-        return { path: cached, source: 'cache' };
+        return { path: cached, source: "cache" };
     }
     return undefined;
 }
@@ -74,7 +74,7 @@ function getPortableRoot(context: vscode.ExtensionContext, settings: RunnerSetti
     if (settings.portableCachePath) {
         return settings.portableCachePath;
     }
-    return path.join(context.globalStorageUri.fsPath, 'portable');
+    return path.join(context.globalStorageUri.fsPath, "portable");
 }
 
 async function findCachedPortableExecutable(portableRoot: string): Promise<string | undefined> {
@@ -86,9 +86,9 @@ async function findCachedPortableExecutable(portableRoot: string): Promise<strin
 
 async function resolveBundledPortable(
     context: vscode.ExtensionContext,
-    settings: RunnerSettings
+    settings: RunnerSettings,
 ): Promise<string | undefined> {
-    const bundledRoot = path.join(context.extensionUri.fsPath, 'assets', 'portable');
+    const bundledRoot = path.join(context.extensionUri.fsPath, "assets", "portable");
     const bundledExe = await findFileRecursively(bundledRoot, COVDBG_EXE, 4);
     if (bundledExe) {
         return bundledExe;
@@ -105,7 +105,7 @@ async function resolveBundledPortable(
         mtimeMs: bundledZipStats.mtimeMs,
     };
     const cacheRoot = getPortableRoot(context, settings);
-    const extractPath = path.join(cacheRoot, 'bundled');
+    const extractPath = path.join(cacheRoot, "bundled");
     const statePath = path.join(extractPath, BUNDLED_PORTABLE_STATE);
     const cachedBundledExe = await findFileRecursively(extractPath, COVDBG_EXE, 5);
     const cachedStamp = await readPortableArchiveStamp(statePath);
@@ -120,7 +120,7 @@ async function resolveBundledPortable(
         await extractZipWindows(bundledZipPath, extractPath);
         const extractedExe = await findFileRecursively(extractPath, COVDBG_EXE, 5);
         if (!extractedExe) {
-            output.logError('Bundled portable zip does not contain covdbg.exe');
+            output.logError("Bundled portable zip does not contain covdbg.exe");
             return undefined;
         }
         await writePortableArchiveStamp(statePath, bundledZipStamp);
@@ -135,19 +135,20 @@ async function resolveBundledPortable(
 function extractZipWindows(zipPath: string, destination: string): Promise<void> {
     return new Promise((resolve, reject) => {
         const script = [
-            '-NoLogo',
-            '-NoProfile',
-            '-ExecutionPolicy', 'Bypass',
-            '-Command',
-            `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destination.replace(/'/g, "''")}' -Force`
+            "-NoLogo",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destination.replace(/'/g, "''")}' -Force`,
         ];
-        const child = spawn('powershell.exe', script, { stdio: 'pipe' });
-        let stderr = '';
-        child.stderr.on('data', chunk => {
+        const child = spawn("powershell.exe", script, { stdio: "pipe" });
+        let stderr = "";
+        child.stderr.on("data", (chunk) => {
             stderr += String(chunk);
         });
-        child.on('error', reject);
-        child.on('close', code => {
+        child.on("error", reject);
+        child.on("close", (code) => {
             if (code === 0) {
                 resolve();
             } else {
@@ -157,7 +158,11 @@ function extractZipWindows(zipPath: string, destination: string): Promise<void> 
     });
 }
 
-async function findFileRecursively(root: string, fileName: string, maxDepth: number): Promise<string | undefined> {
+async function findFileRecursively(
+    root: string,
+    fileName: string,
+    maxDepth: number,
+): Promise<string | undefined> {
     async function walk(current: string, depth: number): Promise<string | undefined> {
         if (depth > maxDepth) {
             return undefined;
@@ -192,4 +197,3 @@ async function fileExists(filePath: string): Promise<boolean> {
         return false;
     }
 }
-

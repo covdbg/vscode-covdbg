@@ -1,9 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-    COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK,
-    getCovdbgRunFailureMessage,
-} from "../runner/exitCodes";
+import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "../runner/exitCodes";
 
 test("getCovdbgRunFailureMessage explains the coverage-filter exit code", () => {
     assert.equal(

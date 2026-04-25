@@ -4,18 +4,14 @@ import {
     ExploreUncoveredFilesResult,
 } from "../coverage/exploreUncoveredFiles";
 
-export const EXPLORE_ACTIVE_COVERAGE_FILES_TOOL_NAME =
-    "covdbg_files";
+export const EXPLORE_ACTIVE_COVERAGE_FILES_TOOL_NAME = "covdbg_files";
 
 type ExploreUncoveredFilesHandler = (
     input: ExploreUncoveredFilesInput,
 ) => Promise<ExploreUncoveredFilesResult>;
 
-export class ExploreActiveCoverageFilesTool
-    implements vscode.LanguageModelTool<ExploreUncoveredFilesInput> {
-    constructor(
-        private readonly exploreUncoveredFiles: ExploreUncoveredFilesHandler,
-    ) { }
+export class ExploreActiveCoverageFilesTool implements vscode.LanguageModelTool<ExploreUncoveredFilesInput> {
+    constructor(private readonly exploreUncoveredFiles: ExploreUncoveredFilesHandler) {}
 
     prepareInvocation(
         options: vscode.LanguageModelToolInvocationPrepareOptions<ExploreUncoveredFilesInput>,
@@ -33,20 +29,24 @@ export class ExploreActiveCoverageFilesTool
         if (token.isCancellationRequested) {
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(
-                    JSON.stringify({
-                        coverageSummary: {
-                            linesTotal: 0,
-                            linesCovered: 0,
-                            linesUncovered: 0,
-                            coveragePercent: 0,
-                            fileCount: 0,
+                    JSON.stringify(
+                        {
+                            coverageSummary: {
+                                linesTotal: 0,
+                                linesCovered: 0,
+                                linesUncovered: 0,
+                                coveragePercent: 0,
+                                fileCount: 0,
+                            },
+                            totalIndexedFiles: 0,
+                            returnedFileCount: 0,
+                            files: [],
+                            llmGuidance: [],
+                            message: "Uncovered-file exploration cancelled before start.",
                         },
-                        totalIndexedFiles: 0,
-                        returnedFileCount: 0,
-                        files: [],
-                        llmGuidance: [],
-                        message: "Uncovered-file exploration cancelled before start.",
-                    }, null, 2),
+                        null,
+                        2,
+                    ),
                 ),
             ]);
         }

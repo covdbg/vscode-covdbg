@@ -3,11 +3,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { CoverageDecorator } from "./coverage/coverageDecorator";
 import { RenderMode } from "./types";
-import {
-    CovdbParser,
-    CovdbFileSummary,
-    FileCoverage,
-} from "./coverage/covdbParser";
+import { CovdbParser, CovdbFileSummary, FileCoverage } from "./coverage/covdbParser";
 import {
     buildCoverageSummaryFromFileIndex,
     emptyCoverageSummary,
@@ -40,27 +36,15 @@ import {
     MenuContext,
     MenuActions,
 } from "./views/menuPopup";
-import {
-    CovdbgSidebarController,
-    SidebarCoverageState,
-} from "./views/sidebar";
-import {
-    mergeCoverageFiles,
-    runCoverageForTarget,
-} from "./runner/runnerService";
+import { CovdbgSidebarController, SidebarCoverageState } from "./views/sidebar";
+import { mergeCoverageFiles, runCoverageForTarget } from "./runner/runnerService";
 import {
     listDiscoveredExecutablePaths,
     resolveEffectiveConfigPath,
 } from "./runner/workspaceDefaults";
-import {
-    resolveCovdbgExecutable,
-} from "./runner/executableResolver";
-import {
-    getCovdbgVersion,
-} from "./runner/runtimeInfo";
-import {
-    LicenseStatusSnapshot,
-} from "./runner/licenseStatus";
+import { resolveCovdbgExecutable } from "./runner/executableResolver";
+import { getCovdbgVersion } from "./runner/runtimeInfo";
+import { LicenseStatusSnapshot } from "./runner/licenseStatus";
 import {
     getPreferredWorkspaceFolder,
     resolvePathFromWorkspace,
@@ -68,10 +52,7 @@ import {
     resolveRunnerPaths,
     getWorkspaceRoot,
 } from "./runner/settings";
-import {
-    dedupeNormalizedPaths,
-    deriveCoverageBatchOutputPath,
-} from "./runner/outputPaths";
+import { dedupeNormalizedPaths, deriveCoverageBatchOutputPath } from "./runner/outputPaths";
 import {
     EXPLORE_ACTIVE_COVERAGE_FILES_TOOL_NAME,
     ExploreActiveCoverageFilesTool,
@@ -82,13 +63,8 @@ import {
     type ExploreEnvironmentToolInput,
     type ExploreEnvironmentToolResult,
 } from "./tools/exploreEnvironmentTool";
-import {
-    GET_UNCOVERED_CODE_TOOL_NAME,
-    GetUncoveredCodeTool,
-} from "./tools/getUncoveredCodeTool";
-import {
-    RunTestWithCoverageTool,
-} from "./tools/runTestWithCoverageTool";
+import { GET_UNCOVERED_CODE_TOOL_NAME, GetUncoveredCodeTool } from "./tools/getUncoveredCodeTool";
+import { RunTestWithCoverageTool } from "./tools/runTestWithCoverageTool";
 import {
     RUN_TEST_WITH_COVERAGE_TOOL_NAME,
     type RunTestWithCoverageToolResult,
@@ -119,10 +95,7 @@ let testingRootItem: vscode.TestItem | undefined;
 /** Executable path lookup for file-less test items. */
 const testExecutablePaths: Map<string, string> = new Map();
 const covdbReloadScheduler = new CovdbReloadScheduler();
-const covdbWatchers = new Map<
-    string,
-    { covdbPath: string; watcher: vscode.FileSystemWatcher }
->();
+const covdbWatchers = new Map<string, { covdbPath: string; watcher: vscode.FileSystemWatcher }>();
 let lastDiscoveredTestBinaryIds: string | undefined;
 /** Track last run output for clear command. */
 let lastRunOutputPaths: string[] = [];
@@ -176,13 +149,11 @@ export function activate(context: vscode.ExtensionContext) {
         getWorkspaceFolderForPath,
         loadIndex,
         refreshTestControllerItems,
-        setLicenseStatus: (licenseStatus) =>
-            statusBar.setLicenseStatus(licenseStatus),
+        setLicenseStatus: (licenseStatus) => statusBar.setLicenseStatus(licenseStatus),
     });
 
     // Restore persisted render mode (workspace state takes priority, then setting)
-    const savedMode =
-        context.workspaceState.get<RenderMode>("covdbg.renderMode");
+    const savedMode = context.workspaceState.get<RenderMode>("covdbg.renderMode");
     const configMode = vscode.workspace
         .getConfiguration("covdbg")
         .get<RenderMode>("renderMode", "gutter");
@@ -193,35 +164,18 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         sidebar,
         ...sidebar.getDisposables(),
-        vscode.commands.registerCommand("covdbg.showMenu", () =>
-            showMenu(context),
+        vscode.commands.registerCommand("covdbg.showMenu", () => showMenu(context)),
+        vscode.commands.registerCommand("covdbg.toggleCoverage", () => toggleVisibility()),
+        vscode.commands.registerCommand("covdbg.showReport", showCoverageReportCommand),
+        vscode.commands.registerCommand("covdbg.browseFiles", () => showFileBrowser()),
+        vscode.commands.registerCommand("covdbg.setRenderMode", (mode: string) =>
+            applyRenderMode(mode as RenderMode, context),
         ),
-        vscode.commands.registerCommand("covdbg.toggleCoverage", () =>
-            toggleVisibility(),
-        ),
-        vscode.commands.registerCommand(
-            "covdbg.showReport",
-            showCoverageReportCommand,
-        ),
-        vscode.commands.registerCommand("covdbg.browseFiles", () =>
-            showFileBrowser(),
-        ),
-        vscode.commands.registerCommand(
-            "covdbg.setRenderMode",
-            (mode: string) => applyRenderMode(mode as RenderMode, context),
-        ),
-        vscode.commands.registerCommand("covdbg.configurePath", () =>
-            pickCovdbFile(),
-        ),
-        vscode.commands.registerCommand("covdbg.createConfig", () =>
-            createConfigCommand(context),
-        ),
-        vscode.commands.registerCommand("covdbg.runCoverage", () =>
-            runCoverageCommand(context),
-        ),
-        vscode.commands.registerCommand(
-            "covdbg.getUncoveredCode",
-            (filePath?: string) => getUncoveredCode(filePath),
+        vscode.commands.registerCommand("covdbg.configurePath", () => pickCovdbFile()),
+        vscode.commands.registerCommand("covdbg.createConfig", () => createConfigCommand(context)),
+        vscode.commands.registerCommand("covdbg.runCoverage", () => runCoverageCommand(context)),
+        vscode.commands.registerCommand("covdbg.getUncoveredCode", (filePath?: string) =>
+            getUncoveredCode(filePath),
         ),
         vscode.commands.registerCommand("covdbg.clearLastRunResult", () =>
             clearLastRunResultCommand(),
@@ -231,9 +185,7 @@ export function activate(context: vscode.ExtensionContext) {
         ),
         vscode.lm.registerTool(
             COVDBG_EXPLORE_TOOL_NAME,
-            new ExploreEnvironmentTool((input) =>
-                exploreCovdbgEnvironment(context, input),
-            ),
+            new ExploreEnvironmentTool((input) => exploreCovdbgEnvironment(context, input)),
         ),
         vscode.lm.registerTool(
             GET_UNCOVERED_CODE_TOOL_NAME,
@@ -287,8 +239,8 @@ export function activate(context: vscode.ExtensionContext) {
                 refreshAllEditors();
             }
             if (
-                e.affectsConfiguration("covdbg.runner.binaryDiscoveryPattern")
-                || e.affectsConfiguration("covdbg.runner.binaryDiscoveryExcludePattern")
+                e.affectsConfiguration("covdbg.runner.binaryDiscoveryPattern") ||
+                e.affectsConfiguration("covdbg.runner.binaryDiscoveryExcludePattern")
             ) {
                 await refreshTestControllerItems();
             }
@@ -313,9 +265,7 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    const configWatcher = vscode.workspace.createFileSystemWatcher(
-        CONFIG_FILE_GLOB,
-    );
+    const configWatcher = vscode.workspace.createFileSystemWatcher(CONFIG_FILE_GLOB);
     context.subscriptions.push(
         configWatcher,
         configWatcher.onDidCreate((uri) => {
@@ -355,9 +305,7 @@ export function deactivate(): void {
 // Discovery & index loading
 // ---------------------------------------------------------------------------
 
-async function discoverAndLoadIndex(
-    context?: vscode.ExtensionContext,
-): Promise<void> {
+async function discoverAndLoadIndex(context?: vscode.ExtensionContext): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     let anyLoaded = false;
 
@@ -429,14 +377,11 @@ async function loadIndex(
             return;
         }
         if (result.files.size === 0) {
-            vscode.window.showWarningMessage(
-                "covdbg: No coverage data in .covdb",
-            );
+            vscode.window.showWarningMessage("covdbg: No coverage data in .covdb");
             return;
         }
 
-        const targetWorkspaceFolder =
-            workspaceFolder ?? getWorkspaceFolderForPath(covdbPath);
+        const targetWorkspaceFolder = workspaceFolder ?? getWorkspaceFolderForPath(covdbPath);
         const state = getOrCreateCoverageState(targetWorkspaceFolder);
         state.activeCovdbPath = covdbPath;
         state.activeCovdbMtime = mtime;
@@ -452,11 +397,8 @@ async function loadIndex(
         uncoveredCodeCache.clear();
 
         const excluded = result.files.size - state.fileIndex.size;
-        const excludedMsg =
-            excluded > 0 ? ` (${excluded} external files hidden)` : "";
-        output.log(
-            `Indexed ${state.fileIndex.size} files${excludedMsg} (mtime ${mtime})`,
-        );
+        const excludedMsg = excluded > 0 ? ` (${excluded} external files hidden)` : "";
+        output.log(`Indexed ${state.fileIndex.size} files${excludedMsg} (mtime ${mtime})`);
 
         refreshAllEditors();
         updateActiveWorkspaceUi();
@@ -483,10 +425,7 @@ function ensureCovdbWatcher(state: CoverageWorkspaceState): void {
         return;
     }
 
-    if (
-        existing &&
-        normalizePathKey(existing.covdbPath) === normalizePathKey(covdbPath)
-    ) {
+    if (existing && normalizePathKey(existing.covdbPath) === normalizePathKey(covdbPath)) {
         return;
     }
 
@@ -529,9 +468,7 @@ function disposeAllCovdbWatchers(): void {
 function queueCovdbReload(stateKey: string, covdbPath: string): void {
     covdbReloadScheduler.queueReload(stateKey, covdbPath);
     if (covdbReloadScheduler.hasActiveExecution()) {
-        output.log(
-            `Queued .covdb reload until current coverage workflow completes: ${covdbPath}`,
-        );
+        output.log(`Queued .covdb reload until current coverage workflow completes: ${covdbPath}`);
         return;
     }
 
@@ -555,10 +492,7 @@ async function flushPendingCovdbReloads(): Promise<void> {
 
         for (const pending of pendingReloads) {
             if (covdbReloadScheduler.hasActiveExecution()) {
-                covdbReloadScheduler.queueReload(
-                    pending.stateKey,
-                    pending.covdbPath,
-                );
+                covdbReloadScheduler.queueReload(pending.stateKey, pending.covdbPath);
                 break;
             }
 
@@ -572,9 +506,7 @@ async function flushPendingCovdbReloads(): Promise<void> {
                 continue;
             }
 
-            output.log(
-                `.covdb changed on disk, reloading index: ${pending.covdbPath}`,
-            );
+            output.log(`.covdb changed on disk, reloading index: ${pending.covdbPath}`);
             await loadIndex(pending.covdbPath, "settings", state.workspaceFolder);
         }
     } finally {
@@ -589,9 +521,7 @@ async function flushPendingCovdbReloads(): Promise<void> {
     }
 }
 
-async function withDeferredCovdbReloads<T>(
-    operation: () => Promise<T>,
-): Promise<T> {
+async function withDeferredCovdbReloads<T>(operation: () => Promise<T>): Promise<T> {
     covdbReloadScheduler.beginExecution();
     try {
         return await operation();
@@ -637,9 +567,7 @@ function findIndexKey(editorPath: string): string | undefined {
     );
 }
 
-async function getOrLoadCoverage(
-    editorPath: string,
-): Promise<FileCoverage | undefined> {
+async function getOrLoadCoverage(editorPath: string): Promise<FileCoverage | undefined> {
     const state = getCoverageStateForPath(editorPath);
     if (!state?.activeCovdbPath) {
         return undefined;
@@ -688,7 +616,7 @@ async function isCoverageStaleForPath(
         (document) =>
             document.uri.scheme === "file" &&
             path.normalize(document.uri.fsPath).toLowerCase() ===
-            path.normalize(editorPath).toLowerCase(),
+                path.normalize(editorPath).toLowerCase(),
     );
     if (openDocument?.isDirty) {
         return true;
@@ -784,16 +712,12 @@ async function showMenu(context: vscode.ExtensionContext): Promise<void> {
         configure: () => pickCovdbFile(),
         createConfig: () => createConfigCommand(context),
         openSettings: () =>
-            vscode.commands.executeCommand(
-                "workbench.action.openSettings",
-                "covdbg",
-            ),
+            vscode.commands.executeCommand("workbench.action.openSettings", "covdbg"),
         switchDatabase: (covdbPath) => loadIndex(covdbPath, "settings"),
         closeDatabase: () => closeCovdb(),
         runCoverage: () => runCoverageCommand(context),
         clearLastRunResult: () => clearLastRunResultCommand(),
-        openTestsView: () =>
-            vscode.commands.executeCommand("workbench.view.testing.focus"),
+        openTestsView: () => vscode.commands.executeCommand("workbench.view.testing.focus"),
     };
 
     await showMenuPopup(ctx, actions);
@@ -810,9 +734,7 @@ function toggleVisibility(): void {
     if (nowEnabled) {
         refreshAllEditors();
     } else {
-        vscode.window.visibleTextEditors.forEach((e) =>
-            decorator.clearDecorations(e),
-        );
+        vscode.window.visibleTextEditors.forEach((e) => decorator.clearDecorations(e));
     }
 }
 
@@ -821,16 +743,12 @@ function closeCovdb(): void {
     const activeState = getActiveCoverageState();
     if (activeState?.workspaceFolder) {
         clearCoverageState(activeState.workspaceFolder, true);
-        output.log(
-            `Coverage database closed for workspace ${activeState.workspaceFolder.name}`,
-        );
+        output.log(`Coverage database closed for workspace ${activeState.workspaceFolder.name}`);
     } else {
         for (const state of coverageStates.values()) {
             clearCoverageState(state.workspaceFolder, false);
         }
-        vscode.window.visibleTextEditors.forEach((e) =>
-            decorator.clearDecorations(e),
-        );
+        vscode.window.visibleTextEditors.forEach((e) => decorator.clearDecorations(e));
         output.log("Coverage database closed");
     }
     updateActiveWorkspaceUi();
@@ -842,10 +760,7 @@ async function showFileBrowser(): Promise<void> {
     await showFileBrowserPopup(activeState?.fileIndex ?? new Map());
 }
 
-async function applyRenderMode(
-    mode: RenderMode,
-    context: vscode.ExtensionContext,
-): Promise<void> {
+async function applyRenderMode(mode: RenderMode, context: vscode.ExtensionContext): Promise<void> {
     decorator.setRenderMode(mode);
     statusBar.setRenderMode(mode);
     context.workspaceState.update("covdbg.renderMode", mode);
@@ -862,17 +777,11 @@ async function pickCovdbFile(): Promise<void> {
     });
     if (result && result.length > 0) {
         const config = vscode.workspace.getConfiguration("covdbg");
-        await config.update(
-            "covdbPath",
-            result[0].fsPath,
-            vscode.ConfigurationTarget.Workspace,
-        );
+        await config.update("covdbPath", result[0].fsPath, vscode.ConfigurationTarget.Workspace);
     }
 }
 
-async function createConfigCommand(
-    context: vscode.ExtensionContext,
-): Promise<void> {
+async function createConfigCommand(context: vscode.ExtensionContext): Promise<void> {
     const targetFolder = await pickWorkspaceFolderForConfig();
     if (!targetFolder) {
         return;
@@ -885,7 +794,6 @@ async function createConfigInWorkspace(
     context: vscode.ExtensionContext,
     targetFolder: vscode.WorkspaceFolder,
 ): Promise<void> {
-
     const configPath = path.join(targetFolder.uri.fsPath, CONFIG_FILE_NAME);
     if (await fileExists(configPath)) {
         const doc = await vscode.workspace.openTextDocument(configPath);
@@ -919,18 +827,13 @@ async function handleCovdbgConfigFileChange(
     sidebar.scheduleRefresh();
 }
 
-async function clearDeletedRunnerConfigPath(
-    configUri: vscode.Uri,
-): Promise<void> {
+async function clearDeletedRunnerConfigPath(configUri: vscode.Uri): Promise<void> {
     const workspaceFolder = getWorkspaceFolderForPath(configUri.fsPath);
     if (!workspaceFolder) {
         return;
     }
 
-    const config = vscode.workspace.getConfiguration(
-        "covdbg",
-        workspaceFolder.uri,
-    );
+    const config = vscode.workspace.getConfiguration("covdbg", workspaceFolder.uri);
     const inspected = config.inspect<string>("runner.configPath");
     if (!inspected) {
         return;
@@ -954,33 +857,13 @@ async function clearDeletedRunnerConfigPath(
         cleared = true;
     }
 
-    if (
-        configuredRunnerConfigMatches(
-            inspected.workspaceValue,
-            workspaceRoot,
-            configUri.fsPath,
-        )
-    ) {
-        await config.update(
-            "runner.configPath",
-            undefined,
-            vscode.ConfigurationTarget.Workspace,
-        );
+    if (configuredRunnerConfigMatches(inspected.workspaceValue, workspaceRoot, configUri.fsPath)) {
+        await config.update("runner.configPath", undefined, vscode.ConfigurationTarget.Workspace);
         cleared = true;
     }
 
-    if (
-        configuredRunnerConfigMatches(
-            inspected.globalValue,
-            workspaceRoot,
-            configUri.fsPath,
-        )
-    ) {
-        await config.update(
-            "runner.configPath",
-            undefined,
-            vscode.ConfigurationTarget.Global,
-        );
+    if (configuredRunnerConfigMatches(inspected.globalValue, workspaceRoot, configUri.fsPath)) {
+        await config.update("runner.configPath", undefined, vscode.ConfigurationTarget.Global);
         cleared = true;
     }
 
@@ -1001,14 +884,12 @@ function configuredRunnerConfigMatches(
     }
 
     return (
-        path.normalize(resolvePathFromWorkspace(configuredPath, workspaceRoot))
-            .toLowerCase() === path.normalize(targetPath).toLowerCase()
+        path.normalize(resolvePathFromWorkspace(configuredPath, workspaceRoot)).toLowerCase() ===
+        path.normalize(targetPath).toLowerCase()
     );
 }
 
-async function runCoverageCommand(
-    context: vscode.ExtensionContext,
-): Promise<void> {
+async function runCoverageCommand(context: vscode.ExtensionContext): Promise<void> {
     await refreshTestControllerItems();
     const selectedItems = await promptForDiscoveredTestItems();
     if (!selectedItems || selectedItems.length === 0) {
@@ -1040,10 +921,7 @@ async function handleLicenseStatusUpdate(
     if (licenseStatus.status === "active" && licenseStatus.isFirstIssue) {
         const noticeKey = "covdbg.demoNoticeShown";
         if (!context.globalState.get<boolean>(noticeKey)) {
-            const daysRemaining = Math.max(
-                0,
-                licenseStatus.daysRemaining ?? 30,
-            );
+            const daysRemaining = Math.max(0, licenseStatus.daysRemaining ?? 30);
             await context.globalState.update(noticeKey, true);
             void vscode.window.showInformationMessage(
                 `covdbg: The VS Code edition can be used free for 30 days. ${daysRemaining} day(s) remaining.`,
@@ -1055,7 +933,7 @@ async function handleLicenseStatusUpdate(
     if (!runSucceeded && licenseStatus.status === "trial-used") {
         void vscode.window.showWarningMessage(
             licenseStatus.message ||
-            "covdbg: The 30-day demo has already been used on this machine.",
+                "covdbg: The 30-day demo has already been used on this machine.",
         );
     }
 }
@@ -1077,8 +955,7 @@ async function clearLastRunResultCommand(): Promise<void> {
                 deletedCount++;
                 output.log(`Cleared last run result: ${outputPath}`);
             } catch (error) {
-                const message =
-                    error instanceof Error ? error.message : String(error);
+                const message = error instanceof Error ? error.message : String(error);
                 output.logError(`Failed to clear last run result: ${message}`);
                 vscode.window.showWarningMessage(
                     `covdbg: Failed to delete last .covdb: ${message}`,
@@ -1088,14 +965,10 @@ async function clearLastRunResultCommand(): Promise<void> {
         }
 
         if (deletedCount > 0) {
-            vscode.window.showInformationMessage(
-                "covdbg: Last run result cleared.",
-            );
+            vscode.window.showInformationMessage("covdbg: Last run result cleared.");
         } else {
             output.log("Cleared UI state for last run result.");
-            vscode.window.showInformationMessage(
-                "covdbg: Cleared last run state.",
-            );
+            vscode.window.showInformationMessage("covdbg: Cleared last run state.");
         }
     } else {
         output.log("Cleared UI state for last run result.");
@@ -1114,14 +987,10 @@ async function showCoverageReportCommand(): Promise<void> {
     );
 }
 
-async function getUncoveredCode(
-    filePath?: string,
-): Promise<UncoveredCodeResult> {
+async function getUncoveredCode(filePath?: string): Promise<UncoveredCodeResult> {
     const resolvedPath = resolveRequestedFilePath(filePath);
     if (!resolvedPath) {
-        output.logError(
-            "getUncoveredCode: no file path provided and no active editor available",
-        );
+        output.logError("getUncoveredCode: no file path provided and no active editor available");
         return emptyUncoveredCodeResult(filePath ?? "");
     }
 
@@ -1132,10 +1001,7 @@ async function getUncoveredCode(
     }
 
     if (!getActiveCoverageState()?.activeCovdbPath) {
-        return emptyUncoveredCodeResult(
-            resolvedPath,
-            buildNoCoverageLoadedGuidance(),
-        );
+        return emptyUncoveredCodeResult(resolvedPath, buildNoCoverageLoadedGuidance());
     }
 
     const state = getCoverageStateForPath(resolvedPath);
@@ -1151,17 +1017,9 @@ async function getUncoveredCode(
     }
 
     const coverage = await getOrLoadCoverage(resolvedPath);
-    const result = buildUncoveredCodeResult(
-        resolvedPath,
-        document.getText(),
-        coverage,
-        {
-            workspaceRelativePath: vscode.workspace.asRelativePath(
-                resolvedPath,
-                false,
-            ),
-        },
-    );
+    const result = buildUncoveredCodeResult(resolvedPath, document.getText(), coverage, {
+        workspaceRelativePath: vscode.workspace.asRelativePath(resolvedPath, false),
+    });
 
     uncoveredCodeCache.set(cacheKey, {
         covdbPath: state?.activeCovdbPath,
@@ -1180,9 +1038,7 @@ async function exploreUncoveredFiles(
     if (!activeState?.activeCovdbPath || activeState.fileIndex.size === 0) {
         return {
             activeCovdbPath: activeState?.activeCovdbPath,
-            coverageSummary: emptyCoverageSummary(
-                activeState?.fileIndex.size ?? 0,
-            ),
+            coverageSummary: emptyCoverageSummary(activeState?.fileIndex.size ?? 0),
             totalIndexedFiles: activeState?.fileIndex.size ?? 0,
             returnedFileCount: 0,
             files: [],
@@ -1206,15 +1062,11 @@ async function exploreCovdbgEnvironment(
     const requestedWorkspaceRoot = input.workspaceRoot?.trim();
     const targetWorkspace = requestedWorkspaceRoot
         ? findWorkspaceFolderByPath(requestedWorkspaceRoot)
-        : getPreferredWorkspaceFolder(
-            vscode.window.activeTextEditor?.document.uri.fsPath,
-        );
+        : getPreferredWorkspaceFolder(vscode.window.activeTextEditor?.document.uri.fsPath);
     const workspaceRoot = targetWorkspace?.uri.fsPath ?? requestedWorkspaceRoot;
     const settings = readRunnerSettings(targetWorkspace?.uri);
     const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 20)));
-    const resolvedPaths = workspaceRoot
-        ? resolveRunnerPaths(settings, workspaceRoot)
-        : undefined;
+    const resolvedPaths = workspaceRoot ? resolveRunnerPaths(settings, workspaceRoot) : undefined;
     const discoveredConfigFiles = targetWorkspace
         ? await findCovdbgConfigFiles(targetWorkspace)
         : await findCovdbgConfigFiles();
@@ -1228,10 +1080,9 @@ async function exploreCovdbgEnvironment(
     let resolvedConfigPath: string | undefined;
     if (workspaceRoot && resolvedPaths) {
         if (settings.configPath) {
-            resolvedConfigPath =
-                (await fileExists(resolvedPaths.configPath ?? ""))
-                    ? resolvedPaths.configPath
-                    : undefined;
+            resolvedConfigPath = (await fileExists(resolvedPaths.configPath ?? ""))
+                ? resolvedPaths.configPath
+                : undefined;
         } else if (discoveredTestBinaries[0]) {
             resolvedConfigPath = await resolveEffectiveConfigPath(
                 settings.configPath,
@@ -1265,8 +1116,7 @@ async function exploreCovdbgEnvironment(
         },
         runner: {
             binaryDiscoveryPattern: settings.binaryDiscoveryPattern,
-            binaryDiscoveryExcludePattern:
-                settings.binaryDiscoveryExcludePattern || undefined,
+            binaryDiscoveryExcludePattern: settings.binaryDiscoveryExcludePattern || undefined,
             configuredConfigPath: resolvedPaths?.configPath,
             resolvedConfigPath,
             configuredOutputPath: resolvedPaths?.configuredOutputPath,
@@ -1276,9 +1126,7 @@ async function exploreCovdbgEnvironment(
         configFiles: {
             discoveredCount: discoveredConfigFiles.length,
             returnedCount: Math.min(discoveredConfigFiles.length, limit),
-            paths: discoveredConfigFiles
-                .slice(0, limit)
-                .map((uri) => uri.fsPath),
+            paths: discoveredConfigFiles.slice(0, limit).map((uri) => uri.fsPath),
         },
         coverageDatabases: {
             activeCovdbPath: activeCoverageState?.activeCovdbPath,
@@ -1304,25 +1152,13 @@ async function runTestWithCoverage(
 ): Promise<RunTestWithCoverageToolResult> {
     const workflow = await withDeferredCovdbReloads(() =>
         runTestWithCoverageWorkflow(executablePaths, {
-            resolveExecutablePath: (inputPath) =>
-                resolveWorkspaceRelativePath(inputPath),
+            resolveExecutablePath: (inputPath) => resolveWorkspaceRelativePath(inputPath),
             fileExists,
             buildBatchIntermediateOutputPath,
             executeCoverageRun: (resolvedExecutablePath, outputPathOverride) =>
-                executeCoverageRun(
-                    context,
-                    resolvedExecutablePath,
-                    outputPathOverride,
-                ),
-            finalizeBatchCoverageOutputs: (
-                successfulOutputPaths,
-                generatedOutputPaths,
-            ) =>
-                finalizeBatchCoverageOutputs(
-                    context,
-                    successfulOutputPaths,
-                    generatedOutputPaths,
-                ),
+                executeCoverageRun(context, resolvedExecutablePath, outputPathOverride),
+            finalizeBatchCoverageOutputs: (successfulOutputPaths, generatedOutputPaths) =>
+                finalizeBatchCoverageOutputs(context, successfulOutputPaths, generatedOutputPaths),
             dedupePaths: dedupeNormalizedPaths,
         }),
     );
@@ -1352,11 +1188,7 @@ async function executeCoverageRun(
         (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
     );
 
-    await handleLicenseStatusUpdate(
-        context,
-        result.licenseStatus,
-        result.success,
-    );
+    await handleLicenseStatusUpdate(context, result.licenseStatus, result.success);
 
     let coverageLoaded = false;
     let coverageSummary: CoverageSummary | undefined;
@@ -1388,8 +1220,7 @@ async function executeCoverageRun(
 function getCoverageSummaryForExecutable(
     targetExecutablePath: string,
 ): CoverageSummary | undefined {
-    const state = getCoverageStateForPath(targetExecutablePath)
-        ?? getActiveCoverageState();
+    const state = getCoverageStateForPath(targetExecutablePath) ?? getActiveCoverageState();
     if (!state?.activeCovdbPath || state.fileIndex.size === 0) {
         return undefined;
     }
@@ -1423,9 +1254,7 @@ async function finalizeBatchCoverageOutputs(
         };
     }
 
-    const canonicalOutputPath = getCanonicalCoverageOutputPath(
-        successfulOutputPaths[0],
-    );
+    const canonicalOutputPath = getCanonicalCoverageOutputPath(successfulOutputPaths[0]);
     if (!canonicalOutputPath) {
         return {
             success: false,
@@ -1447,11 +1276,11 @@ async function finalizeBatchCoverageOutputs(
         finalInputPaths.length === 1
             ? await copyCoverageFile(finalInputPaths[0], canonicalOutputPath)
             : await mergeCoverageFiles(
-                context,
-                finalInputPaths,
-                canonicalOutputPath,
-                getWorkspaceFolderForPath(canonicalOutputPath),
-            );
+                  context,
+                  finalInputPaths,
+                  canonicalOutputPath,
+                  getWorkspaceFolderForPath(canonicalOutputPath),
+              );
 
     if (!finalized || !(await fileExists(canonicalOutputPath))) {
         statusBar.setRunFailed();
@@ -1468,10 +1297,7 @@ async function finalizeBatchCoverageOutputs(
         };
     }
 
-    lastRunOutputPaths = dedupeNormalizedPaths([
-        ...generatedOutputPaths,
-        canonicalOutputPath,
-    ]);
+    lastRunOutputPaths = dedupeNormalizedPaths([...generatedOutputPaths, canonicalOutputPath]);
     await loadIndex(canonicalOutputPath, "settings");
     statusBar.setRunSucceeded();
 
@@ -1486,9 +1312,7 @@ async function finalizeBatchCoverageOutputs(
     };
 }
 
-function buildBatchIntermediateOutputPath(
-    targetExecutablePath: string,
-): string | undefined {
+function buildBatchIntermediateOutputPath(targetExecutablePath: string): string | undefined {
     const workspaceFolder = getPreferredWorkspaceFolder(targetExecutablePath);
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
@@ -1497,15 +1321,10 @@ function buildBatchIntermediateOutputPath(
 
     const settings = readRunnerSettings(workspaceFolder?.uri);
     const paths = resolveRunnerPaths(settings, workspaceRoot);
-    return deriveCoverageBatchOutputPath(
-        paths.configuredOutputPath,
-        targetExecutablePath,
-    );
+    return deriveCoverageBatchOutputPath(paths.configuredOutputPath, targetExecutablePath);
 }
 
-function getCanonicalCoverageOutputPath(
-    targetPathForWorkspace: string,
-): string | undefined {
+function getCanonicalCoverageOutputPath(targetPathForWorkspace: string): string | undefined {
     const workspaceFolder = getPreferredWorkspaceFolder(targetPathForWorkspace);
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
@@ -1516,15 +1335,9 @@ function getCanonicalCoverageOutputPath(
     return resolveRunnerPaths(settings, workspaceRoot).configuredOutputPath;
 }
 
-async function copyCoverageFile(
-    sourcePath: string,
-    targetPath: string,
-): Promise<boolean> {
+async function copyCoverageFile(sourcePath: string, targetPath: string): Promise<boolean> {
     try {
-        if (
-            path.normalize(sourcePath).toLowerCase() ===
-            path.normalize(targetPath).toLowerCase()
-        ) {
+        if (path.normalize(sourcePath).toLowerCase() === path.normalize(targetPath).toLowerCase()) {
             return true;
         }
         await fs.mkdir(path.dirname(targetPath), { recursive: true });
@@ -1547,9 +1360,7 @@ function getCoverageSummaryForPath(filePath: string): CoverageSummary | undefine
     return buildCoverageSummaryFromFileIndex(state.fileIndex);
 }
 
-async function openDocumentIfExists(
-    filePath: string,
-): Promise<vscode.TextDocument | undefined> {
+async function openDocumentIfExists(filePath: string): Promise<vscode.TextDocument | undefined> {
     try {
         return await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
     } catch {
@@ -1558,8 +1369,7 @@ async function openDocumentIfExists(
 }
 
 function resolveRequestedFilePath(filePath?: string): string | undefined {
-    const candidate =
-        filePath?.trim() || vscode.window.activeTextEditor?.document.uri.fsPath;
+    const candidate = filePath?.trim() || vscode.window.activeTextEditor?.document.uri.fsPath;
     if (!candidate) {
         return undefined;
     }
@@ -1573,8 +1383,7 @@ function resolveRequestedFilePath(filePath?: string): string | undefined {
         ? getWorkspaceFolderForPath(editorPath)
         : getPreferredWorkspaceFolder();
     const basePath =
-        workspaceFolder?.uri.fsPath
-        ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        workspaceFolder?.uri.fsPath ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     return basePath
         ? path.normalize(path.resolve(basePath, candidate))
@@ -1596,8 +1405,7 @@ function resolveWorkspaceRelativePath(inputPath?: string): string | undefined {
         ? getWorkspaceFolderForPath(editorPath)
         : getPreferredWorkspaceFolder();
     const basePath =
-        workspaceFolder?.uri.fsPath
-        ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        workspaceFolder?.uri.fsPath ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     return basePath
         ? path.normalize(path.resolve(basePath, candidate))
@@ -1738,11 +1546,7 @@ async function findCovdbgConfigFiles(
 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
-        return vscode.workspace.findFiles(
-            CONFIG_FILE_GLOB,
-            DISCOVERY_EXCLUDE_GLOB,
-            maxResults,
-        );
+        return vscode.workspace.findFiles(CONFIG_FILE_GLOB, DISCOVERY_EXCLUDE_GLOB, maxResults);
     }
 
     const found: vscode.Uri[] = [];
@@ -1778,10 +1582,7 @@ async function maybeOfferToCreateConfig(
     if (await workspaceContainsCovdbgYaml()) {
         return;
     }
-    if (
-        !forcePrompt &&
-        context.workspaceState.get<boolean>(CONFIG_PROMPT_ACK_KEY)
-    ) {
+    if (!forcePrompt && context.workspaceState.get<boolean>(CONFIG_PROMPT_ACK_KEY)) {
         return;
     }
 
@@ -1836,7 +1637,7 @@ function buildStarterConfigContents(): string {
         "# Format version: 1",
         "",
         "version: 1",
-        "source_root: \".\"",
+        'source_root: "."',
         "coverage:",
         "  default:",
         "    files:",
@@ -1850,63 +1651,63 @@ function buildStarterConfigContents(): string {
         "      # not discovered via linked debug info (PDB). If they are never executed, they",
         "      # will appear as 0% coverage (LCOV-like behavior).",
         "      include:",
-        "        - \"**/*.cpp\"",
-        "        - \"**/*.h\"",
+        '        - "**/*.cpp"',
+        '        - "**/*.h"',
         "",
         "      # Exclude specific files or directories from the report.",
         "      # Exclude rules always take precedence over include rules.",
         "      exclude:",
         "        # =====================================================================",
         "        # Windows SDK and Universal CRT (installed paths)",
-        "        # \"C:/Program Files*/Windows Kits/**\"",
+        '        # "C:/Program Files*/Windows Kits/**"',
         "        # =====================================================================",
-        "        - \"**/Windows Kits/**\"",
+        '        - "**/Windows Kits/**"',
         "",
         "        # =====================================================================",
         "        # MSVC Toolchain (installed paths)",
-        "        # \"C:/Program Files*/Microsoft Visual Studio/**/VC/Tools/**\"",
+        '        # "C:/Program Files*/Microsoft Visual Studio/**/VC/Tools/**"',
         "        # =====================================================================",
-        "        - \"**/VC/Tools/MSVC/**\"",
+        '        - "**/VC/Tools/MSVC/**"',
         "",
         "        # =====================================================================",
         "        # MSVC CRT/STL Source (build server paths from PDBs)",
         "        # These patterns match paths embedded in Microsoft's pre-built binaries",
         "        # from their internal build systems (D:\\a\\_work\\1\\s\\src\\...)",
         "        # =====================================================================",
-        "        - \"**/vctools/crt/**\"           # CRT runtime, startup, vcruntime",
-        "        - \"**/vctools/langapi/**\"       # Language API (undname, etc.)",
-        "        - \"**/stl/inc/**\"               # STL headers",
-        "        - \"**/stl/src/**\"               # STL source",
+        '        - "**/vctools/crt/**"           # CRT runtime, startup, vcruntime',
+        '        - "**/vctools/langapi/**"       # Language API (undname, etc.)',
+        '        - "**/stl/inc/**"               # STL headers',
+        '        - "**/stl/src/**"               # STL source',
         "",
         "        # =====================================================================",
         "        # Universal CRT (UCRT) - minkernel paths from Windows PDBs",
         "        # =====================================================================",
-        "        - \"**/minkernel/crts/ucrt/**\"   # UCRT implementation",
-        "        - \"**/minkernel/crts/crtw32/**\" # Legacy CRT components",
+        '        - "**/minkernel/crts/ucrt/**"   # UCRT implementation',
+        '        - "**/minkernel/crts/crtw32/**" # Legacy CRT components',
         "",
         "        # =====================================================================",
         "        # Windows SDK internals (onecore paths from Windows PDBs)",
         "        # =====================================================================",
-        "        - \"**/onecore/**\"               # OneCore SDK internals",
+        '        - "**/onecore/**"               # OneCore SDK internals',
         "",
         "        # =====================================================================",
         "        # External SDK includes embedded in PDBs",
         "        # =====================================================================",
-        "        - \"**/ExternalAPIs/**\"          # External API headers",
-        "        - \"**/binaries/amd64ret/inc/**\" # Binary distribution includes",
+        '        - "**/ExternalAPIs/**"          # External API headers',
+        '        - "**/binaries/amd64ret/inc/**" # Binary distribution includes',
         "",
         "        # =====================================================================",
         "        # Project-specific exclusions",
         "        # =====================================================================",
         "        # Build dependencies (CMake FetchContent, etc.)",
-        "        - \"build/**/_deps/**\"",
-        "        - \"third_party/**\"",
-        "        - \"external/**\"",
-        "        - \"vendor/**\"",
+        '        - "build/**/_deps/**"',
+        '        - "third_party/**"',
+        '        - "external/**"',
+        '        - "vendor/**"',
         "",
         "        # Test files or test support code you do not want counted in product coverage",
-        "        - \"src/**/*Tests.cpp\"",
-        "        - \"tests/helpers/**\"",
+        '        - "src/**/*Tests.cpp"',
+        '        - "tests/helpers/**"',
         "",
         "    functions:",
         "      # Control which functions are included in function-level coverage.",
@@ -1914,19 +1715,19 @@ function buildStarterConfigContents(): string {
         "      # Patterns can be fully qualified names (e.g. Namespace::Class::Method) or",
         "      # wildcard expressions using '*'.",
         "      include:",
-        "        - \"*\"  # Include all functions by default",
+        '        - "*"  # Include all functions by default',
         "",
         "      # Exclude specific functions (or patterns) from function-level coverage.",
         "      # These are compiler-generated or runtime functions that add noise.",
         "      exclude:",
         "        # MSVC empty global delete (generated by compiler)",
-        "        - \"__empty_global_delete\"",
+        '        - "__empty_global_delete"',
         "",
         "        # CRT startup/initialization functions",
-        "        - \"__scrt_*\"",
-        "        - \"_RTC_*\"",
-        "        - \"__security_*\"",
-        "        - \"__GSHandler*\"",
+        '        - "__scrt_*"',
+        '        - "_RTC_*"',
+        '        - "__security_*"',
+        '        - "__GSHandler*"',
         "",
         "",
     ].join("\n");
@@ -1960,9 +1761,7 @@ function dedupeUris(uris: vscode.Uri[]): vscode.Uri[] {
     return deduped;
 }
 
-function getWorkspaceStateKey(
-    workspaceFolder?: vscode.WorkspaceFolder,
-): string {
+function getWorkspaceStateKey(workspaceFolder?: vscode.WorkspaceFolder): string {
     return workspaceFolder?.uri.toString() ?? "__no_workspace__";
 }
 
@@ -1986,18 +1785,12 @@ function getOrCreateCoverageState(
     return state;
 }
 
-function getWorkspaceFolderForPath(
-    filePath: string,
-): vscode.WorkspaceFolder | undefined {
-    const exactFolder = vscode.workspace.getWorkspaceFolder(
-        vscode.Uri.file(filePath),
-    );
+function getWorkspaceFolderForPath(filePath: string): vscode.WorkspaceFolder | undefined {
+    const exactFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
     return exactFolder ?? getPreferredWorkspaceFolder(filePath);
 }
 
-function getCoverageStateForPath(
-    filePath: string,
-): CoverageWorkspaceState | undefined {
+function getCoverageStateForPath(filePath: string): CoverageWorkspaceState | undefined {
     const workspaceFolder = getWorkspaceFolderForPath(filePath);
     return coverageStates.get(getWorkspaceStateKey(workspaceFolder));
 }
@@ -2026,13 +1819,10 @@ function getWorkspaceCoverageState(
     return coverageStates.get(getWorkspaceStateKey(workspaceFolder));
 }
 
-function findWorkspaceFolderByPath(
-    workspaceRoot: string,
-): vscode.WorkspaceFolder | undefined {
+function findWorkspaceFolderByPath(workspaceRoot: string): vscode.WorkspaceFolder | undefined {
     const normalizedTarget = path.normalize(workspaceRoot).toLowerCase();
     return vscode.workspace.workspaceFolders?.find(
-        (folder) =>
-            path.normalize(folder.uri.fsPath).toLowerCase() === normalizedTarget,
+        (folder) => path.normalize(folder.uri.fsPath).toLowerCase() === normalizedTarget,
     );
 }
 
@@ -2070,9 +1860,7 @@ function clearCoverageState(
 
     if (clearEditors) {
         for (const editor of vscode.window.visibleTextEditors) {
-            const editorFolder = getWorkspaceFolderForPath(
-                editor.document.uri.fsPath,
-            );
+            const editorFolder = getWorkspaceFolderForPath(editor.document.uri.fsPath);
             if (getWorkspaceStateKey(editorFolder) === stateKey) {
                 decorator.clearDecorations(editor);
             }
@@ -2080,12 +1868,8 @@ function clearCoverageState(
     }
 }
 
-function pruneCoverageStates(
-    workspaceFolders: readonly vscode.WorkspaceFolder[],
-): void {
-    const validKeys = new Set(
-        workspaceFolders.map((folder) => getWorkspaceStateKey(folder)),
-    );
+function pruneCoverageStates(workspaceFolders: readonly vscode.WorkspaceFolder[]): void {
+    const validKeys = new Set(workspaceFolders.map((folder) => getWorkspaceStateKey(folder)));
     for (const [stateKey] of coverageStates) {
         if (stateKey === "__no_workspace__") {
             continue;
@@ -2097,9 +1881,7 @@ function pruneCoverageStates(
     }
 }
 
-async function getMostRecentFile(
-    files: vscode.Uri[],
-): Promise<vscode.Uri | undefined> {
+async function getMostRecentFile(files: vscode.Uri[]): Promise<vscode.Uri | undefined> {
     let newest: vscode.Uri | undefined;
     let best = 0;
     for (const file of files) {
@@ -2112,9 +1894,7 @@ async function getMostRecentFile(
     return newest;
 }
 
-async function getMostRecentPath(
-    paths: string[],
-): Promise<string | undefined> {
+async function getMostRecentPath(paths: string[]): Promise<string | undefined> {
     let newest: string | undefined;
     let best = 0;
     for (const candidatePath of paths) {
@@ -2145,10 +1925,7 @@ async function fileExists(p: string): Promise<boolean> {
 }
 
 function initializeTestingController(context: vscode.ExtensionContext): void {
-    testingController = vscode.tests.createTestController(
-        "covdbg.testController",
-        "covdbg",
-    );
+    testingController = vscode.tests.createTestController("covdbg.testController", "covdbg");
     context.subscriptions.push(testingController);
 
     testingRootItem = testingController.createTestItem("covdbg.root", "covdbg");
@@ -2194,10 +1971,7 @@ async function refreshTestControllerItems(): Promise<void> {
     const items: vscode.TestItem[] = [];
     for (const binaryPath of binaries) {
         const id = path.normalize(binaryPath);
-        const item = testingController.createTestItem(
-            id,
-            path.basename(binaryPath),
-        );
+        const item = testingController.createTestItem(id, path.basename(binaryPath));
         item.description = vscode.workspace.asRelativePath(binaryPath);
         item.canResolveChildren = false;
         items.push(item);
@@ -2258,9 +2032,7 @@ async function runCoverageFromTestRequest(
                 const execution = await executeCoverageRun(
                     context,
                     targetExecutablePath,
-                    batchMode
-                        ? buildBatchIntermediateOutputPath(targetExecutablePath)
-                        : undefined,
+                    batchMode ? buildBatchIntermediateOutputPath(targetExecutablePath) : undefined,
                 );
                 if (execution.outputPath) {
                     generatedOutputPaths.push(execution.outputPath);
@@ -2308,9 +2080,7 @@ function collectRequestedTests(
     return [...collected.values()];
 }
 
-function collectTopLevelTestItems(
-    controller: vscode.TestController,
-): vscode.TestItem[] {
+function collectTopLevelTestItems(controller: vscode.TestController): vscode.TestItem[] {
     const items: vscode.TestItem[] = [];
     controller.items.forEach((item) => items.push(item));
     return items;
@@ -2330,9 +2100,7 @@ function collectLeafTestItems(
         return;
     }
 
-    item.children.forEach((child) =>
-        collectLeafTestItems(child, excludedIds, collected),
-    );
+    item.children.forEach((child) => collectLeafTestItems(child, excludedIds, collected));
 }
 
 async function promptForDiscoveredTestItems(): Promise<vscode.TestItem[] | undefined> {
@@ -2372,9 +2140,7 @@ function getDiscoveredExecutableTestItems(): vscode.TestItem[] {
     return items;
 }
 
-function getExecutablePathForTestItem(
-    item: vscode.TestItem,
-): string | undefined {
+function getExecutablePathForTestItem(item: vscode.TestItem): string | undefined {
     return testExecutablePaths.get(item.id);
 }
 
@@ -2388,9 +2154,7 @@ function filterToWorkspaceFiles(
 ): Map<string, CovdbFileSummary> {
     const roots = workspaceFolder
         ? [path.normalize(workspaceFolder.uri.fsPath).toLowerCase()]
-        : vscode.workspace.workspaceFolders?.map((f) =>
-            path.normalize(f.uri.fsPath).toLowerCase(),
-        );
+        : vscode.workspace.workspaceFolders?.map((f) => path.normalize(f.uri.fsPath).toLowerCase());
     if (!roots || roots.length === 0) {
         return files; // no workspace open — keep everything
     }

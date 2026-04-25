@@ -29,13 +29,10 @@ Run one or more real test executables and let the extension merge coverage autom
 
 ```json
 {
-	"tool": "covdbg_run",
-	"input": {
-		"executablePaths": [
-			"build/tests-suite1.exe",
-			"build/tests-suite2.exe"
-		]
-	}
+    "tool": "covdbg_run",
+    "input": {
+        "executablePaths": ["build/tests-suite1.exe", "build/tests-suite2.exe"]
+    }
 }
 ```
 
@@ -43,11 +40,11 @@ Ask the extension where covdbg resources are located in the current workspace:
 
 ```json
 {
-	"tool": "covdbg_explore",
-	"input": {
-		"workspaceRoot": "D:/repo",
-		"limit": 10
-	}
+    "tool": "covdbg_explore",
+    "input": {
+        "workspaceRoot": "D:/repo",
+        "limit": 10
+    }
 }
 ```
 
@@ -55,11 +52,11 @@ Ask the extension which files are still uncovered in the active merged workspace
 
 ```json
 {
-	"tool": "covdbg_files",
-	"input": {
-		"limit": 10,
-		"maxCoveragePercent": 80
-	}
+    "tool": "covdbg_files",
+    "input": {
+        "limit": 10,
+        "maxCoveragePercent": 80
+    }
 }
 ```
 
@@ -67,10 +64,10 @@ Inspect a specific source file from that active workspace result:
 
 ```json
 {
-	"tool": "covdbg_code",
-	"input": {
-		"filePath": "src/widget.cpp"
-	}
+    "tool": "covdbg_code",
+    "input": {
+        "filePath": "src/widget.cpp"
+    }
 }
 ```
 
@@ -183,31 +180,31 @@ Use `covdbg: Select .covdb File...` or set `covdbg.covdbPath` to load an existin
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `covdbg: Open Menu` | Open the main covdbg action menu. |
-| `covdbg: Toggle Coverage Display` | Show or hide inline coverage decorations. |
-| `covdbg: Show Coverage Report` | Open the interactive HTML coverage report. |
-| `covdbg: Browse Covered Files` | Jump to files that have coverage data. |
-| `covdbg: Set Render Mode` | Switch between line, gutter, or combined rendering. |
-| `covdbg: Select .covdb File...` | Load a specific coverage result manually. |
-| `covdbg: Run Coverage` | Run a discovered test executable with coverage. |
-| `covdbg: Create .covdbg.yaml` | Create a starter `.covdbg.yaml` in a workspace folder. |
-| `covdbg: Clear Last Run Result` | Clear the last generated run result from the current workflow. |
-| `covdbg: Refresh Test Binaries` | Refresh executable discovery for the Testing UI. |
+| Command                           | Description                                                    |
+| --------------------------------- | -------------------------------------------------------------- |
+| `covdbg: Open Menu`               | Open the main covdbg action menu.                              |
+| `covdbg: Toggle Coverage Display` | Show or hide inline coverage decorations.                      |
+| `covdbg: Show Coverage Report`    | Open the interactive HTML coverage report.                     |
+| `covdbg: Browse Covered Files`    | Jump to files that have coverage data.                         |
+| `covdbg: Set Render Mode`         | Switch between line, gutter, or combined rendering.            |
+| `covdbg: Select .covdb File...`   | Load a specific coverage result manually.                      |
+| `covdbg: Run Coverage`            | Run a discovered test executable with coverage.                |
+| `covdbg: Create .covdbg.yaml`     | Create a starter `.covdbg.yaml` in a workspace folder.         |
+| `covdbg: Clear Last Run Result`   | Clear the last generated run result from the current workflow. |
+| `covdbg: Refresh Test Binaries`   | Refresh executable discovery for the Testing UI.               |
 
 ## Key Settings
 
-| Setting | Purpose |
-|---------|---------|
-| `covdbg.runner.targetArgs` | Arguments passed to the target executable. |
-| `covdbg.runner.workingDirectory` | Working directory for coverage runs. |
-| `covdbg.runner.outputPath` | Output path for results generated from VS Code. |
+| Setting                                | Purpose                                                    |
+| -------------------------------------- | ---------------------------------------------------------- |
+| `covdbg.runner.targetArgs`             | Arguments passed to the target executable.                 |
+| `covdbg.runner.workingDirectory`       | Working directory for coverage runs.                       |
+| `covdbg.runner.outputPath`             | Output path for results generated from VS Code.            |
 | `covdbg.runner.binaryDiscoveryPattern` | Pattern used to discover test binaries for the Testing UI. |
-| `covdbg.covdbPath` | Load a specific existing coverage result. |
-| `covdbg.discoveryPattern` | Pattern used to discover coverage results automatically. |
-| `covdbg.renderMode` | Choose line, gutter, or both. |
-| `covdbg.showExternalFiles` | Include files outside the workspace in results. |
+| `covdbg.covdbPath`                     | Load a specific existing coverage result.                  |
+| `covdbg.discoveryPattern`              | Pattern used to discover coverage results automatically.   |
+| `covdbg.renderMode`                    | Choose line, gutter, or both.                              |
+| `covdbg.showExternalFiles`             | Include files outside the workspace in results.            |
 
 ## Learn More
 

@@ -1,4 +1,4 @@
-import { CovdbFileSummary, CovdbFunctionSummary } from '../coverage/covdbParser';
+import { CovdbFileSummary, CovdbFunctionSummary } from "../coverage/covdbParser";
 
 // ---------------------------------------------------------------------------
 // Tree data structures
@@ -32,18 +32,30 @@ export function buildTree(
     functionIndex: Map<string, CovdbFunctionSummary[]>,
     asRelativePath: (p: string) => string,
 ): TreeNode {
-    const root: TreeNode = { name: '', fullPath: '', children: new Map(), aggCovered: 0, aggTotal: 0 };
+    const root: TreeNode = {
+        name: "",
+        fullPath: "",
+        children: new Map(),
+        aggCovered: 0,
+        aggTotal: 0,
+    };
 
     for (const s of fileIndex.values()) {
         const display = asRelativePath(s.filePath);
-        const parts = display.replace(/\\/g, '/').split('/');
+        const parts = display.replace(/\\/g, "/").split("/");
         let node = root;
         // Walk / create folder nodes
         for (let i = 0; i < parts.length - 1; i++) {
             const seg = parts[i];
             let child = node.children.get(seg);
             if (!child) {
-                child = { name: seg, fullPath: parts.slice(0, i + 1).join('/'), children: new Map(), aggCovered: 0, aggTotal: 0 };
+                child = {
+                    name: seg,
+                    fullPath: parts.slice(0, i + 1).join("/"),
+                    children: new Map(),
+                    aggCovered: 0,
+                    aggTotal: 0,
+                };
                 node.children.set(seg, child);
             }
             node = child;
@@ -54,7 +66,13 @@ export function buildTree(
             name: fileName,
             fullPath: display,
             children: new Map(),
-            file: { absPath: s.filePath, display, covered: s.coveredLines, total: s.totalLines, pct: s.coveragePercent },
+            file: {
+                absPath: s.filePath,
+                display,
+                covered: s.coveredLines,
+                total: s.totalLines,
+                pct: s.coveragePercent,
+            },
             functions: functionIndex.get(s.filePath),
             aggCovered: s.coveredLines,
             aggTotal: s.totalLines,
@@ -64,7 +82,9 @@ export function buildTree(
 
     // Aggregate stats up
     function aggregate(n: TreeNode): void {
-        if (n.file) { return; } // leaf
+        if (n.file) {
+            return;
+        } // leaf
         n.aggCovered = 0;
         n.aggTotal = 0;
         for (const c of n.children.values()) {
@@ -77,7 +97,9 @@ export function buildTree(
 
     // Collapse single-child folders  (src/Shared -> src/Shared)
     function collapse(n: TreeNode): TreeNode {
-        if (n.file) { return n; }
+        if (n.file) {
+            return n;
+        }
         // Recurse first
         const newChildren = new Map<string, TreeNode>();
         for (const [k, c] of n.children) {
@@ -85,10 +107,10 @@ export function buildTree(
         }
         n.children = newChildren;
         // If single child that is also a folder, merge
-        if (n.children.size === 1 && n.name !== '') {
+        if (n.children.size === 1 && n.name !== "") {
             const only = n.children.values().next().value!;
             if (!only.file) {
-                const mergedName = n.name + '/' + only.name;
+                const mergedName = n.name + "/" + only.name;
                 only.name = mergedName;
                 only.fullPath = mergedName;
                 return only;
@@ -112,7 +134,7 @@ export function buildTree(
 // ---------------------------------------------------------------------------
 
 export function pctCssVar(pct: number): string {
-    return pct >= 80 ? 'var(--cov-good)' : pct >= 50 ? 'var(--cov-warn)' : 'var(--cov-bad)';
+    return pct >= 80 ? "var(--cov-good)" : pct >= 50 ? "var(--cov-warn)" : "var(--cov-bad)";
 }
 
 function barHtml(pct: number, color: string): string {
@@ -126,7 +148,11 @@ function barHtml(pct: number, color: string): string {
  * MUST be passed through this function before embedding in HTML output.
  */
 export function esc(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
 
 // ---------------------------------------------------------------------------
@@ -138,11 +164,13 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
     const sorted = Array.from(node.children.values()).sort((a, b) => {
         const aIsDir = !a.file ? 0 : 1;
         const bIsDir = !b.file ? 0 : 1;
-        if (aIsDir !== bIsDir) { return aIsDir - bIsDir; }
+        if (aIsDir !== bIsDir) {
+            return aIsDir - bIsDir;
+        }
         return a.name.localeCompare(b.name);
     });
 
-    let html = '';
+    let html = "";
     for (const child of sorted) {
         if (child.file) {
             // File node
@@ -151,7 +179,7 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
             const c = pctCssVar(f.pct);
             const fns = child.functions ?? [];
             const hasFns = fns.length > 0;
-            const fnHitCount = fns.filter(fn => fn.hitCount > 0).length;
+            const fnHitCount = fns.filter((fn) => fn.hitCount > 0).length;
             html += `<div class="tree-item file depth-${depth}" data-path="${esc(f.absPath)}">`;
             html += `<span class="indent" style="width:${depth * 16}px"></span>`;
             html += hasFns
@@ -174,14 +202,14 @@ export function renderTreeHtml(node: TreeNode, depth: number = 0): string {
                 html += `</div>`;
                 for (const fn of fns) {
                     const hit = fn.hitCount > 0;
-                    const fnColor = hit ? 'var(--cov-good)' : 'var(--cov-bad)';
+                    const fnColor = hit ? "var(--cov-good)" : "var(--cov-bad)";
                     html += `<div class="tree-item fn depth-${depth + 1}" data-path="${esc(f.absPath)}" data-line="${fn.startLine}">`;
                     html += `<span class="indent" style="width:${(depth + 1) * 16}px"></span>`;
                     html += `<span class="toggle-placeholder"></span>`;
                     html += `<span class="icon function-icon"></span>`;
                     html += `<span class="label fn-name">${esc(fn.functionName)}</span>`;
                     html += `<span class="stats dim">L${fn.startLine}–${fn.endLine}</span>`;
-                    html += `<span class="fn-hit" style="color:${fnColor}">${hit ? `${fn.hitCount}x` : 'miss'}</span>`;
+                    html += `<span class="fn-hit" style="color:${fnColor}">${hit ? `${fn.hitCount}x` : "miss"}</span>`;
                     html += `</div>`;
                 }
                 html += `</div>`;
@@ -222,7 +250,10 @@ export function generateReportHtml(data: ReportData): string {
     const tree = buildTree(fileIndex, functionIndex, asRelativePath);
     const totalPct = tree.aggTotal > 0 ? (tree.aggCovered / tree.aggTotal) * 100 : 0;
     const totalFns = Array.from(functionIndex.values()).reduce((s, a) => s + a.length, 0);
-    const hitFns = Array.from(functionIndex.values()).reduce((s, a) => s + a.filter(f => f.hitCount > 0).length, 0);
+    const hitFns = Array.from(functionIndex.values()).reduce(
+        (s, a) => s + a.filter((f) => f.hitCount > 0).length,
+        0,
+    );
     const treeHtml = renderTreeHtml(tree);
 
     return `<!DOCTYPE html>

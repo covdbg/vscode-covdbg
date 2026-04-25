@@ -18,9 +18,7 @@ export function emptyCoverageSummary(fileCount?: number): CoverageSummary {
     };
 }
 
-export function buildCoverageSummaryFromFileCoverage(
-    coverage?: FileCoverage,
-): CoverageSummary {
+export function buildCoverageSummaryFromFileCoverage(coverage?: FileCoverage): CoverageSummary {
     if (!coverage) {
         return emptyCoverageSummary();
     }
@@ -50,9 +48,7 @@ export function buildCoverageSummaryFromFileIndex(
         linesCovered,
         linesUncovered,
         coveragePercent:
-            linesTotal > 0
-                ? roundCoveragePercent((linesCovered / linesTotal) * 100)
-                : 0,
+            linesTotal > 0 ? roundCoveragePercent((linesCovered / linesTotal) * 100) : 0,
         fileCount: fileIndex.size,
     };
 }

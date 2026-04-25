@@ -31,10 +31,7 @@ test("findBestCoverageKey rejects ambiguous suffix-only matches", () => {
 test("findBestCoverageKey uses workspace-relative uniqueness", () => {
     const result = findBestCoverageKey(
         "D:\\Code\\covdbg\\quick-start\\src\\main.cpp",
-        [
-            "src\\main.cpp",
-            "src\\other.cpp",
-        ],
+        ["src\\main.cpp", "src\\other.cpp"],
         "D:\\Code\\covdbg\\quick-start",
     );
 

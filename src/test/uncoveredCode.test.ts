@@ -9,10 +9,7 @@ import {
 } from "../coverage/uncoveredCode";
 
 test("groupLineNumbersIntoRanges groups contiguous lines and chunks long regions", () => {
-    const ranges = groupLineNumbersIntoRanges([
-        3, 4, 5, 10, 11,
-        20, 21, 22, 23, 24, 25,
-    ], 3);
+    const ranges = groupLineNumbersIntoRanges([3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 25], 3);
 
     assert.deepEqual(ranges, [
         { startLine: 3, endLine: 5 },
@@ -45,11 +42,7 @@ test("buildUncoveredCodeResult returns grouped uncovered segments with context",
         "}",
     ].join("\n");
 
-    const result = buildUncoveredCodeResult(
-        coverage.sourceFile,
-        documentText,
-        coverage,
-    );
+    const result = buildUncoveredCodeResult(coverage.sourceFile, documentText, coverage);
 
     assert.equal(result.coverage.linesTotal, 5);
     assert.equal(result.coverage.linesCovered, 2);
@@ -67,17 +60,10 @@ test("buildUncoveredCodeResult returns grouped uncovered segments with context",
     assert.deepEqual(result.uncoveredSegments[0], {
         startLine: 2,
         endLine: 3,
-        code: [
-            "    if (flag) {",
-            "        doWork();",
-        ].join("\n"),
+        code: ["    if (flag) {", "        doWork();"].join("\n"),
         reason: "branch_not_taken",
         contextBefore: "void sample() {",
-        contextAfter: [
-            "    }",
-            "    catchHandler();",
-            "}",
-        ].join("\n"),
+        contextAfter: ["    }", "    catchHandler();", "}"].join("\n"),
     });
     assert.equal(result.uncoveredSegments[1].startLine, 5);
     assert.equal(result.uncoveredSegments[1].endLine, 5);
@@ -106,11 +92,7 @@ test("buildUncoveredCodeResult truncates oversized snippets and reports omitted 
         .map((_, index) => `line ${index + 1} ${"x".repeat(1400)}`)
         .join("\n");
 
-    const result = buildUncoveredCodeResult(
-        coverage.sourceFile,
-        documentText,
-        coverage,
-    );
+    const result = buildUncoveredCodeResult(coverage.sourceFile, documentText, coverage);
 
     assert.ok(result.uncoveredSegments.length > 0);
     assert.equal(result.truncation?.totalSegmentCount, 30);
@@ -123,9 +105,7 @@ test("buildUncoveredCodeResult truncates oversized snippets and reports omitted 
 test("buildUncoveredCodeResult carries workspace-relative file metadata", () => {
     const coverage: FileCoverage = {
         sourceFile: "D:\\repo\\src\\widget.cpp",
-        lines: new Map([
-            [7, { lineNumber: 7, executionCount: 0, isCovered: false }],
-        ]),
+        lines: new Map([[7, { lineNumber: 7, executionCount: 0, isCovered: false }]]),
         totalLines: 1,
         coveredLines: 0,
         coveragePercent: 0,
@@ -140,10 +120,7 @@ test("buildUncoveredCodeResult carries workspace-relative file metadata", () => 
 
     assert.equal(result.fileMetadata.workspaceRelativePath, "src/widget.cpp");
     assert.equal(result.fileMetadata.fileName, "widget.cpp");
-    assert.equal(
-        result.fileMetadata.coverageSourcePath,
-        "D:\\repo\\src\\widget.cpp",
-    );
+    assert.equal(result.fileMetadata.coverageSourcePath, "D:\\repo\\src\\widget.cpp");
 });
 
 test("emptyUncoveredCodeResult can return no-database guidance", () => {

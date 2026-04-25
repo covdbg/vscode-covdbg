@@ -1,0 +1,25 @@
+{
+    "version": 1,
+    "hooks": {
+        "postToolUse": [
+            {
+                "type": "command",
+                "bash": "./.github/hooks/format-edited-file.sh",
+                "powershell": "pwsh -NoProfile -File ./.github/hooks/format-edited-file.ps1",
+                "cwd": ".",
+                "timeoutSec": 30,
+                "comment": "After an edit/create tool call, run Prettier on the touched file so the agent's output is always formatted."
+            }
+        ],
+        "sessionEnd": [
+            {
+                "type": "command",
+                "bash": "./.github/hooks/verify-clean.sh",
+                "powershell": "pwsh -NoProfile -File ./.github/hooks/verify-clean.ps1",
+                "cwd": ".",
+                "timeoutSec": 120,
+                "comment": "When the session finishes, verify the workspace passes format:check and lint."
+            }
+        ]
+    }
+}
