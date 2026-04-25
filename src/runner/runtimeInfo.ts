@@ -1,8 +1,8 @@
-import { spawn } from 'child_process';
-import * as vscode from 'vscode';
-import * as output from '../views/outputChannel';
-import { resolveCovdbgExecutable } from './executableResolver';
-import { getPreferredWorkspaceFolder, getWorkspaceRoot, readRunnerSettings } from './settings';
+import { spawn } from "child_process";
+import * as vscode from "vscode";
+import * as output from "../views/outputChannel";
+import { resolveCovdbgExecutable } from "./executableResolver";
+import { getPreferredWorkspaceFolder, getWorkspaceRoot, readRunnerSettings } from "./settings";
 
 const versionCache = new Map<string, string | undefined>();
 
@@ -25,12 +25,14 @@ export async function logCovdbgResolution(context: vscode.ExtensionContext): Pro
         const settings = readRunnerSettings(workspaceFolder?.uri);
         const resolved = await resolveCovdbgExecutable(context, settings, workspaceRoot);
         if (!resolved) {
-            output.log('covdbg runtime: executable not resolved at activation');
+            output.log("covdbg runtime: executable not resolved at activation");
             return;
         }
         const version = await getCovdbgVersion(resolved.path);
-        const versionInfo = version ? ` (${version})` : '';
-        output.log(`covdbg runtime: using ${resolved.source} executable ${resolved.path}${versionInfo}`);
+        const versionInfo = version ? ` (${version})` : "";
+        output.log(
+            `covdbg runtime: using ${resolved.source} executable ${resolved.path}${versionInfo}`,
+        );
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         output.logError(`covdbg runtime probe failed: ${message}`);
@@ -38,9 +40,9 @@ export async function logCovdbgResolution(context: vscode.ExtensionContext): Pro
 }
 
 async function probeVersion(executablePath: string): Promise<string | undefined> {
-    return new Promise<string | undefined>(resolve => {
-        const child = spawn(executablePath, ['--version'], { windowsHide: true });
-        let outputBuffer = '';
+    return new Promise<string | undefined>((resolve) => {
+        const child = spawn(executablePath, ["--version"], { windowsHide: true });
+        let outputBuffer = "";
         let settled = false;
 
         const finish = (value: string | undefined) => {
@@ -51,28 +53,31 @@ async function probeVersion(executablePath: string): Promise<string | undefined>
         };
 
         const timeout = setTimeout(() => {
-            try { child.kill(); } catch { /* ignore */ }
+            try {
+                child.kill();
+            } catch {
+                /* ignore */
+            }
             finish(undefined);
         }, 2000);
 
-        child.stdout.on('data', chunk => {
+        child.stdout.on("data", (chunk) => {
             outputBuffer += String(chunk);
         });
-        child.stderr.on('data', chunk => {
+        child.stderr.on("data", (chunk) => {
             outputBuffer += String(chunk);
         });
-        child.on('error', () => {
+        child.on("error", () => {
             clearTimeout(timeout);
             finish(undefined);
         });
-        child.on('close', () => {
+        child.on("close", () => {
             clearTimeout(timeout);
             const line = outputBuffer
                 .split(/\r?\n/g)
-                .map(s => s.trim())
+                .map((s) => s.trim())
                 .find(Boolean);
             finish(line);
         });
     });
 }
-

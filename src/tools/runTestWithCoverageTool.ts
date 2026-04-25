@@ -9,13 +9,9 @@ import {
     type RunTestWithCoverageToolResult,
 } from "./runTestWithCoverageModel";
 
-type RunCoverageHandler = (
-    executablePaths: string[],
-) => Promise<RunTestWithCoverageToolResult>;
+type RunCoverageHandler = (executablePaths: string[]) => Promise<RunTestWithCoverageToolResult>;
 
-export class RunTestWithCoverageTool
-    implements vscode.LanguageModelTool<RunTestWithCoverageToolInput>
-{
+export class RunTestWithCoverageTool implements vscode.LanguageModelTool<RunTestWithCoverageToolInput> {
     constructor(private readonly runCoverage: RunCoverageHandler) {}
 
     prepareInvocation(
@@ -26,9 +22,7 @@ export class RunTestWithCoverageTool
             ? path.basename(executablePaths[0])
             : "selected tests";
         const executableSummary =
-            executablePaths.length <= 1
-                ? executableName
-                : `${executablePaths.length} executables`;
+            executablePaths.length <= 1 ? executableName : `${executablePaths.length} executables`;
 
         return {
             invocationMessage: `Running coverage for ${executableSummary}`,
@@ -48,19 +42,23 @@ export class RunTestWithCoverageTool
         if (token.isCancellationRequested) {
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(
-                    JSON.stringify({
-                        success: false,
-                        requestedCount: executablePaths.length,
-                        completedCount: 0,
-                        coverageLoaded: false,
-                        coverageSummary: emptyCoverageSummary(),
-                        finalizedOutputPath: undefined,
-                        mergePerformed: false,
-                        mergedInputCount: 0,
-                        results: [],
-                        message: "Coverage run cancelled before start.",
-                        llmGuidance: buildCancelledRunCoverageGuidance(),
-                    }, null, 2),
+                    JSON.stringify(
+                        {
+                            success: false,
+                            requestedCount: executablePaths.length,
+                            completedCount: 0,
+                            coverageLoaded: false,
+                            coverageSummary: emptyCoverageSummary(),
+                            finalizedOutputPath: undefined,
+                            mergePerformed: false,
+                            mergedInputCount: 0,
+                            results: [],
+                            message: "Coverage run cancelled before start.",
+                            llmGuidance: buildCancelledRunCoverageGuidance(),
+                        },
+                        null,
+                        2,
+                    ),
                 ),
             ]);
         }

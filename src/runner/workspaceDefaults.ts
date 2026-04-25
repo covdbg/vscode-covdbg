@@ -1,12 +1,12 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as vscode from 'vscode';
+import * as fs from "fs/promises";
+import * as path from "path";
+import * as vscode from "vscode";
 import {
     getWorkspaceFoldersInPreferenceOrder,
     readRunnerSettings,
     resolvePathFromWorkspace,
-} from './settings';
-import { buildExecutableDiscoveryExcludePattern } from './discoveryPatterns';
+} from "./settings";
+import { buildExecutableDiscoveryExcludePattern } from "./discoveryPatterns";
 
 export interface CandidateExe {
     absolutePath: string;
@@ -27,29 +27,31 @@ export async function selectCoverageTargetExecutable(
     const candidates = await discoverExecutableCandidates(workspaceRoot);
     if (candidates.length === 0) {
         if (interactive) {
-            vscode.window.showErrorMessage('covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern or covdbg.runner.binaryDiscoveryExcludePattern.');
+            vscode.window.showErrorMessage(
+                "covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern or covdbg.runner.binaryDiscoveryExcludePattern.",
+            );
         }
         return undefined;
     }
 
     let selected = candidates[0];
     if (interactive && candidates.length > 1) {
-        const quickPickItems = candidates.slice(0, 30).map(candidate => ({
+        const quickPickItems = candidates.slice(0, 30).map((candidate) => ({
             label: candidate.label,
             description: `${candidate.workspaceFolder.name}: ${path.relative(candidate.workspaceFolder.uri.fsPath, candidate.absolutePath)}`,
             detail: candidate.absolutePath,
             absolutePath: candidate.absolutePath,
         }));
         const chosen = await vscode.window.showQuickPick(quickPickItems, {
-            title: 'covdbg: Select C++ test executable',
-            placeHolder: 'Choose the executable to run under coverage',
+            title: "covdbg: Select C++ test executable",
+            placeHolder: "Choose the executable to run under coverage",
             matchOnDescription: true,
             matchOnDetail: true,
         });
         if (!chosen) {
             return undefined;
         }
-        selected = candidates.find(c => c.absolutePath === chosen.absolutePath) ?? selected;
+        selected = candidates.find((c) => c.absolutePath === chosen.absolutePath) ?? selected;
     }
 
     return selected;
@@ -58,7 +60,7 @@ export async function selectCoverageTargetExecutable(
 export async function resolveOrSelectTargetExecutable(
     requestedTarget: string | undefined,
     workspaceRoot: string,
-    interactive: boolean
+    interactive: boolean,
 ): Promise<string | undefined> {
     if (requestedTarget) {
         const resolvedRequested = resolvePathFromWorkspace(requestedTarget, workspaceRoot);
@@ -77,7 +79,7 @@ export async function resolveOrSelectTargetExecutable(
 export async function resolveEffectiveConfigPath(
     configuredConfigPath: string,
     targetExecutablePath: string,
-    workspaceRoot: string
+    workspaceRoot: string,
 ): Promise<string | undefined> {
     const explicit = configuredConfigPath.trim();
     if (explicit) {
@@ -99,13 +101,9 @@ export async function discoverExecutableCandidates(
     workspaceRoot?: string,
 ): Promise<CandidateExe[]> {
     const workspaceFolder = workspaceRoot
-        ? vscode.workspace.workspaceFolders?.find(
-            (folder) => folder.uri.fsPath === workspaceRoot,
-        )
+        ? vscode.workspace.workspaceFolders?.find((folder) => folder.uri.fsPath === workspaceRoot)
         : undefined;
-    const folders = workspaceFolder
-        ? [workspaceFolder]
-        : getWorkspaceFoldersInPreferenceOrder();
+    const folders = workspaceFolder ? [workspaceFolder] : getWorkspaceFoldersInPreferenceOrder();
     const candidates: CandidateExe[] = [];
 
     for (const folder of folders) {
@@ -126,38 +124,58 @@ export async function discoverExecutableCandidates(
             const score = scoreExecutable(uri.fsPath.toLowerCase());
             candidates.push({
                 absolutePath: uri.fsPath,
-                label: score >= 90 ? `$(beaker) ${path.basename(uri.fsPath)}` : `$(file-binary) ${path.basename(uri.fsPath)}`,
+                label:
+                    score >= 90
+                        ? `$(beaker) ${path.basename(uri.fsPath)}`
+                        : `$(file-binary) ${path.basename(uri.fsPath)}`,
                 score,
                 workspaceFolder: folder,
             });
         }
     }
-    return candidates.sort((a, b) => b.score - a.score || a.absolutePath.localeCompare(b.absolutePath));
+    return candidates.sort(
+        (a, b) => b.score - a.score || a.absolutePath.localeCompare(b.absolutePath),
+    );
 }
 
 export async function listDiscoveredExecutablePaths(workspaceRoot?: string): Promise<string[]> {
     const candidates = workspaceRoot
         ? await discoverExecutableCandidates(workspaceRoot)
         : await discoverExecutableCandidates();
-    return candidates.map(c => c.absolutePath);
+    return candidates.map((c) => c.absolutePath);
 }
 
 function scoreExecutable(p: string): number {
     let score = 0;
-    if (p.includes('\\build\\') || p.includes('/build/')) { score += 20; }
-    if (p.includes('\\out\\') || p.includes('/out/')) { score += 15; }
-    if (p.includes('test')) { score += 40; }
-    if (p.includes('gtest')) { score += 30; }
-    if (p.endsWith('tests.exe')) { score += 25; }
-    if (p.includes('\\debug\\') || p.includes('/debug/')) { score -= 5; }
+    if (p.includes("\\build\\") || p.includes("/build/")) {
+        score += 20;
+    }
+    if (p.includes("\\out\\") || p.includes("/out/")) {
+        score += 15;
+    }
+    if (p.includes("test")) {
+        score += 40;
+    }
+    if (p.includes("gtest")) {
+        score += 30;
+    }
+    if (p.endsWith("tests.exe")) {
+        score += 25;
+    }
+    if (p.includes("\\debug\\") || p.includes("/debug/")) {
+        score -= 5;
+    }
     return score;
 }
 
-async function findNearestCovdbgYaml(startDir: string, workspaceRoot: string): Promise<string | undefined> {
+async function findNearestCovdbgYaml(
+    startDir: string,
+    workspaceRoot: string,
+): Promise<string | undefined> {
     let current = path.resolve(startDir);
     const root = path.resolve(workspaceRoot);
     while (true) {
-        const candidate = path.join(current, '.covdbg.yaml');
+        const candidate = path.join(current, ".covdbg.yaml");
         if (await isFile(candidate)) {
             return candidate;
         }
@@ -183,14 +201,13 @@ async function isFile(filePath: string): Promise<boolean> {
 }
 
 async function isDiscoveredExecutable(filePath: string): Promise<boolean> {
-    if (path.extname(filePath).toLowerCase() !== '.exe') {
+    if (path.extname(filePath).toLowerCase() !== ".exe") {
         return false;
     }
 
-    if (path.basename(filePath).toLowerCase() === 'covdbg.exe') {
+    if (path.basename(filePath).toLowerCase() === "covdbg.exe") {
         return false;
     }
 
     return isFile(filePath);
 }
-

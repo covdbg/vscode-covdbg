@@ -417,9 +417,11 @@
         "compile:tests": "tsc -p ./tsconfig.tests.json",
         "pretest": "npm run compile && npm run compile:tests",
         "test": "node --test test-out/test/*.test.js",
-        "lint": "eslint src"
+        "lint": "eslint src",
+        "format": "prettier --write .",
+        "format:silent": "prettier --write . --log-level silent",
+        "format:check": "prettier --check ."
     },
-    "dependencies": {},
     "devDependencies": {
         "@types/node": "^25.6.0",
         "@types/sql.js": "^1.4.11",
@@ -429,6 +431,7 @@
         "@vscode/vsce": "^3.9.1",
         "esbuild": "^0.28.0",
         "eslint": "^10.2.1",
+        "prettier": "^3.8.3",
         "sql.js": "^1.14.1",
         "typescript": "^6.0.3"
     }

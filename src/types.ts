@@ -4,4 +4,4 @@
  * - `gutter` — gutter icons only
  * - `both`   — line highlighting + gutter icons
  */
-export type RenderMode = 'line' | 'gutter' | 'both';
+export type RenderMode = "line" | "gutter" | "both";

@@ -1,0 +1,25 @@
+# Build / output
+out/
+test-out/
+dist/
+node_modules/
+
+# Generated / vendor
+package-lock.json
+*.vsix
+*.tsbuildinfo
+*.lsif
+tsconfig.lsif.json
+
+# Binary / portable assets
+assets/portable/
+icon.png
+gif/
+*.gif
+*.wasm
+*.db
+*.covdb
+
+# Misc
+.covdbg/
+CHANGELOG.md

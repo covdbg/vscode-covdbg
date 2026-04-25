@@ -4,13 +4,10 @@ import { ensureArrayOfStrings } from "./runnerArgs";
 import { deriveCoverageBatchOutputPath } from "./outputPaths";
 import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 
-const DEFAULT_BINARY_DISCOVERY_PATTERN =
-    "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
+const DEFAULT_BINARY_DISCOVERY_PATTERN = "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
 const DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN = "";
 
-export function readRunnerSettings(
-    scope?: vscode.ConfigurationScope,
-): RunnerSettings {
+export function readRunnerSettings(scope?: vscode.ConfigurationScope): RunnerSettings {
     const config = vscode.workspace.getConfiguration("covdbg", scope);
     const env = config.get<Record<string, string>>("runner.env", {});
     return {
@@ -18,10 +15,7 @@ export function readRunnerSettings(
         portableCachePath: config.get<string>("portableCachePath", "").trim(),
         binaryDiscoveryPattern:
             config
-                .get<string>(
-                    "runner.binaryDiscoveryPattern",
-                    DEFAULT_BINARY_DISCOVERY_PATTERN,
-                )
+                .get<string>("runner.binaryDiscoveryPattern", DEFAULT_BINARY_DISCOVERY_PATTERN)
                 .trim() || DEFAULT_BINARY_DISCOVERY_PATTERN,
         binaryDiscoveryExcludePattern: config
             .get<string>(
@@ -29,20 +23,12 @@ export function readRunnerSettings(
                 DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
             )
             .trim(),
-        licenseServerUrl: config
-            .get<string>("runner.licenseServerUrl", "")
-            .trim(),
+        licenseServerUrl: config.get<string>("runner.licenseServerUrl", "").trim(),
         targetArgs: ensureArrayOfStrings(config.get("runner.targetArgs", [])),
         configPath: config.get<string>("runner.configPath", "").trim(),
-        outputPath: config
-            .get<string>("runner.outputPath", ".covdbg/coverage.covdb")
-            .trim(),
-        appDataPath:
-            config.get<string>("runner.appDataPath", ".covdbg").trim() ||
-            ".covdbg",
-        workingDirectory: config
-            .get<string>("runner.workingDirectory", "")
-            .trim(),
+        outputPath: config.get<string>("runner.outputPath", ".covdbg/coverage.covdb").trim(),
+        appDataPath: config.get<string>("runner.appDataPath", ".covdbg").trim() || ".covdbg",
+        workingDirectory: config.get<string>("runner.workingDirectory", "").trim(),
         env: sanitizeEnv(env),
     };
 }
@@ -51,13 +37,9 @@ export function getWorkspaceRoot(): string | undefined {
     return getPreferredWorkspaceFolder()?.uri.fsPath;
 }
 
-export function getPreferredWorkspaceFolder(
-    filePath?: string,
-): vscode.WorkspaceFolder | undefined {
+export function getPreferredWorkspaceFolder(filePath?: string): vscode.WorkspaceFolder | undefined {
     if (filePath && path.isAbsolute(filePath)) {
-        const exactFolder = vscode.workspace.getWorkspaceFolder(
-            vscode.Uri.file(filePath),
-        );
+        const exactFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
         if (exactFolder) {
             return exactFolder;
         }
@@ -87,10 +69,7 @@ export function getWorkspaceFoldersInPreferenceOrder(): vscode.WorkspaceFolder[]
     ];
 }
 
-export function resolvePathFromWorkspace(
-    inputPath: string,
-    workspaceRoot: string,
-): string {
+export function resolvePathFromWorkspace(inputPath: string, workspaceRoot: string): string {
     if (path.isAbsolute(inputPath)) {
         return path.normalize(inputPath);
     }
@@ -105,10 +84,7 @@ export function resolveRunnerPaths(
         settings.outputPath || ".covdbg/coverage.covdb",
         workspaceRoot,
     );
-    const appDataPath = resolvePathFromWorkspace(
-        settings.appDataPath || ".covdbg",
-        workspaceRoot,
-    );
+    const appDataPath = resolvePathFromWorkspace(settings.appDataPath || ".covdbg", workspaceRoot);
     const workingDirectory = settings.workingDirectory
         ? resolvePathFromWorkspace(settings.workingDirectory, workspaceRoot)
         : workspaceRoot;

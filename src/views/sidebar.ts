@@ -3,10 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { CovdbFileSummary } from "../coverage/covdbParser";
 import { resolveCovdbgExecutable } from "../runner/executableResolver";
-import {
-    LicenseStatusSnapshot,
-    readLicenseStatus,
-} from "../runner/licenseStatus";
+import { LicenseStatusSnapshot, readLicenseStatus } from "../runner/licenseStatus";
 import { getCovdbgVersion } from "../runner/runtimeInfo";
 import {
     getPreferredWorkspaceFolder,
@@ -39,33 +36,25 @@ interface RuntimeSummary {
 
 interface SidebarDependencies {
     createConfig: () => Promise<void>;
-    createConfigInWorkspace: (
-        workspaceFolder: vscode.WorkspaceFolder,
-    ) => Promise<void>;
+    createConfigInWorkspace: (workspaceFolder: vscode.WorkspaceFolder) => Promise<void>;
     discoverAndLoadIndex: () => Promise<void>;
     findCovdbgConfigFiles: (
         workspaceFolder?: vscode.WorkspaceFolder,
         maxResults?: number,
     ) => Promise<vscode.Uri[]>;
-    findDiscoveredCovdbFiles: (
-        workspaceFolder?: vscode.WorkspaceFolder,
-    ) => Promise<vscode.Uri[]>;
+    findDiscoveredCovdbFiles: (workspaceFolder?: vscode.WorkspaceFolder) => Promise<vscode.Uri[]>;
     getActiveCoverageState: () => SidebarCoverageState | undefined;
     getWorkspaceCoverageState: (
         workspaceFolder?: vscode.WorkspaceFolder,
     ) => SidebarCoverageState | undefined;
-    getWorkspaceFolderForPath: (
-        filePath: string,
-    ) => vscode.WorkspaceFolder | undefined;
+    getWorkspaceFolderForPath: (filePath: string) => vscode.WorkspaceFolder | undefined;
     loadIndex: (
         covdbPath: string,
         source: "settings" | "auto-discovered",
         workspaceFolder?: vscode.WorkspaceFolder,
     ) => Promise<void>;
     refreshTestControllerItems: () => Promise<void>;
-    setLicenseStatus: (
-        licenseStatus: LicenseStatusSnapshot | undefined,
-    ) => void;
+    setLicenseStatus: (licenseStatus: LicenseStatusSnapshot | undefined) => void;
 }
 
 export class CovdbgSidebarController implements vscode.Disposable {
@@ -83,24 +72,17 @@ export class CovdbgSidebarController implements vscode.Disposable {
     getDisposables(): vscode.Disposable[] {
         return [
             this.homeDashboard,
-            vscode.window.registerWebviewViewProvider(
-                "covdbg.homeView",
-                this.homeDashboard,
-            ),
+            vscode.window.registerWebviewViewProvider("covdbg.homeView", this.homeDashboard),
             vscode.commands.registerCommand(
                 "covdbg.pickDiscoveredCovdb",
                 (workspaceFolderPath?: string) =>
                     this.pickDiscoveredCovdbCommand(workspaceFolderPath),
             ),
-            vscode.commands.registerCommand(
-                "covdbg.openConfig",
-                (workspaceFolderPath?: string) =>
-                    this.openConfigCommand(workspaceFolderPath),
+            vscode.commands.registerCommand("covdbg.openConfig", (workspaceFolderPath?: string) =>
+                this.openConfigCommand(workspaceFolderPath),
             ),
-            vscode.commands.registerCommand(
-                "covdbg.openLog",
-                (workspaceFolderPath?: string) =>
-                    this.openLogCommand(workspaceFolderPath),
+            vscode.commands.registerCommand("covdbg.openLog", (workspaceFolderPath?: string) =>
+                this.openLogCommand(workspaceFolderPath),
             ),
             vscode.commands.registerCommand(
                 "covdbg.openAppDataFolder",
@@ -111,10 +93,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 this.refreshDashboardCommand(),
             ),
             vscode.commands.registerCommand("covdbg.openSettings", () =>
-                vscode.commands.executeCommand(
-                    "workbench.action.openSettings",
-                    "covdbg",
-                ),
+                vscode.commands.executeCommand("workbench.action.openSettings", "covdbg"),
             ),
         ];
     }
@@ -164,11 +143,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         }
 
         const settings = readRunnerSettings(workspaceFolder?.uri);
-        const resolved = await resolveCovdbgExecutable(
-            this.context,
-            settings,
-            workspaceRoot,
-        );
+        const resolved = await resolveCovdbgExecutable(this.context, settings, workspaceRoot);
         if (!resolved) {
             this.lastRuntimeSummary = {
                 checked: true,
@@ -214,9 +189,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         this.scheduleRefresh();
     }
 
-    private async pickDiscoveredCovdbCommand(
-        workspaceFolderPath?: string,
-    ): Promise<void> {
+    private async pickDiscoveredCovdbCommand(workspaceFolderPath?: string): Promise<void> {
         const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
         const targetWorkspace = workspaceFolderPath
             ? this.getWorkspaceFolderByFsPath(workspaceFolderPath)
@@ -254,9 +227,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 return left.active ? -1 : 1;
             }
             if ((left.description ?? "") !== (right.description ?? "")) {
-                return (left.description ?? "").localeCompare(
-                    right.description ?? "",
-                );
+                return (left.description ?? "").localeCompare(right.description ?? "");
             }
             return left.label.localeCompare(right.label);
         });
@@ -299,14 +270,10 @@ export class CovdbgSidebarController implements vscode.Disposable {
         await this.deps.loadIndex(picked.uri.fsPath, "settings", target);
     }
 
-    private async openConfigCommand(
-        workspaceFolderPath?: string,
-    ): Promise<void> {
+    private async openConfigCommand(workspaceFolderPath?: string): Promise<void> {
         const activeWorkspace = workspaceFolderPath
             ? this.getWorkspaceFolderByFsPath(workspaceFolderPath)
-            : getPreferredWorkspaceFolder(
-                  vscode.window.activeTextEditor?.document.uri.fsPath,
-              );
+            : getPreferredWorkspaceFolder(vscode.window.activeTextEditor?.document.uri.fsPath);
         const activeMatches = activeWorkspace
             ? await this.deps.findCovdbgConfigFiles(activeWorkspace)
             : [];
@@ -346,9 +313,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         await this.deps.createConfig();
     }
 
-    private async openLogCommand(
-        workspaceFolderPath?: string,
-    ): Promise<void> {
+    private async openLogCommand(workspaceFolderPath?: string): Promise<void> {
         const logPath = await this.getWorkspaceLogPath(workspaceFolderPath);
         if (!logPath) {
             vscode.window.showInformationMessage(
@@ -363,22 +328,15 @@ export class CovdbgSidebarController implements vscode.Disposable {
         await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
     }
 
-    private async openAppDataFolderCommand(
-        workspaceFolderPath?: string,
-    ): Promise<void> {
+    private async openAppDataFolderCommand(workspaceFolderPath?: string): Promise<void> {
         const appDataPath = this.getWorkspaceAppDataPath(workspaceFolderPath);
         if (!appDataPath) {
-            vscode.window.showInformationMessage(
-                "covdbg: Open a workspace folder first.",
-            );
+            vscode.window.showInformationMessage("covdbg: Open a workspace folder first.");
             return;
         }
 
         await fs.mkdir(appDataPath, { recursive: true });
-        await vscode.commands.executeCommand(
-            "revealFileInOS",
-            vscode.Uri.file(appDataPath),
-        );
+        await vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(appDataPath));
     }
 
     private async refreshHomeDashboard(): Promise<void> {
@@ -387,9 +345,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         const activeState = this.deps.getActiveCoverageState();
         const activeWorkspace =
             activeState?.workspaceFolder ??
-            getPreferredWorkspaceFolder(
-                vscode.window.activeTextEditor?.document.uri.fsPath,
-            );
+            getPreferredWorkspaceFolder(vscode.window.activeTextEditor?.document.uri.fsPath);
         const workspaceRoot = activeWorkspace?.uri.fsPath;
         const settings = readRunnerSettings(activeWorkspace?.uri);
         const activeConfigFiles = activeWorkspace
@@ -413,9 +369,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
             const resolvedPaths = resolveRunnerPaths(settings, workspaceRoot);
             activeAppDataPath = resolvedPaths.appDataPath;
             if (settings.configPath) {
-                resolvedConfigPath = (await this.fileExists(
-                    resolvedPaths.configPath ?? "",
-                ))
+                resolvedConfigPath = (await this.fileExists(resolvedPaths.configPath ?? ""))
                     ? resolvedPaths.configPath
                     : undefined;
             } else if (activeConfigFiles.length > 0) {
@@ -436,13 +390,13 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 value: !runtimeChecked
                     ? "Checking..."
                     : runtimeReady
-                    ? `${this.formatRuntimeSource(this.lastRuntimeSummary?.source)}${this.lastRuntimeSummary?.version ? " " + this.lastRuntimeSummary.version : ""}`
-                    : "Not resolved",
+                      ? `${this.formatRuntimeSource(this.lastRuntimeSummary?.source)}${this.lastRuntimeSummary?.version ? " " + this.lastRuntimeSummary.version : ""}`
+                      : "Not resolved",
                 detail: !runtimeChecked
                     ? "Resolving covdbg runtime for the active workspace."
                     : runtimeReady
-                    ? this.shortenPath(this.lastRuntimeSummary?.path, activeWorkspace)
-                    : this.lastRuntimeSummary?.error,
+                      ? this.shortenPath(this.lastRuntimeSummary?.path, activeWorkspace)
+                      : this.lastRuntimeSummary?.error,
                 tone: !runtimeChecked ? "muted" : runtimeReady ? "good" : "bad",
             },
             {
@@ -476,16 +430,15 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 value: coverageLoaded
                     ? this.shortenPath(activeState?.activeCovdbPath, activeWorkspace) || "Active"
                     : discoveredCovdbFiles.length > 0
-                        ? `${discoveredCovdbFiles.length} discovered`
-                        : "None discovered",
-                detail: hasWorkspace && workspaceFolders.length > 1
-                    ? `${allDiscoveredCovdbFiles.length} total across all folders`
-                    : discoveredCovdbFiles.length > 1
-                        ? `${discoveredCovdbFiles.length} candidates in active workspace`
-                        : undefined,
-                tone: coverageLoaded || discoveredCovdbFiles.length > 0
-                    ? "good"
-                    : "warn",
+                      ? `${discoveredCovdbFiles.length} discovered`
+                      : "None discovered",
+                detail:
+                    hasWorkspace && workspaceFolders.length > 1
+                        ? `${allDiscoveredCovdbFiles.length} total across all folders`
+                        : discoveredCovdbFiles.length > 1
+                          ? `${discoveredCovdbFiles.length} candidates in active workspace`
+                          : undefined,
+                tone: coverageLoaded || discoveredCovdbFiles.length > 0 ? "good" : "warn",
             },
             {
                 label: "Coverage",
@@ -509,9 +462,10 @@ export class CovdbgSidebarController implements vscode.Disposable {
                     : "Open a workspace folder first.",
                 done: hasWorkspace && vscode.workspace.isTrusted,
                 blocked: hasWorkspace && !vscode.workspace.isTrusted,
-                command: hasWorkspace && !vscode.workspace.isTrusted
-                    ? "workbench.trust.manage"
-                    : undefined,
+                command:
+                    hasWorkspace && !vscode.workspace.isTrusted
+                        ? "workbench.trust.manage"
+                        : undefined,
                 commandLabel: "Manage Trust",
             },
             {
@@ -519,8 +473,8 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 detail: !runtimeChecked
                     ? "Checking the covdbg runtime for the active workspace."
                     : runtimeReady
-                    ? `Using ${this.formatRuntimeSource(this.lastRuntimeSummary?.source).toLowerCase()}.`
-                    : "Set covdbg.executablePath or use the bundled portable.",
+                      ? `Using ${this.formatRuntimeSource(this.lastRuntimeSummary?.source).toLowerCase()}.`
+                      : "Set covdbg.executablePath or use the bundled portable.",
                 done: runtimeReady,
                 blocked: runtimeChecked && !runtimeReady,
                 command: "covdbg.openSettings",
@@ -537,16 +491,16 @@ export class CovdbgSidebarController implements vscode.Disposable {
             },
             {
                 label: "Runnable test target available",
-                detail: this.lastDiscoveredTestCount > 0
-                    ? `${this.lastDiscoveredTestCount} discovered test ${this.lastDiscoveredTestCount === 1 ? "binary is" : "binaries are"} available.`
-                    : "No discovered test binaries yet.",
+                detail:
+                    this.lastDiscoveredTestCount > 0
+                        ? `${this.lastDiscoveredTestCount} discovered test ${this.lastDiscoveredTestCount === 1 ? "binary is" : "binaries are"} available.`
+                        : "No discovered test binaries yet.",
                 done: this.lastDiscoveredTestCount > 0,
-                command: this.lastDiscoveredTestCount > 0
-                    ? "covdbg.runCoverage"
-                    : "covdbg.refreshTestBinaries",
-                commandLabel: this.lastDiscoveredTestCount > 0
-                    ? "Run"
-                    : "Refresh Tests",
+                command:
+                    this.lastDiscoveredTestCount > 0
+                        ? "covdbg.runCoverage"
+                        : "covdbg.refreshTestBinaries",
+                commandLabel: this.lastDiscoveredTestCount > 0 ? "Run" : "Refresh Tests",
             },
             {
                 label: "Coverage data loaded",
@@ -571,9 +525,10 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 command: hasConfig ? "covdbg.openConfig" : "covdbg.createConfig",
             },
             {
-                label: allDiscoveredCovdbFiles.length > 1
-                    ? `Pick Discovered .covdb (${allDiscoveredCovdbFiles.length})`
-                    : "Pick Discovered .covdb",
+                label:
+                    allDiscoveredCovdbFiles.length > 1
+                        ? `Pick Discovered .covdb (${allDiscoveredCovdbFiles.length})`
+                        : "Pick Discovered .covdb",
                 command: "covdbg.pickDiscoveredCovdb",
             },
             { label: "Select .covdb File…", command: "covdbg.configurePath" },
@@ -634,9 +589,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         }
     }
 
-    private formatLicenseValue(
-        licenseStatus?: LicenseStatusSnapshot,
-    ): string {
+    private formatLicenseValue(licenseStatus?: LicenseStatusSnapshot): string {
         if (!licenseStatus?.status) {
             return "Unknown";
         }
@@ -649,16 +602,11 @@ export class CovdbgSidebarController implements vscode.Disposable {
         return licenseStatus.status;
     }
 
-    private formatLicenseBrief(
-        licenseStatus?: LicenseStatusSnapshot,
-    ): string | undefined {
+    private formatLicenseBrief(licenseStatus?: LicenseStatusSnapshot): string | undefined {
         if (!licenseStatus) {
             return undefined;
         }
-        if (
-            licenseStatus.status === "active" &&
-            licenseStatus.source === "plugin-demo"
-        ) {
+        if (licenseStatus.status === "active" && licenseStatus.source === "plugin-demo") {
             return `${Math.max(0, licenseStatus.daysRemaining ?? 0)} days remaining`;
         }
         if (licenseStatus.status === "trial-used") {
@@ -717,8 +665,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
     ): vscode.WorkspaceFolder | undefined {
         const normalizedTarget = path.normalize(workspaceFolderPath).toLowerCase();
         return (vscode.workspace.workspaceFolders ?? []).find(
-            (folder) =>
-                path.normalize(folder.uri.fsPath).toLowerCase() === normalizedTarget,
+            (folder) => path.normalize(folder.uri.fsPath).toLowerCase() === normalizedTarget,
         );
     }
 
@@ -734,42 +681,40 @@ export class CovdbgSidebarController implements vscode.Disposable {
             workspaceFolders.map(async (folder) => {
                 const state = this.deps.getWorkspaceCoverageState(folder);
                 const configFiles = await this.deps.findCovdbgConfigFiles(folder, 1);
-                const discoveredCovdbFiles =
-                    await this.deps.findDiscoveredCovdbFiles(folder);
+                const discoveredCovdbFiles = await this.deps.findDiscoveredCovdbFiles(folder);
                 const hasLoadedCoverage = Boolean(state?.activeCovdbPath);
-                const isActive =
-                    activeWorkspace?.uri.toString() === folder.uri.toString();
+                const isActive = activeWorkspace?.uri.toString() === folder.uri.toString();
                 const coverageValue = hasLoadedCoverage
                     ? `${this.coveragePct(state?.fileIndex ?? new Map())} — ${state?.fileIndex.size ?? 0} files`
                     : "No data loaded";
                 const coverageDbValue = hasLoadedCoverage
                     ? `Loaded ${this.shortenPath(state?.activeCovdbPath, folder)}`
                     : discoveredCovdbFiles.length > 0
-                        ? `${discoveredCovdbFiles.length} discovered`
-                        : "None found";
+                      ? `${discoveredCovdbFiles.length} discovered`
+                      : "None found";
 
                 return {
                     label: folder.name,
                     detail: this.shortenPath(folder.uri.fsPath),
-                    config: configFiles.length > 0
-                        ? this.shortenPath(configFiles[0].fsPath, folder) || ".covdbg.yaml"
-                        : "Missing",
+                    config:
+                        configFiles.length > 0
+                            ? this.shortenPath(configFiles[0].fsPath, folder) || ".covdbg.yaml"
+                            : "Missing",
                     coverageDb: coverageDbValue,
                     coverage: coverageValue,
                     actions: [
                         {
-                            label: configFiles.length > 0
-                                ? "Open Config"
-                                : "Create Config",
+                            label: configFiles.length > 0 ? "Open Config" : "Create Config",
                             command: "covdbg.openConfig",
                             args: [folder.uri.fsPath],
                         },
                         {
-                            label: discoveredCovdbFiles.length > 0
-                                ? discoveredCovdbFiles.length > 1
-                                    ? `Pick .covdb (${discoveredCovdbFiles.length})`
-                                    : "Pick .covdb"
-                                : "Find .covdb",
+                            label:
+                                discoveredCovdbFiles.length > 0
+                                    ? discoveredCovdbFiles.length > 1
+                                        ? `Pick .covdb (${discoveredCovdbFiles.length})`
+                                        : "Pick .covdb"
+                                    : "Find .covdb",
                             command: "covdbg.pickDiscoveredCovdb",
                             args: [folder.uri.fsPath],
                         },
@@ -782,8 +727,8 @@ export class CovdbgSidebarController implements vscode.Disposable {
                     tone: hasLoadedCoverage
                         ? "good"
                         : discoveredCovdbFiles.length > 0 || configFiles.length > 0
-                            ? "warn"
-                            : "muted",
+                          ? "warn"
+                          : "muted",
                     active: isActive,
                     expanded: isActive,
                 };
@@ -791,14 +736,10 @@ export class CovdbgSidebarController implements vscode.Disposable {
         );
     }
 
-    private getWorkspaceAppDataPath(
-        workspaceFolderPath?: string,
-    ): string | undefined {
+    private getWorkspaceAppDataPath(workspaceFolderPath?: string): string | undefined {
         const activeWorkspace = workspaceFolderPath
             ? this.getWorkspaceFolderByFsPath(workspaceFolderPath)
-            : getPreferredWorkspaceFolder(
-                  vscode.window.activeTextEditor?.document.uri.fsPath,
-              );
+            : getPreferredWorkspaceFolder(vscode.window.activeTextEditor?.document.uri.fsPath);
         const workspaceRoot = activeWorkspace?.uri.fsPath ?? getWorkspaceRoot();
         if (!workspaceRoot) {
             return undefined;
@@ -808,9 +749,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         return resolveRunnerPaths(settings, workspaceRoot).appDataPath;
     }
 
-    private async getWorkspaceLogPath(
-        workspaceFolderPath?: string,
-    ): Promise<string | undefined> {
+    private async getWorkspaceLogPath(workspaceFolderPath?: string): Promise<string | undefined> {
         const appDataPath = this.getWorkspaceAppDataPath(workspaceFolderPath);
         if (!appDataPath) {
             return undefined;
@@ -818,9 +757,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
         return this.findCovdbgLogPath(appDataPath);
     }
 
-    private async findCovdbgLogPath(
-        appDataPath: string,
-    ): Promise<string | undefined> {
+    private async findCovdbgLogPath(appDataPath: string): Promise<string | undefined> {
         const candidatePaths = [
             path.join(appDataPath, "covdbg.log"),
             path.join(appDataPath, "Logs", "covdbg.log"),

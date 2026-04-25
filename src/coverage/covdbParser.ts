@@ -1,10 +1,15 @@
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import initSqlJs, { Database } from 'sql.js';
-import * as output from '../views/outputChannel';
+import * as fs from "fs/promises";
+import * as path from "path";
+import initSqlJs, { Database } from "sql.js";
+import * as output from "../views/outputChannel";
 
 async function fileExists(p: string): Promise<boolean> {
-    try { await fs.access(p); return true; } catch { return false; }
+    try {
+        await fs.access(p);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 export interface LineCoverage {
@@ -57,7 +62,7 @@ let sqlJsModule: Awaited<ReturnType<typeof initSqlJs>> | undefined;
 async function getSqlJs(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
     if (!sqlJsModule) {
         sqlJsModule = await initSqlJs({
-            locateFile: () => path.join(__dirname, 'sql-wasm.wasm'),
+            locateFile: () => path.join(__dirname, "sql-wasm.wasm"),
         });
     }
     return sqlJsModule;
@@ -70,7 +75,6 @@ async function getSqlJs(): Promise<Awaited<ReturnType<typeof initSqlJs>>> {
  *   2. `loadFileCoverage` — on-demand: line-level data for a single file
  */
 export class CovdbParser {
-
     // -----------------------------------------------------------------------
     // Index: file list + summary stats
     // -----------------------------------------------------------------------
@@ -82,7 +86,7 @@ export class CovdbParser {
     public static async loadIndex(covdbPath: string): Promise<CovdbIndexResult> {
         const files = new Map<string, CovdbFileSummary>();
 
-        if (!await fileExists(covdbPath)) {
+        if (!(await fileExists(covdbPath))) {
             const msg = `Cannot load .covdb: file not found: ${covdbPath}`;
             output.logError(msg);
             return { files, schemaVersion: 0, error: msg };
@@ -119,14 +123,12 @@ export class CovdbParser {
                     total_lines: number;
                     covered_lines: number;
                 };
-                const pct = row.total_lines > 0
-                    ? (row.covered_lines / row.total_lines) * 100
-                    : 0;
+                const pct = row.total_lines > 0 ? (row.covered_lines / row.total_lines) * 100 : 0;
                 files.set(row.file_path, {
                     filePath: row.file_path,
                     totalLines: row.total_lines,
                     coveredLines: row.covered_lines,
-                    coveragePercent: pct
+                    coveragePercent: pct,
                 });
             }
             stmt.free();
@@ -151,9 +153,9 @@ export class CovdbParser {
      */
     public static async loadFileCoverage(
         covdbPath: string,
-        sourceFilePath: string
+        sourceFilePath: string,
     ): Promise<CovdbFileCoverageResult> {
-        if (!await fileExists(covdbPath)) {
+        if (!(await fileExists(covdbPath))) {
             return { error: `File not found: ${covdbPath}` };
         }
 
@@ -169,7 +171,7 @@ export class CovdbParser {
                 WHERE file_path = :path AND is_executable = 1
                 ORDER BY line_number
             `);
-            stmt.bind({ ':path': sourceFilePath });
+            stmt.bind({ ":path": sourceFilePath });
 
             const lines = new Map<number, LineCoverage>();
             let totalLines = 0;
@@ -184,10 +186,12 @@ export class CovdbParser {
                 lines.set(row.line_number, {
                     lineNumber: row.line_number,
                     executionCount: row.execution_count,
-                    isCovered
+                    isCovered,
                 });
                 totalLines++;
-                if (isCovered) { coveredLines++; }
+                if (isCovered) {
+                    coveredLines++;
+                }
             }
             stmt.free();
 
@@ -202,8 +206,8 @@ export class CovdbParser {
                     lines,
                     totalLines,
                     coveredLines,
-                    coveragePercent
-                }
+                    coveragePercent,
+                },
             };
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -222,10 +226,12 @@ export class CovdbParser {
      * Returns a map from file_path to its function summaries.
      */
     public static async loadFunctionIndex(
-        covdbPath: string
+        covdbPath: string,
     ): Promise<Map<string, CovdbFunctionSummary[]>> {
         const result = new Map<string, CovdbFunctionSummary[]>();
-        if (!await fileExists(covdbPath)) { return result; }
+        if (!(await fileExists(covdbPath))) {
+            return result;
+        }
 
         let db: Database | undefined;
         try {
@@ -252,10 +258,14 @@ export class CovdbParser {
                     functionName: row.function_name,
                     startLine: row.start_line,
                     endLine: row.end_line,
-                    hitCount: row.hit_count
+                    hitCount: row.hit_count,
                 };
                 const arr = result.get(row.file_path);
-                if (arr) { arr.push(entry); } else { result.set(row.file_path, [entry]); }
+                if (arr) {
+                    arr.push(entry);
+                } else {
+                    result.set(row.file_path, [entry]);
+                }
             }
             stmt.free();
             return result;
@@ -274,9 +284,7 @@ export class CovdbParser {
 
     private static getSchemaVersion(db: Database): number | undefined {
         try {
-            const stmt = db.prepare(
-                "SELECT value FROM metadata WHERE key = 'schema_version'"
-            );
+            const stmt = db.prepare("SELECT value FROM metadata WHERE key = 'schema_version'");
             if (stmt.step()) {
                 const row = stmt.getAsObject() as { value: string };
                 stmt.free();

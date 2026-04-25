@@ -30,9 +30,7 @@ export type RunTestWithCoverageToolResult = {
     llmGuidance: string[];
 };
 
-export function normalizeExecutablePathsInput(
-    input: RunTestWithCoverageToolInput,
-): string[] {
+export function normalizeExecutablePathsInput(input: RunTestWithCoverageToolInput): string[] {
     const normalizedPaths = input.executablePaths
         ?.map((candidate) => candidate.trim())
         .filter((candidate) => candidate.length > 0);

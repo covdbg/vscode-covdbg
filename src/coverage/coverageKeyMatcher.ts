@@ -10,7 +10,11 @@ export function findBestCoverageKey(
         key,
         normalized: normalizeComparablePath(key),
     }));
-    const pathLib = getPathLibrary(editorPath, workspaceRoot, ...keyEntries.map((entry) => entry.key));
+    const pathLib = getPathLibrary(
+        editorPath,
+        workspaceRoot,
+        ...keyEntries.map((entry) => entry.key),
+    );
 
     const exact = keyEntries.find((entry) => entry.normalized === normalizedEditor);
     if (exact) {
@@ -21,9 +25,10 @@ export function findBestCoverageKey(
         const relativeEditor = pathLib.relative(workspaceRoot, editorPath);
         if (!relativeEditor.startsWith("..") && !pathLib.isAbsolute(relativeEditor)) {
             const normalizedRelative = normalizeComparablePath(relativeEditor);
-            const relativeMatches = keyEntries.filter((entry) =>
-                entry.normalized === normalizedRelative ||
-                entry.normalized.endsWith(`/${normalizedRelative}`),
+            const relativeMatches = keyEntries.filter(
+                (entry) =>
+                    entry.normalized === normalizedRelative ||
+                    entry.normalized.endsWith(`/${normalizedRelative}`),
             );
             if (relativeMatches.length === 1) {
                 return relativeMatches[0].key;
@@ -31,9 +36,10 @@ export function findBestCoverageKey(
         }
     }
 
-    const suffixMatches = keyEntries.filter((entry) =>
-        normalizedEditor.endsWith(entry.normalized) ||
-        entry.normalized.endsWith(normalizedEditor),
+    const suffixMatches = keyEntries.filter(
+        (entry) =>
+            normalizedEditor.endsWith(entry.normalized) ||
+            entry.normalized.endsWith(normalizedEditor),
     );
     if (suffixMatches.length === 1) {
         return suffixMatches[0].key;
@@ -43,10 +49,7 @@ export function findBestCoverageKey(
 }
 
 function normalizeComparablePath(inputPath: string): string {
-    return path
-        .normalize(inputPath)
-        .replace(/\\/g, "/")
-        .toLowerCase();
+    return path.normalize(inputPath).replace(/\\/g, "/").toLowerCase();
 }
 
 function getPathLibrary(

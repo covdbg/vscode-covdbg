@@ -1,7 +1,4 @@
-import {
-    emptyCoverageSummary,
-    type CoverageSummary,
-} from "./coverageSummary";
+import { emptyCoverageSummary, type CoverageSummary } from "./coverageSummary";
 import { buildRunCoverageLlmGuidance } from "./toolGuidance";
 import {
     type RunTestWithCoverageExecutableResult,
@@ -28,9 +25,7 @@ export type CoverageBatchFinalizationResult = {
 type RunTestWithCoverageWorkflowDependencies = {
     resolveExecutablePath: (inputPath: string) => string | undefined;
     fileExists: (filePath: string) => Promise<boolean>;
-    buildBatchIntermediateOutputPath: (
-        resolvedExecutablePath: string,
-    ) => string | undefined;
+    buildBatchIntermediateOutputPath: (resolvedExecutablePath: string) => string | undefined;
     executeCoverageRun: (
         resolvedExecutablePath: string,
         outputPathOverride?: string,
@@ -63,9 +58,7 @@ export async function runTestWithCoverageWorkflow(
     let finalizationSucceeded = true;
 
     for (const executablePath of executablePaths) {
-        const resolvedExecutablePath = dependencies.resolveExecutablePath(
-            executablePath,
-        );
+        const resolvedExecutablePath = dependencies.resolveExecutablePath(executablePath);
         if (!resolvedExecutablePath) {
             results.push({
                 success: false,
@@ -91,9 +84,7 @@ export async function runTestWithCoverageWorkflow(
         const runResult = await dependencies.executeCoverageRun(
             resolvedExecutablePath,
             batchMode
-                ? dependencies.buildBatchIntermediateOutputPath(
-                    resolvedExecutablePath,
-                )
+                ? dependencies.buildBatchIntermediateOutputPath(resolvedExecutablePath)
                 : undefined,
         );
         anyCoverageLoaded = anyCoverageLoaded || runResult.coverageLoaded;
@@ -109,10 +100,7 @@ export async function runTestWithCoverageWorkflow(
             outputPath: runResult.outputPath,
             coverageLoaded: runResult.coverageLoaded,
             coverageSummary: runResult.coverageSummary,
-            message: buildCoverageRunMessage(
-                runResult.success,
-                runResult.coverageLoaded,
-            ),
+            message: buildCoverageRunMessage(runResult.success, runResult.coverageLoaded),
         });
     }
 
@@ -138,9 +126,7 @@ export async function runTestWithCoverageWorkflow(
     }
 
     const success =
-        results.length > 0 &&
-        results.every((result) => result.success) &&
-        finalizationSucceeded;
+        results.length > 0 && results.every((result) => result.success) && finalizationSucceeded;
     return {
         toolResult: {
             success,
@@ -156,8 +142,8 @@ export async function runTestWithCoverageWorkflow(
                 results.length === 0
                     ? "No executable paths were provided."
                     : success
-                        ? `Coverage completed for ${results.length} executable${results.length === 1 ? "" : "s"}.`
-                        : `Coverage completed with ${results.filter((result) => !result.success).length} failed executable${results.filter((result) => !result.success).length === 1 ? "" : "s"}.`,
+                      ? `Coverage completed for ${results.length} executable${results.length === 1 ? "" : "s"}.`
+                      : `Coverage completed with ${results.filter((result) => !result.success).length} failed executable${results.filter((result) => !result.success).length === 1 ? "" : "s"}.`,
             llmGuidance: buildRunCoverageLlmGuidance({
                 coverageLoaded: anyCoverageLoaded,
                 mergePerformed,
@@ -168,10 +154,7 @@ export async function runTestWithCoverageWorkflow(
     };
 }
 
-function buildCoverageRunMessage(
-    success: boolean,
-    coverageLoaded: boolean,
-): string {
+function buildCoverageRunMessage(success: boolean, coverageLoaded: boolean): string {
     if (!success) {
         return "Coverage run failed.";
     }

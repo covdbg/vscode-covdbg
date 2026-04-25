@@ -1,6 +1,6 @@
-import * as vscode from 'vscode';
-import { FileCoverage } from './covdbParser';
-import { RenderMode } from '../types';
+import * as vscode from "vscode";
+import { FileCoverage } from "./covdbParser";
+import { RenderMode } from "../types";
 
 export { RenderMode };
 
@@ -10,46 +10,47 @@ export class CoverageDecorator {
     private _gutterCoveredType: vscode.TextEditorDecorationType;
     private _gutterUncoveredType: vscode.TextEditorDecorationType;
     private _isEnabled: boolean = true;
-    private _renderMode: RenderMode = 'line';
+    private _renderMode: RenderMode = "line";
 
     constructor() {
         this._lineCoveredType = this.createLineCoveredDecoration();
         this._lineUncoveredType = this.createLineUncoveredDecoration();
-        this._gutterCoveredType = this.createGutterDecoration('covered');
-        this._gutterUncoveredType = this.createGutterDecoration('uncovered');
+        this._gutterCoveredType = this.createGutterDecoration("covered");
+        this._gutterUncoveredType = this.createGutterDecoration("uncovered");
     }
 
     // -- Decoration factories -----------------------------------------------
 
     private createLineCoveredDecoration(): vscode.TextEditorDecorationType {
         return vscode.window.createTextEditorDecorationType({
-            backgroundColor: new vscode.ThemeColor('diffEditor.insertedTextBackground'),
+            backgroundColor: new vscode.ThemeColor("diffEditor.insertedTextBackground"),
             isWholeLine: true,
-            overviewRulerColor: new vscode.ThemeColor('diffEditor.insertedTextBackground'),
-            overviewRulerLane: vscode.OverviewRulerLane.Left
+            overviewRulerColor: new vscode.ThemeColor("diffEditor.insertedTextBackground"),
+            overviewRulerLane: vscode.OverviewRulerLane.Left,
         });
     }
 
     private createLineUncoveredDecoration(): vscode.TextEditorDecorationType {
         return vscode.window.createTextEditorDecorationType({
-            backgroundColor: new vscode.ThemeColor('diffEditor.removedTextBackground'),
+            backgroundColor: new vscode.ThemeColor("diffEditor.removedTextBackground"),
             isWholeLine: true,
-            overviewRulerColor: new vscode.ThemeColor('diffEditor.removedTextBackground'),
-            overviewRulerLane: vscode.OverviewRulerLane.Left
+            overviewRulerColor: new vscode.ThemeColor("diffEditor.removedTextBackground"),
+            overviewRulerLane: vscode.OverviewRulerLane.Left,
         });
     }
 
-    private createGutterDecoration(kind: 'covered' | 'uncovered'): vscode.TextEditorDecorationType {
-        const color = kind === 'covered' ? '#4caf50' : '#f44336';
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">` +
+    private createGutterDecoration(kind: "covered" | "uncovered"): vscode.TextEditorDecorationType {
+        const color = kind === "covered" ? "#4caf50" : "#f44336";
+        const svg =
+            `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">` +
             `<rect x="5" y="2" width="6" height="12" rx="2" fill="${color}"/>` +
             `</svg>`;
         const uri = vscode.Uri.parse(
-            `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
+            `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
         );
         return vscode.window.createTextEditorDecorationType({
             gutterIconPath: uri,
-            gutterIconSize: 'contain'
+            gutterIconSize: "contain",
         });
     }
 
@@ -88,8 +89,8 @@ export class CoverageDecorator {
             const line = editor.document.lineAt(lineIndex);
             const range = new vscode.Range(lineIndex, 0, lineIndex, line.text.length);
             const hoverMessage = lineCoverage.isCovered
-                ? `Covered (executed ${lineCoverage.executionCount} time${lineCoverage.executionCount !== 1 ? 's' : ''})`
-                : 'Not covered';
+                ? `Covered (executed ${lineCoverage.executionCount} time${lineCoverage.executionCount !== 1 ? "s" : ""})`
+                : "Not covered";
 
             const opt: vscode.DecorationOptions = { range, hoverMessage };
             if (lineCoverage.isCovered) {
@@ -99,8 +100,8 @@ export class CoverageDecorator {
             }
         }
 
-        const showLine = this._renderMode === 'line' || this._renderMode === 'both';
-        const showGutter = this._renderMode === 'gutter' || this._renderMode === 'both';
+        const showLine = this._renderMode === "line" || this._renderMode === "both";
+        const showGutter = this._renderMode === "gutter" || this._renderMode === "both";
 
         editor.setDecorations(this._lineCoveredType, showLine ? coveredRanges : []);
         editor.setDecorations(this._lineUncoveredType, showLine ? uncoveredRanges : []);
@@ -122,4 +123,3 @@ export class CoverageDecorator {
         this._gutterUncoveredType.dispose();
     }
 }
-

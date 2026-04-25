@@ -6,10 +6,7 @@ import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
 import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
 import { resolveCovdbgExecutable } from "./executableResolver";
-import {
-    COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK,
-    getCovdbgRunFailureMessage,
-} from "./exitCodes";
+import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
 import type { RunnerSettings } from "./runnerTypes";
 import {
     getPreferredWorkspaceFolder,
@@ -17,10 +14,7 @@ import {
     readRunnerSettings,
     resolveRunnerPaths,
 } from "./settings";
-import {
-    resolveEffectiveConfigPath,
-    resolveOrSelectTargetExecutable,
-} from "./workspaceDefaults";
+import { resolveEffectiveConfigPath, resolveOrSelectTargetExecutable } from "./workspaceDefaults";
 import { getCovdbgVersion } from "./runtimeInfo";
 
 export interface RunResult {
@@ -67,20 +61,16 @@ async function runCoverageInternal(
 ): Promise<RunResult> {
     const trustErr = await ensurePreflight();
     if (trustErr) {
-        vscode.window
-            .showErrorMessage(trustErr.message, ...trustErr.actions)
-            .then((action) => {
-                if (action === "Manage Trust") {
-                    void vscode.commands.executeCommand(
-                        "workbench.trust.manage",
-                    );
-                } else if (action === "Open Settings") {
-                    void vscode.commands.executeCommand(
-                        "workbench.action.openSettings",
-                        "covdbg.runner",
-                    );
-                }
-            });
+        vscode.window.showErrorMessage(trustErr.message, ...trustErr.actions).then((action) => {
+            if (action === "Manage Trust") {
+                void vscode.commands.executeCommand("workbench.trust.manage");
+            } else if (action === "Open Settings") {
+                void vscode.commands.executeCommand(
+                    "workbench.action.openSettings",
+                    "covdbg.runner",
+                );
+            }
+        });
         return { success: false };
     }
 
@@ -90,9 +80,7 @@ async function runCoverageInternal(
     const settings = readRunnerSettings(workspaceFolder?.uri);
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
-        vscode.window.showErrorMessage(
-            "covdbg: Open a workspace folder before running coverage.",
-        );
+        vscode.window.showErrorMessage("covdbg: Open a workspace folder before running coverage.");
         return { success: false };
     }
 
@@ -131,11 +119,7 @@ async function runCoverageInternal(
         );
     }
 
-    const resolvedExe = await resolveCovdbgExecutable(
-        context,
-        settings,
-        workspaceRoot,
-    );
+    const resolvedExe = await resolveCovdbgExecutable(context, settings, workspaceRoot);
     if (!resolvedExe) {
         vscode.window.showErrorMessage(
             "covdbg executable not found. Ensure bundled portable exists or configure covdbg.executablePath.",
@@ -148,9 +132,7 @@ async function runCoverageInternal(
     output.show();
     const version = await getCovdbgVersion(resolvedExe.path);
     const versionInfo = version ? ` (${version})` : "";
-    output.log(
-        `Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`,
-    );
+    output.log(`Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`);
 
     const licenseRunConfig = buildLicenseRunConfig(settings);
     const args = buildCovdbgArguments(
@@ -177,12 +159,8 @@ async function runCoverageInternal(
                 windowsHide: true,
             });
 
-            child.stdout.on("data", (chunk) =>
-                output.log(String(chunk).trimEnd()),
-            );
-            child.stderr.on("data", (chunk) =>
-                output.log(String(chunk).trimEnd()),
-            );
+            child.stdout.on("data", (chunk) => output.log(String(chunk).trimEnd()));
+            child.stderr.on("data", (chunk) => output.log(String(chunk).trimEnd()));
             child.on("error", (error) => {
                 output.logError(`Failed to start covdbg: ${error.message}`);
                 resolve(false);
@@ -193,14 +171,10 @@ async function runCoverageInternal(
                     const failureMessage = getCovdbgRunFailureMessage(code);
                     output.logError(failureMessage);
                     if (code === COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK) {
-                        void vscode.window.showWarningMessage(
-                            `covdbg: ${failureMessage}`,
-                        );
+                        void vscode.window.showWarningMessage(`covdbg: ${failureMessage}`);
                     }
                 } else {
-                    output.log(
-                        `Coverage run finished. Output: ${outputPath}`,
-                    );
+                    output.log(`Coverage run finished. Output: ${outputPath}`);
                 }
                 resolve(ok);
             });
@@ -208,13 +182,13 @@ async function runCoverageInternal(
 
     const success = options.showProgress
         ? await vscode.window.withProgress<boolean>(
-            {
-                location: vscode.ProgressLocation.Notification,
-                title: "covdbg: Running coverage",
-                cancellable: false,
-            },
-            async () => executeRun(),
-        )
+              {
+                  location: vscode.ProgressLocation.Notification,
+                  title: "covdbg: Running coverage",
+                  cancellable: false,
+              },
+              async () => executeRun(),
+          )
         : await executeRun();
     const licenseStatus = await readLicenseStatus(paths.appDataPath);
     onFinish?.(success);
@@ -260,11 +234,7 @@ export async function mergeCoverageFiles(
     }
 
     const settings = readRunnerSettings(workspaceFolder?.uri);
-    const resolvedExe = await resolveCovdbgExecutable(
-        context,
-        settings,
-        workspaceRoot,
-    );
+    const resolvedExe = await resolveCovdbgExecutable(context, settings, workspaceRoot);
     if (!resolvedExe) {
         output.logError("covdbg merge failed: covdbg executable not found.");
         return false;
@@ -334,10 +304,7 @@ function buildLicenseRunConfig(
 
     const extension = vscode.extensions.getExtension("covdbg.covdbg");
     const extensionVersion = extension?.packageJSON?.version;
-    if (
-        typeof extensionVersion === "string" &&
-        extensionVersion.trim().length > 0
-    ) {
+    if (typeof extensionVersion === "string" && extensionVersion.trim().length > 0) {
         args.push("--plugin-ver", extensionVersion.trim());
     }
 

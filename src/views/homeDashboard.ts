@@ -50,9 +50,7 @@ interface DashboardCommandMessage {
     args?: string[];
 }
 
-export class CovdbgHomeDashboardView
-    implements vscode.WebviewViewProvider, vscode.Disposable
-{
+export class CovdbgHomeDashboardView implements vscode.WebviewViewProvider, vscode.Disposable {
     private view: vscode.WebviewView | undefined;
     private data: HomeDashboardData = createPlaceholderData();
     private readonly disposables: vscode.Disposable[] = [];
@@ -94,9 +92,7 @@ export class CovdbgHomeDashboardView
             await vscode.commands.executeCommand(msg.command, ...(msg.args ?? []));
         } catch (error) {
             const text = error instanceof Error ? error.message : String(error);
-            void vscode.window.showWarningMessage(
-                `covdbg: Failed to run command: ${text}`,
-            );
+            void vscode.window.showWarningMessage(`covdbg: Failed to run command: ${text}`);
         }
     }
 
@@ -420,9 +416,7 @@ document.addEventListener('click', e => {
 }
 
 function renderStatusItem(item: HomeStatusItem): string {
-    const detailHtml = item.detail
-        ? `<span class="status-detail">${esc(item.detail)}</span>`
-        : "";
+    const detailHtml = item.detail ? `<span class="status-detail">${esc(item.detail)}</span>` : "";
     return `<div class="status-card">
     <div class="status-head">
         <span class="status-dot dot-${item.tone}"></span>
@@ -437,12 +431,11 @@ function renderWorkspaceSection(item: HomeWorkspaceItem): string {
     const detailHtml = item.detail
         ? `<span class="workspace-detail">${esc(item.detail)}</span>`
         : "";
-    const badgeHtml = item.active
-        ? '<span class="workspace-badge">active</span>'
-        : "";
-    const actionsHtml = item.actions.length > 0
-        ? `<div class="workspace-actions">${item.actions.map((action) => renderAction(action, "workspace-action")).join("")}</div>`
-        : "";
+    const badgeHtml = item.active ? '<span class="workspace-badge">active</span>' : "";
+    const actionsHtml =
+        item.actions.length > 0
+            ? `<div class="workspace-actions">${item.actions.map((action) => renderAction(action, "workspace-action")).join("")}</div>`
+            : "";
     return `<details class="section"${item.expanded ? " open" : ""}>
     <summary class="section-toggle"><span class="section-label">Workspace: ${esc(item.label)}</span></summary>
     <div class="section-body">

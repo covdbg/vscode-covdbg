@@ -32,6 +32,9 @@ jobs:
       - name: Check VS Code manifest versions
         run: npm run check:vscode-engine
 
+      - name: Format check
+        run: npm run format:check
+
       - name: Lint
         run: npm run lint
 
@@ -48,5 +51,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: covdbg-vsix-pr-${{ github.event.pull_request.number }}
-          path: '*.vsix'
+          path: "*.vsix"
           if-no-files-found: error

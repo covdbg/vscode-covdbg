@@ -5,13 +5,7 @@ const https = require("https");
 const path = require("path");
 
 const DEFAULT_PORTABLE_URL = "https://covdbg.com/download/latest/portable.zip";
-const OUTPUT_PATH = path.join(
-    __dirname,
-    "..",
-    "assets",
-    "portable",
-    "covdbg-portable.zip",
-);
+const OUTPUT_PATH = path.join(__dirname, "..", "assets", "portable", "covdbg-portable.zip");
 const REDIRECT_LIMIT = 5;
 
 async function main() {
@@ -69,11 +63,7 @@ function downloadToFile(urlString, destinationPath, redirectsRemaining) {
         const request = transport.get(url, (response) => {
             const statusCode = response.statusCode || 0;
 
-            if (
-                statusCode >= 300 &&
-                statusCode < 400 &&
-                response.headers.location
-            ) {
+            if (statusCode >= 300 && statusCode < 400 && response.headers.location) {
                 response.resume();
 
                 if (redirectsRemaining <= 0) {
@@ -90,11 +80,7 @@ function downloadToFile(urlString, destinationPath, redirectsRemaining) {
 
             if (statusCode < 200 || statusCode >= 300) {
                 response.resume();
-                reject(
-                    new Error(
-                        `Portable download failed with HTTP ${statusCode}.`,
-                    ),
-                );
+                reject(new Error(`Portable download failed with HTTP ${statusCode}.`));
                 return;
             }
 

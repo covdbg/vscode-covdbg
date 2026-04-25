@@ -1,10 +1,10 @@
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
 let _outputChannel: vscode.OutputChannel | undefined;
 
 export function getOutputChannel(): vscode.OutputChannel {
     if (!_outputChannel) {
-        _outputChannel = vscode.window.createOutputChannel('covdbg');
+        _outputChannel = vscode.window.createOutputChannel("covdbg");
     }
     return _outputChannel;
 }

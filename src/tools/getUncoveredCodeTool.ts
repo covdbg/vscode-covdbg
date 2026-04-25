@@ -8,13 +8,10 @@ export type GetUncoveredCodeToolInput = {
     filePath?: string;
 };
 
-type GetUncoveredCodeHandler = (
-    filePath?: string,
-) => Promise<UncoveredCodeResult>;
+type GetUncoveredCodeHandler = (filePath?: string) => Promise<UncoveredCodeResult>;
 
-export class GetUncoveredCodeTool
-    implements vscode.LanguageModelTool<GetUncoveredCodeToolInput> {
-    constructor(private readonly getUncoveredCode: GetUncoveredCodeHandler) { }
+export class GetUncoveredCodeTool implements vscode.LanguageModelTool<GetUncoveredCodeToolInput> {
+    constructor(private readonly getUncoveredCode: GetUncoveredCodeHandler) {}
 
     prepareInvocation(
         options: vscode.LanguageModelToolInvocationPrepareOptions<GetUncoveredCodeToolInput>,

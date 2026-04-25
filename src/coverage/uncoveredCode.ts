@@ -4,10 +4,7 @@ import {
     emptyCoverageSummary,
     type CoverageSummary,
 } from "./coverageSummary";
-import {
-    buildNoCoverageLoadedGuidance,
-    buildUncoveredCodeLlmGuidance,
-} from "./toolGuidance";
+import { buildNoCoverageLoadedGuidance, buildUncoveredCodeLlmGuidance } from "./toolGuidance";
 import { FileCoverage } from "./covdbParser";
 
 export type UncoveredCodeResult = {
@@ -104,10 +101,7 @@ export function groupLineNumbersIntoRanges(
     for (const range of contiguousRanges) {
         let chunkStart = range.startLine;
         while (chunkStart <= range.endLine) {
-            const chunkEnd = Math.min(
-                chunkStart + maxSegmentLines - 1,
-                range.endLine,
-            );
+            const chunkEnd = Math.min(chunkStart + maxSegmentLines - 1, range.endLine);
             chunkedRanges.push({
                 startLine: chunkStart,
                 endLine: chunkEnd,
@@ -142,10 +136,7 @@ export function buildUncoveredCodeResult(
         .slice(0, DEFAULT_MAX_RETURNED_SEGMENTS)
         .map((range) => buildUncoveredSegment(documentLines, range));
 
-    const omittedSegmentCount = Math.max(
-        0,
-        ranges.length - uncoveredSegments.length,
-    );
+    const omittedSegmentCount = Math.max(0, ranges.length - uncoveredSegments.length);
 
     return {
         file,
@@ -156,10 +147,10 @@ export function buildUncoveredCodeResult(
         truncation:
             omittedSegmentCount > 0
                 ? {
-                    totalSegmentCount: ranges.length,
-                    returnedSegmentCount: uncoveredSegments.length,
-                    omittedSegmentCount,
-                }
+                      totalSegmentCount: ranges.length,
+                      returnedSegmentCount: uncoveredSegments.length,
+                      omittedSegmentCount,
+                  }
                 : undefined,
     };
 }
@@ -182,10 +173,7 @@ function getPathFileName(filePath: string): string {
     return path.posix.basename(normalizedPath);
 }
 
-function buildUncoveredSegment(
-    documentLines: string[],
-    range: LineRange,
-): UncoveredSegment {
+function buildUncoveredSegment(documentLines: string[], range: LineRange): UncoveredSegment {
     const contextBefore = truncateSnippet(
         sliceLines(
             documentLines,
@@ -206,9 +194,7 @@ function buildUncoveredSegment(
         sliceLines(documentLines, range.startLine, range.endLine),
         DEFAULT_MAX_CODE_CHARS,
     );
-    const truncated = Boolean(
-        code.truncated || contextBefore.truncated || contextAfter.truncated,
-    );
+    const truncated = Boolean(code.truncated || contextBefore.truncated || contextAfter.truncated);
 
     return {
         startLine: range.startLine,
@@ -239,11 +225,7 @@ function inferReason(
     return undefined;
 }
 
-function sliceLines(
-    documentLines: string[],
-    startLine: number,
-    endLine: number,
-): string {
+function sliceLines(documentLines: string[], startLine: number, endLine: number): string {
     if (endLine < startLine || startLine <= 0 || endLine <= 0) {
         return "";
     }
@@ -252,10 +234,7 @@ function sliceLines(
     return trimBoundaryWhitespace(selectedLines).join("\n");
 }
 
-function truncateSnippet(
-    text: string,
-    maxChars: number,
-): { text: string; truncated: boolean } {
+function truncateSnippet(text: string, maxChars: number): { text: string; truncated: boolean } {
     if (text.length <= maxChars) {
         return { text, truncated: false };
     }
