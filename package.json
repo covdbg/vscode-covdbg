@@ -381,7 +381,7 @@
                 "covdbg.runner.licenseServerUrl": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "Optional override for the covdbg license server base URL. Useful for local VS Code E2E runs against a Dockerized `covdbg-license` server.",
+                    "markdownDescription": "Optional override for the covdbg license server base URL.",
                     "scope": "resource",
                     "order": 11
                 },

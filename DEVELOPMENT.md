@@ -113,31 +113,6 @@ npm run package
 
 The package flow downloads the current portable covdbg runtime from `https://covdbg.com/download/latest/portable.zip` if needed.
 
-## Local VS Code Demo E2E
-
-The repository includes a local end-to-end path for the VS Code demo-license flow:
-
-```powershell
-.\scripts\Start-VSCodeDemoE2E.ps1
-```
-
-That workflow is expected to:
-
-- start the local `covdbg-license` Docker test stack
-- build `covdbg` in `Debug`
-- compile the VS Code extension
-- launch an Extension Development Host with the local E2E workspace
-
-The E2E workspace is configured to use:
-
-- `build/Debug/bin/covdbg.exe` as the runner executable
-- `build/Debug/bin/libDRM_tests.exe` as the initial target
-- `.covdbg/demo-appdata` for `license_status.json`
-- `http://localhost:3001` as the local license server override
-- `COVDBG_LICENSE_PUBLIC_KEY_ENV_FILE=../covdbg-license/.devcontainer/devcontainer.env` so the native client trusts the Docker test server development key
-
-After the Extension Development Host opens, run `covdbg: Run Coverage` and verify the demo-license flow and status bar state.
-
 ## Release Process
 
 Create and push a Git tag in the form `vX.Y.Z` that matches the version in `package.json`.
