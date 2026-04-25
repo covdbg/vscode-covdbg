@@ -16,7 +16,7 @@
         "url": "https://github.com/covdbg/vscode-covdbg/issues"
     },
     "engines": {
-        "vscode": "^1.85.0"
+        "vscode": "^1.116.0"
     },
     "categories": [
         "Testing",
@@ -405,29 +405,31 @@
     "scripts": {
         "prepare:portable": "node ./scripts/downloadPortable.js",
         "release:check": "node ./scripts/verifyReleaseVersion.js",
+        "check:vscode-engine": "node ./scripts/syncVscodeEngine.js --check",
+        "sync:vscode-engine": "node ./scripts/syncVscodeEngine.js --write",
         "vscode:prepublish": "npm run build",
         "typecheck": "tsc -p ./ --noEmit",
         "bundle": "node ./scripts/bundle.js",
-        "compile": "npm run typecheck && npm run bundle",
+        "compile": "npm run check:vscode-engine && npm run typecheck && npm run bundle",
         "build": "npm run prepare:portable && npm run compile",
         "watch": "node ./scripts/bundle.js --watch",
         "package": "vsce package --skip-license",
         "compile:tests": "tsc -p ./tsconfig.tests.json",
         "pretest": "npm run compile && npm run compile:tests",
         "test": "node --test test-out/test/*.test.js",
-        "lint": "eslint src --ext ts"
+        "lint": "eslint src"
     },
     "dependencies": {},
     "devDependencies": {
-        "@types/node": "^25.x",
-        "@types/sql.js": "^1.4.10",
-        "@types/vscode": "^1.85.0",
-        "@typescript-eslint/eslint-plugin": "^8.57.1",
-        "@typescript-eslint/parser": "^8.57.1",
-        "@vscode/vsce": "^3.2.0",
-        "esbuild": "^0.27.4",
-        "eslint": "^8.x",
+        "@types/node": "^25.6.0",
+        "@types/sql.js": "^1.4.11",
+        "@types/vscode": "^1.116.0",
+        "@typescript-eslint/eslint-plugin": "^8.59.0",
+        "@typescript-eslint/parser": "^8.59.0",
+        "@vscode/vsce": "^3.9.1",
+        "esbuild": "^0.28.0",
+        "eslint": "^10.2.1",
         "sql.js": "^1.14.1",
-        "typescript": "^5.3.0"
+        "typescript": "^6.0.3"
     }
 }
