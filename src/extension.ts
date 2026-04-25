@@ -3,7 +3,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { CoverageDecorator } from "./coverage/coverageDecorator";
 import { RenderMode } from "./types";
-import { CovdbParser, CovdbFileSummary, FileCoverage } from "./coverage/covdbParser";
+import { CovdbParser, CovdbFileSummary, type FileCoverage } from "./coverage/covdbParser";
+import { CoverageWorkspaceSession } from "./coverage/coverageSession";
 import {
     buildCoverageSummaryFromFileIndex,
     emptyCoverageSummary,
@@ -14,11 +15,7 @@ import {
     ExploreUncoveredFilesInput,
     ExploreUncoveredFilesResult,
 } from "./coverage/exploreUncoveredFiles";
-import {
-    buildUncoveredCodeResult,
-    emptyUncoveredCodeResult,
-    UncoveredCodeResult,
-} from "./coverage/uncoveredCode";
+import { emptyUncoveredCodeResult, UncoveredCodeResult } from "./coverage/uncoveredCode";
 import {
     buildNoActiveCoverageExploreGuidance,
     buildNoCoverageLoadedGuidance,
@@ -81,9 +78,6 @@ let sidebar: CovdbgSidebarController;
 /** The extension's install URI, used to resolve bundled assets. */
 let extensionUri: vscode.Uri;
 
-/** Path to the active .covdb file. */
-/** Maximum number of file coverages to keep in cache. */
-const MAX_COVERAGE_CACHE_SIZE = 200;
 /** Guard to prevent overlapping loadIndex calls. */
 let isLoadingIndex = false;
 /** Guard to prevent overlapping queued covdb reload flushes. */
@@ -107,13 +101,23 @@ const CONFIG_FILE_GLOB = `**/${CONFIG_FILE_NAME}`;
 const DISCOVERY_EXCLUDE_GLOB = "**/{.git,node_modules,.vscode,assets}/**";
 const MAX_DISCOVERED_COVDB_FILES = 50;
 
-interface CoverageWorkspaceState {
-    workspaceFolder?: vscode.WorkspaceFolder;
-    activeCovdbPath?: string;
-    activeCovdbMtime: number;
-    fileIndex: Map<string, CovdbFileSummary>;
-    coverageCache: Map<string, FileCoverage>;
-    staleCoverageKeys: Set<string>;
+class CoverageWorkspaceState implements SidebarCoverageState {
+    constructor(
+        public workspaceFolder: vscode.WorkspaceFolder | undefined,
+        public readonly session: CoverageWorkspaceSession,
+    ) {}
+
+    get activeCovdbPath(): string | undefined {
+        return this.session.activeCovdbPath;
+    }
+
+    get activeCovdbMtime(): number {
+        return this.session.activeCovdbMtime;
+    }
+
+    get fileIndex(): Map<string, CovdbFileSummary> {
+        return this.session.fileIndex;
+    }
 }
 
 interface UncoveredCodeCacheEntry {
@@ -371,34 +375,32 @@ async function loadIndex(
         const mtime = await getMtime(covdbPath);
         output.log(`Loading index from: ${covdbPath} (${source})`);
 
-        const result = await CovdbParser.loadIndex(covdbPath);
+        const targetWorkspaceFolder = workspaceFolder ?? getWorkspaceFolderForPath(covdbPath);
+        const state = getOrCreateCoverageState(targetWorkspaceFolder);
+        const showExternal = vscode.workspace
+            .getConfiguration("covdbg", targetWorkspaceFolder?.uri)
+            .get<boolean>("showExternalFiles", false);
+        const result = await state.session.loadIndex(covdbPath, {
+            mtime,
+            filterFileIndex: showExternal
+                ? undefined
+                : (fileIndex) => filterToWorkspaceFiles(fileIndex, targetWorkspaceFolder),
+        });
         if (result.error) {
             vscode.window.showErrorMessage(`covdbg: ${result.error}`);
             return;
         }
-        if (result.files.size === 0) {
+        if (result.totalFileCount === 0) {
             vscode.window.showWarningMessage("covdbg: No coverage data in .covdb");
             return;
         }
 
-        const targetWorkspaceFolder = workspaceFolder ?? getWorkspaceFolderForPath(covdbPath);
-        const state = getOrCreateCoverageState(targetWorkspaceFolder);
-        state.activeCovdbPath = covdbPath;
-        state.activeCovdbMtime = mtime;
         ensureCovdbWatcher(state);
-        const showExternal = vscode.workspace
-            .getConfiguration("covdbg", targetWorkspaceFolder?.uri)
-            .get<boolean>("showExternalFiles", false);
-        state.fileIndex = showExternal
-            ? result.files
-            : filterToWorkspaceFiles(result.files, targetWorkspaceFolder);
-        state.coverageCache.clear();
-        state.staleCoverageKeys.clear();
         uncoveredCodeCache.clear();
 
-        const excluded = result.files.size - state.fileIndex.size;
+        const excluded = result.totalFileCount - result.loadedFileCount;
         const excludedMsg = excluded > 0 ? ` (${excluded} external files hidden)` : "";
-        output.log(`Indexed ${state.fileIndex.size} files${excludedMsg} (mtime ${mtime})`);
+        output.log(`Indexed ${result.loadedFileCount} files${excludedMsg} (mtime ${mtime})`);
 
         refreshAllEditors();
         updateActiveWorkspaceUi();
@@ -581,26 +583,7 @@ async function getOrLoadCoverage(editorPath: string): Promise<FileCoverage | und
         return undefined;
     }
 
-    // Return cached data if available (re-insert to refresh LRU order)
-    const cached = state.coverageCache.get(key);
-    if (cached) {
-        state.coverageCache.delete(key);
-        state.coverageCache.set(key, cached);
-        return cached;
-    }
-
-    // Query the .covdb for just this file
-    const result = await CovdbParser.loadFileCoverage(state.activeCovdbPath, key);
-    if (result.coverage) {
-        // Evict oldest entry if cache is full
-        if (state.coverageCache.size >= MAX_COVERAGE_CACHE_SIZE) {
-            const oldestKey = state.coverageCache.keys().next().value!;
-            state.coverageCache.delete(oldestKey);
-        }
-        state.coverageCache.set(key, result.coverage);
-        return result.coverage;
-    }
-    return undefined;
+    return state.session.getOrLoadFileCoverage(key);
 }
 
 async function isCoverageStaleForPath(
@@ -608,7 +591,7 @@ async function isCoverageStaleForPath(
     key: string,
     state: CoverageWorkspaceState,
 ): Promise<boolean> {
-    if (state.staleCoverageKeys.has(key)) {
+    if (state.session.hasStaleCoverage(key)) {
         return true;
     }
 
@@ -670,8 +653,8 @@ function invalidateCoverageForDocument(document: vscode.TextDocument): void {
         return;
     }
 
-    state.coverageCache.delete(key);
-    state.staleCoverageKeys.add(key);
+    state.session.clearCoverage(key);
+    state.session.markCoverageStale(key);
     uncoveredCodeCache.delete(getUncoveredCodeCacheKey(document.uri.fsPath));
 
     for (const editor of vscode.window.visibleTextEditors) {
@@ -1016,10 +999,23 @@ async function getUncoveredCode(filePath?: string): Promise<UncoveredCodeResult>
         return cached.result;
     }
 
-    const coverage = await getOrLoadCoverage(resolvedPath);
-    const result = buildUncoveredCodeResult(resolvedPath, document.getText(), coverage, {
-        workspaceRelativePath: vscode.workspace.asRelativePath(resolvedPath, false),
-    });
+    const coverageKey = findIndexKey(resolvedPath);
+    const result =
+        state && coverageKey
+            ? await state.session.buildUncoveredCode(
+                  coverageKey,
+                  resolvedPath,
+                  document.getText(),
+                  {
+                      metadata: {
+                          workspaceRelativePath: vscode.workspace.asRelativePath(
+                              resolvedPath,
+                              false,
+                          ),
+                      },
+                  },
+              )
+            : emptyUncoveredCodeResult(resolvedPath);
 
     uncoveredCodeCache.set(cacheKey, {
         covdbPath: state?.activeCovdbPath,
@@ -1047,12 +1043,9 @@ async function exploreUncoveredFiles(
         };
     }
 
-    return buildExploreUncoveredFilesResult(activeState.fileIndex, {
-        ...input,
-        activeCovdbPath: activeState.activeCovdbPath,
-        workspaceRelativePathForFile: (candidatePath) =>
-            vscode.workspace.asRelativePath(candidatePath, false),
-    });
+    return activeState.session.exploreUncoveredFiles(input, (candidatePath) =>
+        vscode.workspace.asRelativePath(candidatePath, false),
+    );
 }
 
 async function exploreCovdbgEnvironment(
@@ -1771,13 +1764,10 @@ function getOrCreateCoverageState(
     const key = getWorkspaceStateKey(workspaceFolder);
     let state = coverageStates.get(key);
     if (!state) {
-        state = {
+        state = new CoverageWorkspaceState(
             workspaceFolder,
-            activeCovdbMtime: 0,
-            fileIndex: new Map(),
-            coverageCache: new Map(),
-            staleCoverageKeys: new Set(),
-        };
+            new CoverageWorkspaceSession(CovdbParser),
+        );
         coverageStates.set(key, state);
     } else if (workspaceFolder) {
         state.workspaceFolder = workspaceFolder;
@@ -1850,12 +1840,8 @@ function clearCoverageState(
         return;
     }
 
-    state.activeCovdbPath = undefined;
-    state.activeCovdbMtime = 0;
     disposeCovdbWatcher(stateKey);
-    state.fileIndex = new Map();
-    state.coverageCache.clear();
-    state.staleCoverageKeys.clear();
+    state.session.clear();
     uncoveredCodeCache.clear();
 
     if (clearEditors) {
