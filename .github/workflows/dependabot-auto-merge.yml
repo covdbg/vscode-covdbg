@@ -40,6 +40,10 @@ jobs:
         if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
         run: npm ci
 
+      - name: Check VS Code manifest versions
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        run: npm run check:vscode-engine
+
       - name: Lint
         if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
         run: npm run lint
@@ -51,6 +55,10 @@ jobs:
       - name: Test
         if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
         run: npm test
+
+      - name: Package VSIX
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        run: npm run package
 
   auto-merge:
     needs: validate

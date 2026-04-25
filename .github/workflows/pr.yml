@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check VS Code manifest versions
+        run: npm run check:vscode-engine
+
       - name: Lint
         run: npm run lint
 

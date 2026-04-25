@@ -14,14 +14,24 @@ type ContributedTool = {
     };
 };
 
-test("tool manifest contributes the covdbg LM tools", () => {
-    const manifest = JSON.parse(
-        fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
-    ) as {
-        contributes?: {
-            languageModelTools?: ContributedTool[];
-        };
+type PackageManifest = {
+    contributes?: {
+        languageModelTools?: ContributedTool[];
     };
+    devDependencies?: Record<string, string>;
+    engines?: {
+        vscode?: string;
+    };
+};
+
+function readPackageManifest(): PackageManifest {
+    return JSON.parse(
+        fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"),
+    ) as PackageManifest;
+}
+
+test("tool manifest contributes the covdbg LM tools", () => {
+    const manifest = readPackageManifest();
 
     const tools = manifest.contributes?.languageModelTools ?? [];
     const toolNames = tools.map((tool) => tool.name).sort();
@@ -45,6 +55,18 @@ test("tool manifest contributes the covdbg LM tools", () => {
     assert.ok(activeCoverageTool?.inputSchema?.properties?.limit);
     assert.ok(activeCoverageTool?.inputSchema?.properties?.maxCoveragePercent);
     assert.ok(uncoveredTool?.inputSchema?.properties?.filePath);
+});
+
+test("manifest keeps engines.vscode aligned with @types/vscode", () => {
+    const manifest = readPackageManifest();
+    const vscodeTypesVersion = manifest.devDependencies?.["@types/vscode"];
+
+    assert.ok(vscodeTypesVersion, "expected @types/vscode devDependency");
+    assert.equal(
+        manifest.engines?.vscode,
+        vscodeTypesVersion,
+        "engines.vscode must match @types/vscode so Dependabot PRs fail fast on API floor drift",
+    );
 });
 
 test("normalizeExecutablePathsInput prefers the array input and trims values", () => {

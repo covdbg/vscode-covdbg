@@ -1,0 +1,65 @@
+name: Dependabot Sync VS Code Engine
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: dependabot-sync-vscode-engine-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout PR branch
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        run: npm ci
+
+      - name: Sync VS Code manifest versions
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        run: npm run sync:vscode-engine
+
+      - name: Commit synced manifest
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn'
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "VS Code manifest versions already in sync."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: sync VS Code engine with @types/vscode"
+          git push
