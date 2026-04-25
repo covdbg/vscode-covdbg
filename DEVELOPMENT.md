@@ -89,6 +89,14 @@ Run the test suite:
 npm test
 ```
 
+Run the test suite with coverage:
+
+```bash
+npm run test:coverage
+```
+
+The coverage command measures compiled extension modules under `test-out/`, excludes compiled test files, prints a text summary, and writes `coverage/lcov.info` for Codecov.
+
 Run linting:
 
 ```bash
