@@ -1,5 +1,7 @@
 # covdbg for VS Code
 
+[![codecov](https://codecov.io/github/covdbg/vscode-covdbg/graph/badge.svg?token=7NJ34AP0R4)](https://codecov.io/github/covdbg/vscode-covdbg)
+
 Native Windows C++ coverage, directly in VS Code.
 
 Run real executables with coverage, inspect covered and uncovered lines in the editor, open a detailed report, and keep the whole workflow inside the IDE.
