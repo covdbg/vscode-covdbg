@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-06-08
+
+### Removed
+
+- Proactive "No `.covdbg.yaml` found in this workspace. Create one now?" prompt. It appeared in any workspace without a config — including immediately after deleting one — and was intrusive in projects that do not use covdbg. Create a starter config on demand with the **covdbg: Create .covdbg.yaml** command or the sidebar entry instead.
+
 ## [0.8.0] - 2026-04-25
 
 ### Changed
