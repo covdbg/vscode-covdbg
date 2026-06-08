@@ -93,9 +93,7 @@ const covdbWatchers = new Map<string, { covdbPath: string; watcher: vscode.FileS
 let lastDiscoveredTestBinaryIds: string | undefined;
 /** Track last run output for clear command. */
 let lastRunOutputPaths: string[] = [];
-let setupPromptInFlight = false;
 
-const CONFIG_PROMPT_ACK_KEY = "covdbg.createConfigPromptAcknowledged";
 const CONFIG_FILE_NAME = ".covdbg.yaml";
 const CONFIG_FILE_GLOB = `**/${CONFIG_FILE_NAME}`;
 const DISCOVERY_EXCLUDE_GLOB = "**/{.git,node_modules,.vscode,assets}/**";
@@ -356,10 +354,6 @@ async function discoverAndLoadIndex(context?: vscode.ExtensionContext): Promise<
 
     updateActiveWorkspaceUi();
     void flushPendingCovdbReloads();
-
-    if (!anyLoaded && context) {
-        await maybeOfferToCreateConfig(context, false);
-    }
 }
 
 async function loadIndex(
@@ -785,7 +779,6 @@ async function createConfigInWorkspace(
     }
 
     await fs.writeFile(configPath, buildStarterConfigContents(), "utf8");
-    await context.workspaceState.update(CONFIG_PROMPT_ACK_KEY, true);
 
     const doc = await vscode.workspace.openTextDocument(configPath);
     await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
@@ -802,9 +795,6 @@ async function handleCovdbgConfigFileChange(
 ): Promise<void> {
     if (deleted) {
         await clearDeletedRunnerConfigPath(configUri);
-        if (!(await workspaceContainsCovdbgYaml())) {
-            await maybeOfferToCreateConfig(context, false);
-        }
     }
 
     sidebar.scheduleRefresh();
@@ -1553,47 +1543,6 @@ async function findCovdbgConfigFiles(
     }
 
     return dedupeUris(found);
-}
-
-async function workspaceContainsCovdbgYaml(): Promise<boolean> {
-    return (await findCovdbgConfigFiles(undefined, 1)).length > 0;
-}
-
-async function maybeOfferToCreateConfig(
-    context: vscode.ExtensionContext,
-    forcePrompt: boolean,
-): Promise<void> {
-    if (setupPromptInFlight) {
-        return;
-    }
-    if (!vscode.workspace.isTrusted) {
-        return;
-    }
-    if (!vscode.workspace.workspaceFolders?.length) {
-        return;
-    }
-    if (await workspaceContainsCovdbgYaml()) {
-        return;
-    }
-    if (!forcePrompt && context.workspaceState.get<boolean>(CONFIG_PROMPT_ACK_KEY)) {
-        return;
-    }
-
-    setupPromptInFlight = true;
-    try {
-        const createAction = `Create ${CONFIG_FILE_NAME}`;
-        const picked = await vscode.window.showInformationMessage(
-            "covdbg: No .covdbg.yaml found in this workspace. Create one now?",
-            createAction,
-            "Not now",
-        );
-        await context.workspaceState.update(CONFIG_PROMPT_ACK_KEY, true);
-        if (picked === createAction) {
-            await createConfigCommand(context);
-        }
-    } finally {
-        setupPromptInFlight = false;
-    }
 }
 
 async function pickWorkspaceFolderForConfig(): Promise<vscode.WorkspaceFolder | undefined> {
