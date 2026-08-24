@@ -427,15 +427,15 @@
     "devDependencies": {
         "@types/node": "^25.9.2",
         "@types/sql.js": "^1.4.11",
-        "@types/vscode": "^1.120.0",
-        "@typescript-eslint/eslint-plugin": "^8.60.1",
+        "@types/vscode": "^1.134.0",
+        "@typescript-eslint/eslint-plugin": "^8.67.0",
         "@typescript-eslint/parser": "^8.59.0",
         "@vscode/vsce": "^3.9.2",
         "c8": "^11.0.0",
-        "esbuild": "^0.28.0",
-        "eslint": "^10.4.1",
-        "prettier": "^3.8.3",
-        "sql.js": "^1.14.1",
+        "esbuild": "^0.28.2",
+        "eslint": "^10.8.1",
+        "prettier": "^3.9.6",
+        "sql.js": "^1.14.2",
         "typescript": "^6.0.3"
     }
 }
