@@ -18,6 +18,11 @@ updates:
     labels:
       - "dependencies"
       - "npm"
+    ignore:
+      # Keep @types/node on the major that .nvmrc pins, so the types cannot
+      # describe APIs newer than the Node the extension is built and tested on.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch:
         patterns: ["*"]
