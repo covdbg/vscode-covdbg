@@ -8,6 +8,7 @@ out/**
 !out/extension.js
 !out/sql-wasm.wasm
 .gitignore
+.nvmrc
 .eslintrc.json
 scripts/**
 tsconfig.tests.json
