@@ -6,6 +6,30 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+### Added
+
+- covdbg's MCP server is offered to VS Code through `contributes.mcpServerDefinitionProviders`, so
+  chat-capable tooling can run coverage, inspect uncovered code, query a coverage database and
+  merge results without the extension proxying each call. One server per window; it is offered
+  only where a run could actually succeed - Windows, a trusted workspace, and no remote.
+- Coverage databases written by something other than this extension are now noticed. A watcher per
+  workspace folder over the discovery glob picks up a `.covdb` that has never been loaded, which
+  previously went unseen until the window was reloaded.
+
+### Changed
+
+- MCP runs that name no output path write to the configured `covdbg.runner.outputPath`, so their
+  results load into the editor automatically.
+- Reloads triggered by a coverage database changing on disk are debounced, so a file still being
+  written is no longer read as a malformed database or an empty index.
+
+### Removed
+
+- The four language-model tools (`covdbg_run`, `covdbg_explore`, `covdbg_files`, `covdbg_code`).
+  The MCP server replaces them, and it works with any MCP client rather than only VS Code chat.
+- The **covdbg: Get Uncovered Code** command. It returned a result that was never rendered, so
+  running it from the palette did nothing visible.
+
 ## [0.8.1] - 2026-06-08
 
 ### Removed

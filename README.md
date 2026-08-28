@@ -80,14 +80,27 @@ The extension can generate a starter config, then you can tune it to match your 
 
 ## AI Coverage Workflows
 
-covdbg can expose loaded native coverage data to chat-capable tooling in VS Code.
+covdbg ships an MCP server, and the extension offers it to VS Code automatically. Nothing to
+install and nothing to configure: open a C++ workspace on Windows and the server appears under
+**MCP: List Servers** as `covdbg`.
 
-- `covdbg_run` runs one or more real test executables with coverage and reloads the merged workspace result.
-- `covdbg_explore` reports the active workspace setup, including discovered binaries, config resolution, and runtime paths.
-- `covdbg_files` lists uncovered files from the currently loaded result.
-- `covdbg_code` returns grouped uncovered code segments and nearby context for a source file.
+Chat-capable tooling can then drive coverage end to end:
 
-This supports a tight loop: inspect uncovered code, make a fix, rebuild, rerun real tests with coverage, and query the updated result again.
+- Run a test executable under coverage, wait for it to finish, or cancel it.
+- Open a `.covdb`, list the files with the most uncovered lines, and read the uncovered segments
+  of any one of them with their surrounding context.
+- Query a coverage database directly with read-only SQL, and merge several databases into one.
+
+A run that names no output path writes to the location `covdbg.runner.outputPath` configures
+(`.covdbg/coverage.covdb` by default), so the result loads into the editor on its own - the
+gutter decorations and the sidebar update without a command.
+
+This supports a tight loop: inspect uncovered code, make a fix, rebuild, rerun the real tests
+with coverage, and query the updated result again.
+
+Licensing follows the same rules as a run started from the UI. If `COVDBG_LICENSE` or
+`COVDBG_LICENSE_FILE` is set for the window, covdbg uses it; otherwise a plugin demo licence is
+requested.
 
 ## Quick Start
 

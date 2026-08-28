@@ -6,6 +6,7 @@ import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
 import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
 import { resolveCovdbgExecutable } from "./executableResolver";
+import { buildLicenseRunConfig } from "./licenseRunConfig";
 import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
 import type { RunnerSettings } from "./runnerTypes";
 import {
@@ -134,7 +135,14 @@ async function runCoverageInternal(
     const versionInfo = version ? ` (${version})` : "";
     output.log(`Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`);
 
-    const licenseRunConfig = buildLicenseRunConfig(settings);
+    const extensionVersion = vscode.extensions.getExtension("covdbg.covdbg")?.packageJSON?.version;
+    const licenseRunConfig = buildLicenseRunConfig(
+        settings,
+        typeof extensionVersion === "string" ? extensionVersion : undefined,
+    );
+    if (licenseRunConfig.requestsDemoLicense) {
+        output.log("covdbg: Auto-requesting plugin demo license for VS Code run.");
+    }
     const args = buildCovdbgArguments(
         {
             ...paths,
@@ -274,42 +282,6 @@ export async function mergeCoverageFiles(
             resolve(ok);
         });
     });
-}
-
-interface LicenseRunConfig {
-    args: string[];
-    env: Record<string, string>;
-}
-
-function buildLicenseRunConfig(
-    settings: Pick<RunnerSettings, "env" | "licenseServerUrl">,
-): LicenseRunConfig {
-    const env = { ...settings.env };
-
-    if (settings.licenseServerUrl) {
-        env.COVDBG_LICENSE_SERVER_URL = settings.licenseServerUrl;
-    }
-
-    const hasExplicitLicense = [
-        env.COVDBG_LICENSE,
-        env.COVDBG_LICENSE_FILE,
-        env.COVDBG_FETCH_LICENSE,
-    ].some((value) => typeof value === "string" && value.trim().length > 0);
-
-    if (hasExplicitLicense) {
-        return { args: [], env };
-    }
-
-    const args = ["--demo", "--plugin-name", "vscode"];
-
-    const extension = vscode.extensions.getExtension("covdbg.covdbg");
-    const extensionVersion = extension?.packageJSON?.version;
-    if (typeof extensionVersion === "string" && extensionVersion.trim().length > 0) {
-        args.push("--plugin-ver", extensionVersion.trim());
-    }
-
-    output.log("covdbg: Auto-requesting plugin demo license for VS Code run.");
-    return { args, env };
 }
 
 interface PreflightError {
