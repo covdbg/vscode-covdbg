@@ -436,6 +436,6 @@
         "eslint": "^10.9.1",
         "prettier": "^3.9.6",
         "sql.js": "^1.14.2",
-        "typescript": "^6.0.3"
+        "typescript": "^7.0.2"
     }
 }
