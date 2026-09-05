@@ -91,9 +91,9 @@ Chat-capable tooling can then drive coverage end to end:
   of any one of them with their surrounding context.
 - Query a coverage database directly with read-only SQL, and merge several databases into one.
 
-A run that names no output path writes to the location `covdbg.runner.outputPath` configures
-(`.covdbg/coverage.covdb` by default), so the result loads into the editor on its own - the
-gutter decorations and the sidebar update without a command.
+A run that names no output path writes where `covdbg.runner.outputPath` points, or to covdbg's
+own default of `.covdbg/coverage.covdb` under the working directory, so the result loads into the
+editor on its own - the gutter decorations and the sidebar update without a command.
 
 This supports a tight loop: inspect uncovered code, make a fix, rebuild, rerun the real tests
 with coverage, and query the updated result again.

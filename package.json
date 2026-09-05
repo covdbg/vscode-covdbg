@@ -252,8 +252,8 @@
                 },
                 "covdbg.runner.outputPath": {
                     "type": "string",
-                    "default": ".covdbg/coverage.covdb",
-                    "markdownDescription": "Output `.covdb` path for runs started from VS Code.",
+                    "default": "",
+                    "markdownDescription": "Where a run started from VS Code writes its `.covdb`. Leave empty for covdbg's own default, `.covdbg/coverage.covdb` under the run's working directory. A relative path is resolved from the workspace folder.",
                     "scope": "resource",
                     "order": 7
                 },
@@ -266,8 +266,8 @@
                 },
                 "covdbg.runner.binaryDiscoveryExcludePattern": {
                     "type": "string",
-                    "default": "",
-                    "markdownDescription": "Optional glob pattern used to exclude discovered test binaries. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`, which is useful when post-build steps copy matching executables into additional folders.",
+                    "default": "**/{Release,RelWithDebInfo}/**",
+                    "markdownDescription": "Glob pattern for discovered test binaries to leave out. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`. The default skips optimized build trees, whose binaries carry the symbols covdbg needs only in part; it is also useful when post-build steps copy matching executables into additional folders.",
                     "scope": "resource",
                     "order": 10
                 },

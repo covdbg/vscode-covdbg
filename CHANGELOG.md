@@ -25,6 +25,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   licence it belonged to.
 - covdbg keeps its logs in `.covdbg` under the run's working directory, and the log and folder
   entries in the sidebar follow that.
+- `covdbg.runner.outputPath` is empty by default and means covdbg's own default,
+  `.covdbg/coverage.covdb` under the run's working directory, which covdbg 1.3 writes to on its
+  own when no output is named.
+- `covdbg.runner.binaryDiscoveryExcludePattern` defaults to `**/{Release,RelWithDebInfo}/**`, so
+  the discovery pattern's `build`/`out` trees do not offer optimized binaries beside the debug
+  ones.
 - MCP runs that name no output path write to the configured `covdbg.runner.outputPath`, so their
   results load into the editor automatically.
 - Reloads triggered by a coverage database changing on disk are debounced, so a file still being
