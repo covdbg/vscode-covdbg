@@ -46,7 +46,6 @@
                 "covdbg.runner.workingDirectory",
                 "covdbg.runner.configPath",
                 "covdbg.runner.outputPath",
-                "covdbg.runner.appDataPath",
                 "covdbg.runner.binaryDiscoveryPattern",
                 "covdbg.runner.env"
             ]
@@ -129,6 +128,16 @@
                 "title": "Refresh Home Dashboard",
                 "category": "covdbg",
                 "icon": "$(refresh)"
+            },
+            {
+                "command": "covdbg.signIn",
+                "title": "Sign In",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.signOut",
+                "title": "Sign Out",
+                "category": "covdbg"
             }
         ],
         "viewsContainers": {
@@ -248,13 +257,6 @@
                     "scope": "resource",
                     "order": 7
                 },
-                "covdbg.runner.appDataPath": {
-                    "type": "string",
-                    "default": ".covdbg",
-                    "markdownDescription": "Path for covdbg appdata (logs, cache). Default stores logs under `.covdbg/Logs`.",
-                    "scope": "resource",
-                    "order": 8
-                },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
                     "default": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*",
@@ -269,13 +271,6 @@
                     "scope": "resource",
                     "order": 10
                 },
-                "covdbg.runner.licenseServerUrl": {
-                    "type": "string",
-                    "default": "",
-                    "markdownDescription": "Optional override for the covdbg license server base URL.",
-                    "scope": "resource",
-                    "order": 11
-                },
                 "covdbg.runner.workingDirectory": {
                     "type": "string",
                     "default": "",
@@ -286,7 +281,7 @@
                 "covdbg.runner.env": {
                     "type": "object",
                     "default": {},
-                    "markdownDescription": "Additional environment variables passed to covdbg runs (for example `COVDBG_LICENSE`).",
+                    "markdownDescription": "Additional environment variables passed to covdbg runs, for example `COVDBG_PROJECT_TOKEN` where runs should use a team's project token instead of the machine's sign-in.",
                     "scope": "resource",
                     "order": 15
                 }

@@ -23,11 +23,9 @@ export function readRunnerSettings(scope?: vscode.ConfigurationScope): RunnerSet
                 DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
             )
             .trim(),
-        licenseServerUrl: config.get<string>("runner.licenseServerUrl", "").trim(),
         targetArgs: ensureArrayOfStrings(config.get("runner.targetArgs", [])),
         configPath: config.get<string>("runner.configPath", "").trim(),
         outputPath: config.get<string>("runner.outputPath", ".covdbg/coverage.covdb").trim(),
-        appDataPath: config.get<string>("runner.appDataPath", ".covdbg").trim() || ".covdbg",
         workingDirectory: config.get<string>("runner.workingDirectory", "").trim(),
         env: sanitizeEnv(env),
     };
@@ -84,10 +82,10 @@ export function resolveRunnerPaths(
         settings.outputPath || ".covdbg/coverage.covdb",
         workspaceRoot,
     );
-    const appDataPath = resolvePathFromWorkspace(settings.appDataPath || ".covdbg", workspaceRoot);
     const workingDirectory = settings.workingDirectory
         ? resolvePathFromWorkspace(settings.workingDirectory, workspaceRoot)
         : workspaceRoot;
+    const appDataPath = path.join(workingDirectory, ".covdbg");
 
     const configPath = settings.configPath
         ? resolvePathFromWorkspace(settings.configPath, workspaceRoot)

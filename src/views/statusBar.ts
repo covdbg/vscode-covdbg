@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { LicenseStatusSnapshot } from "../runner/licenseStatus";
 import { RenderMode } from "../types";
 
 export class StatusBar {
@@ -8,7 +7,6 @@ export class StatusBar {
     private _loaded: boolean = false;
     private _renderMode: RenderMode = "gutter";
     private _runState: "idle" | "running" | "failed" = "idle";
-    private _licenseStatus?: LicenseStatusSnapshot;
 
     constructor() {
         this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -50,11 +48,6 @@ export class StatusBar {
         this.updateAppearance();
     }
 
-    public setLicenseStatus(status?: LicenseStatusSnapshot): void {
-        this._licenseStatus = status;
-        this.updateAppearance();
-    }
-
     public setRunning(): void {
         this._runState = "running";
         this.updateAppearance();
@@ -76,22 +69,21 @@ export class StatusBar {
     }
 
     private updateAppearance(): void {
-        const licenseIndicator = this.getLicenseIndicator();
         if (this._runState === "running") {
-            this._item.text = `covdbg $(sync~spin)${licenseIndicator.text}`;
-            this._item.tooltip = `covdbg - Coverage run in progress${licenseIndicator.tooltip}`;
+            this._item.text = `covdbg $(sync~spin)`;
+            this._item.tooltip = `covdbg - Coverage run in progress`;
             return;
         }
 
         if (this._runState === "failed") {
-            this._item.text = `covdbg $(error)${licenseIndicator.text}`;
-            this._item.tooltip = `covdbg - Last coverage run failed${licenseIndicator.tooltip}`;
+            this._item.text = `covdbg $(error)`;
+            this._item.tooltip = `covdbg - Last coverage run failed`;
             return;
         }
 
         if (!this._loaded) {
-            this._item.text = `covdbg $(workspace-unknown)${licenseIndicator.text}`;
-            this._item.tooltip = `covdbg - No coverage loaded${licenseIndicator.tooltip}`;
+            this._item.text = `covdbg $(workspace-unknown)`;
+            this._item.tooltip = `covdbg - No coverage loaded`;
             return;
         }
         const modeLabel =
@@ -101,35 +93,12 @@ export class StatusBar {
                   ? "Gutter"
                   : "Both";
         if (this._enabled) {
-            this._item.text = `covdbg $(workspace-trusted)${licenseIndicator.text}`;
-            this._item.tooltip = `covdbg - Coverage ON (${modeLabel})${licenseIndicator.tooltip}`;
+            this._item.text = `covdbg $(workspace-trusted)`;
+            this._item.tooltip = `covdbg - Coverage ON (${modeLabel})`;
         } else {
-            this._item.text = `covdbg $(workspace-untrusted)${licenseIndicator.text}`;
-            this._item.tooltip = `covdbg - Coverage OFF (${modeLabel})${licenseIndicator.tooltip}`;
+            this._item.text = `covdbg $(workspace-untrusted)`;
+            this._item.tooltip = `covdbg - Coverage OFF (${modeLabel})`;
         }
-    }
-
-    private getLicenseIndicator(): { text: string; tooltip: string } {
-        if (!this._licenseStatus || this._licenseStatus.source !== "plugin-demo") {
-            return { text: "", tooltip: "" };
-        }
-
-        if (this._licenseStatus.status === "active") {
-            const daysRemaining = Math.max(0, this._licenseStatus.daysRemaining ?? 0);
-            return {
-                text: "",
-                tooltip: `\nDemo license active: ${daysRemaining} day(s) remaining`,
-            };
-        }
-
-        if (this._licenseStatus.status === "trial-used") {
-            return {
-                text: "",
-                tooltip: "\nDemo license already used on this machine",
-            };
-        }
-
-        return { text: "", tooltip: "" };
     }
 
     public dispose(): void {

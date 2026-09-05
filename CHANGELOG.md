@@ -18,6 +18,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 
+- Runs are licensed per seat, the way `covdbg` 2.0 licenses them everywhere: by the sign-in on the
+  machine or by a project token in `covdbg.runner.env`. **covdbg: Sign In** opens the code to
+  confirm in the browser and **covdbg: Sign Out** ends the session; the sidebar shows who is
+  signed in, and a refused run offers the sign-in. The plugin demo licence is gone with the
+  licence it belonged to.
+- covdbg keeps its logs in `.covdbg` under the run's working directory, and the log and folder
+  entries in the sidebar follow that.
 - MCP runs that name no output path write to the configured `covdbg.runner.outputPath`, so their
   results load into the editor automatically.
 - Reloads triggered by a coverage database changing on disk are debounced, so a file still being
@@ -29,6 +36,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   The MCP server replaces them, and it works with any MCP client rather than only VS Code chat.
 - The **covdbg: Get Uncovered Code** command. It returned a result that was never rendered, so
   running it from the palette did nothing visible.
+- The `covdbg.runner.licenseServerUrl` and `covdbg.runner.appDataPath` settings. covdbg 2.0 has
+  neither a licence server to point at nor an app-data option; the 30-day demo licence and
+  `COVDBG_LICENSE` are gone with them.
 
 ## [0.8.1] - 2026-06-08
 

@@ -109,7 +109,7 @@ function createPlaceholderData(): HomeDashboardData {
     return {
         statusItems: [
             { label: "Runtime", value: "Resolving...", tone: "muted" },
-            { label: "License", value: "Resolving...", tone: "muted" },
+            { label: "Sign-in", value: "Resolving...", tone: "muted" },
             { label: "Config", value: "Resolving...", tone: "muted" },
             { label: "Coverage", value: "Resolving...", tone: "muted" },
         ],
