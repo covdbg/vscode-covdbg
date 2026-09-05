@@ -7,22 +7,9 @@ import { CovdbParser, CovdbFileSummary, type FileCoverage } from "./coverage/cov
 import { CoverageWorkspaceSession } from "./coverage/coverageSession";
 import {
     buildCoverageSummaryFromFileIndex,
-    emptyCoverageSummary,
     type CoverageSummary,
 } from "./coverage/coverageSummary";
-import {
-    buildExploreUncoveredFilesResult,
-    ExploreUncoveredFilesInput,
-    ExploreUncoveredFilesResult,
-} from "./coverage/exploreUncoveredFiles";
-import { emptyUncoveredCodeResult, UncoveredCodeResult } from "./coverage/uncoveredCode";
-import {
-    buildNoActiveCoverageExploreGuidance,
-    buildNoCoverageLoadedGuidance,
-    buildExploreEnvironmentLlmGuidance,
-} from "./coverage/toolGuidance";
 import { CovdbReloadScheduler } from "./coverage/covdbReloadScheduler";
-import { runTestWithCoverageWorkflow } from "./coverage/runTestWithCoverageWorkflow";
 import { findBestCoverageKey } from "./coverage/coverageKeyMatcher";
 import { StatusBar } from "./views/statusBar";
 import { CoverageReport } from "./views/coverageReport";
@@ -41,6 +28,10 @@ import {
 } from "./runner/workspaceDefaults";
 import { resolveCovdbgExecutable } from "./runner/executableResolver";
 import { getCovdbgVersion } from "./runner/runtimeInfo";
+import {
+    COVDBG_MCP_PROVIDER_ID,
+    CovdbgMcpServerDefinitionProvider,
+} from "./mcp/serverDefinitionProvider";
 import { LicenseStatusSnapshot } from "./runner/licenseStatus";
 import {
     getPreferredWorkspaceFolder,
@@ -50,22 +41,6 @@ import {
     getWorkspaceRoot,
 } from "./runner/settings";
 import { dedupeNormalizedPaths, deriveCoverageBatchOutputPath } from "./runner/outputPaths";
-import {
-    EXPLORE_ACTIVE_COVERAGE_FILES_TOOL_NAME,
-    ExploreActiveCoverageFilesTool,
-} from "./tools/exploreUncoveredFilesTool";
-import {
-    COVDBG_EXPLORE_TOOL_NAME,
-    ExploreEnvironmentTool,
-    type ExploreEnvironmentToolInput,
-    type ExploreEnvironmentToolResult,
-} from "./tools/exploreEnvironmentTool";
-import { GET_UNCOVERED_CODE_TOOL_NAME, GetUncoveredCodeTool } from "./tools/getUncoveredCodeTool";
-import { RunTestWithCoverageTool } from "./tools/runTestWithCoverageTool";
-import {
-    RUN_TEST_WITH_COVERAGE_TOOL_NAME,
-    type RunTestWithCoverageToolResult,
-} from "./tools/runTestWithCoverageModel";
 
 // ---------------------------------------------------------------------------
 // State
@@ -90,11 +65,27 @@ let testingRootItem: vscode.TestItem | undefined;
 const testExecutablePaths: Map<string, string> = new Map();
 const covdbReloadScheduler = new CovdbReloadScheduler();
 const covdbWatchers = new Map<string, { covdbPath: string; watcher: vscode.FileSystemWatcher }>();
+/**
+ * Watchers over the discovery glob, one per workspace folder.
+ *
+ * Separate from covdbWatchers, which watch the one already-active path and so do not exist at all
+ * until something has been loaded. Without these, a .covdb created for the first time - by an MCP
+ * run, or by covdbg on the command line - goes unnoticed until the window is reloaded, because
+ * discoverAndLoadIndex runs only at activation, on three configuration changes, and on a
+ * workspace-folder change.
+ */
+const covdbDiscoveryWatchers = new Map<string, vscode.FileSystemWatcher>();
+/** Debounce timer for a discovery hit, so one run's write does not queue several loads. */
+let discoveryReloadTimer: NodeJS.Timeout | undefined;
+/** Debounce timer for a watched .covdb being rewritten underneath us. */
+let covdbReloadDebounceTimer: NodeJS.Timeout | undefined;
 let lastDiscoveredTestBinaryIds: string | undefined;
 /** Track last run output for clear command. */
 let lastRunOutputPaths: string[] = [];
 
 const CONFIG_FILE_NAME = ".covdbg.yaml";
+/** How long the writes to a new .covdb must stop before it is read. */
+const DISCOVERY_RELOAD_DEBOUNCE_MS = 750;
 const CONFIG_FILE_GLOB = `**/${CONFIG_FILE_NAME}`;
 const DISCOVERY_EXCLUDE_GLOB = "**/{.git,node_modules,.vscode,assets}/**";
 const MAX_DISCOVERED_COVDB_FILES = 50;
@@ -118,15 +109,7 @@ class CoverageWorkspaceState implements SidebarCoverageState {
     }
 }
 
-interface UncoveredCodeCacheEntry {
-    covdbPath?: string;
-    covdbMtime: number;
-    documentVersion: number;
-    result: UncoveredCodeResult;
-}
-
 const coverageStates = new Map<string, CoverageWorkspaceState>();
-const uncoveredCodeCache = new Map<string, UncoveredCodeCacheEntry>();
 
 // ---------------------------------------------------------------------------
 // Activation
@@ -176,32 +159,15 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand("covdbg.configurePath", () => pickCovdbFile()),
         vscode.commands.registerCommand("covdbg.createConfig", () => createConfigCommand(context)),
         vscode.commands.registerCommand("covdbg.runCoverage", () => runCoverageCommand(context)),
-        vscode.commands.registerCommand("covdbg.getUncoveredCode", (filePath?: string) =>
-            getUncoveredCode(filePath),
-        ),
         vscode.commands.registerCommand("covdbg.clearLastRunResult", () =>
             clearLastRunResultCommand(),
         ),
         vscode.commands.registerCommand("covdbg.refreshTestBinaries", () =>
             refreshTestControllerItems(),
         ),
-        vscode.lm.registerTool(
-            COVDBG_EXPLORE_TOOL_NAME,
-            new ExploreEnvironmentTool((input) => exploreCovdbgEnvironment(context, input)),
-        ),
-        vscode.lm.registerTool(
-            GET_UNCOVERED_CODE_TOOL_NAME,
-            new GetUncoveredCodeTool(getUncoveredCode),
-        ),
-        vscode.lm.registerTool(
-            EXPLORE_ACTIVE_COVERAGE_FILES_TOOL_NAME,
-            new ExploreActiveCoverageFilesTool(exploreUncoveredFiles),
-        ),
-        vscode.lm.registerTool(
-            RUN_TEST_WITH_COVERAGE_TOOL_NAME,
-            new RunTestWithCoverageTool((executablePaths) =>
-                runTestWithCoverage(context, executablePaths),
-            ),
+        vscode.lm.registerMcpServerDefinitionProvider(
+            COVDBG_MCP_PROVIDER_ID,
+            new CovdbgMcpServerDefinitionProvider(context),
         ),
     );
 
@@ -229,6 +195,7 @@ export function activate(context: vscode.ExtensionContext) {
                 e.affectsConfiguration("covdbg.showExternalFiles") ||
                 e.affectsConfiguration("covdbg.discoveryPattern")
             ) {
+                ensureCovdbDiscoveryWatchers(context);
                 await discoverAndLoadIndex(context);
             }
             if (e.affectsConfiguration("covdbg.renderMode")) {
@@ -262,6 +229,7 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
             void refreshTestControllerItems();
+            ensureCovdbDiscoveryWatchers(context);
             void discoverAndLoadIndex(context);
             sidebar.scheduleRefresh();
         }),
@@ -290,6 +258,7 @@ export function activate(context: vscode.ExtensionContext) {
     sidebar.scheduleRefresh();
     void sidebar.refreshLicenseStatusFromDisk();
     void sidebar.refreshRuntimeSummary();
+    ensureCovdbDiscoveryWatchers(context);
     void discoverAndLoadIndex(context);
 }
 
@@ -390,7 +359,6 @@ async function loadIndex(
         }
 
         ensureCovdbWatcher(state);
-        uncoveredCodeCache.clear();
 
         const excluded = result.totalFileCount - result.loadedFileCount;
         const excludedMsg = excluded > 0 ? ` (${excluded} external files hidden)` : "";
@@ -445,6 +413,98 @@ function ensureCovdbWatcher(state: CoverageWorkspaceState): void {
     covdbWatchers.set(stateKey, { covdbPath, watcher });
 }
 
+/**
+ * Watch each workspace folder's discovery glob so a .covdb that has never been loaded is noticed.
+ *
+ * Cheap to keep open, and idempotent: an existing watcher for a folder is left in place.
+ */
+function ensureCovdbDiscoveryWatchers(context: vscode.ExtensionContext): void {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+
+    for (const stateKey of [...covdbDiscoveryWatchers.keys()]) {
+        if (!folders.some((folder) => getWorkspaceStateKey(folder) === stateKey)) {
+            covdbDiscoveryWatchers.get(stateKey)?.dispose();
+            covdbDiscoveryWatchers.delete(stateKey);
+        }
+    }
+
+    for (const folder of folders) {
+        const stateKey = getWorkspaceStateKey(folder);
+        if (covdbDiscoveryWatchers.has(stateKey)) {
+            continue;
+        }
+
+        const pattern = vscode.workspace
+            .getConfiguration("covdbg", folder.uri)
+            .get<string>("discoveryPattern", "**/*.covdb");
+        const watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, pattern),
+        );
+
+        const onDiscovered = (uri: vscode.Uri) => {
+            queueDiscoveryReload(uri, folder, context);
+        };
+        watcher.onDidCreate(onDiscovered);
+        watcher.onDidChange(onDiscovered);
+
+        covdbDiscoveryWatchers.set(stateKey, watcher);
+    }
+}
+
+/**
+ * React to a .covdb appearing where nothing was loaded before.
+ *
+ * Debounced, and deliberately so twice over: covdbg writes the file in pieces, so create is
+ * followed by a run of change events, and reading a half-written SQLite file yields either a
+ * malformed database or an empty index. Waiting for the writes to stop is the cheap guard the
+ * mtime comparison in flushPendingCovdbReloads cannot give, since an mtime says when a file was
+ * last touched and nothing about whether it is complete.
+ *
+ * A folder that already has this path active is left to its own watcher, which has the mtime
+ * check and the run-in-progress deferral that this path does not.
+ */
+function queueDiscoveryReload(
+    uri: vscode.Uri,
+    folder: vscode.WorkspaceFolder,
+    context: vscode.ExtensionContext,
+): void {
+    const state = coverageStates.get(getWorkspaceStateKey(folder));
+    if (state?.activeCovdbPath) {
+        return;
+    }
+
+    if (discoveryReloadTimer) {
+        clearTimeout(discoveryReloadTimer);
+    }
+
+    discoveryReloadTimer = setTimeout(() => {
+        discoveryReloadTimer = undefined;
+        if (covdbReloadScheduler.hasActiveExecution() || isLoadingIndex) {
+            return;
+        }
+
+        output.log(`covdbg noticed a new coverage database: ${uri.fsPath}`);
+        void discoverAndLoadIndex(context);
+    }, DISCOVERY_RELOAD_DEBOUNCE_MS);
+}
+
+function disposeCovdbDiscoveryWatchers(): void {
+    if (discoveryReloadTimer) {
+        clearTimeout(discoveryReloadTimer);
+        discoveryReloadTimer = undefined;
+    }
+
+    if (covdbReloadDebounceTimer) {
+        clearTimeout(covdbReloadDebounceTimer);
+        covdbReloadDebounceTimer = undefined;
+    }
+
+    for (const watcher of covdbDiscoveryWatchers.values()) {
+        watcher.dispose();
+    }
+    covdbDiscoveryWatchers.clear();
+}
+
 function disposeCovdbWatcher(stateKey: string): void {
     const existing = covdbWatchers.get(stateKey);
     if (!existing) {
@@ -459,6 +519,7 @@ function disposeAllCovdbWatchers(): void {
     for (const stateKey of covdbWatchers.keys()) {
         disposeCovdbWatcher(stateKey);
     }
+    disposeCovdbDiscoveryWatchers();
 }
 
 function queueCovdbReload(stateKey: string, covdbPath: string): void {
@@ -468,7 +529,20 @@ function queueCovdbReload(stateKey: string, covdbPath: string): void {
         return;
     }
 
-    void flushPendingCovdbReloads();
+    // Debounced rather than flushed straight away. withDeferredCovdbReloads only covers runs this
+    // extension started, so a covdbg writing from anywhere else - an MCP run, a terminal - fires
+    // the watcher repeatedly while the file is still being written, and reading a half-written
+    // SQLite file gives either a malformed database or an empty index. The mtime check in the
+    // flush cannot help: an mtime says when a file was last touched, never whether it is
+    // finished. Waiting for the writes to stop is the guard that actually holds.
+    if (covdbReloadDebounceTimer) {
+        clearTimeout(covdbReloadDebounceTimer);
+    }
+
+    covdbReloadDebounceTimer = setTimeout(() => {
+        covdbReloadDebounceTimer = undefined;
+        void flushPendingCovdbReloads();
+    }, DISCOVERY_RELOAD_DEBOUNCE_MS);
 }
 
 async function flushPendingCovdbReloads(): Promise<void> {
@@ -649,7 +723,6 @@ function invalidateCoverageForDocument(document: vscode.TextDocument): void {
 
     state.session.clearCoverage(key);
     state.session.markCoverageStale(key);
-    uncoveredCodeCache.delete(getUncoveredCodeCacheKey(document.uri.fsPath));
 
     for (const editor of vscode.window.visibleTextEditors) {
         if (editor.document.uri.fsPath === document.uri.fsPath) {
@@ -960,196 +1033,6 @@ async function showCoverageReportCommand(): Promise<void> {
     );
 }
 
-async function getUncoveredCode(filePath?: string): Promise<UncoveredCodeResult> {
-    const resolvedPath = resolveRequestedFilePath(filePath);
-    if (!resolvedPath) {
-        output.logError("getUncoveredCode: no file path provided and no active editor available");
-        return emptyUncoveredCodeResult(filePath ?? "");
-    }
-
-    const document = await openDocumentIfExists(resolvedPath);
-    if (!document) {
-        output.logError(`getUncoveredCode: file not found: ${resolvedPath}`);
-        return emptyUncoveredCodeResult(resolvedPath);
-    }
-
-    if (!getActiveCoverageState()?.activeCovdbPath) {
-        return emptyUncoveredCodeResult(resolvedPath, buildNoCoverageLoadedGuidance());
-    }
-
-    const state = getCoverageStateForPath(resolvedPath);
-    const cacheKey = getUncoveredCodeCacheKey(resolvedPath);
-    const cached = uncoveredCodeCache.get(cacheKey);
-    if (
-        cached &&
-        cached.covdbPath === state?.activeCovdbPath &&
-        cached.covdbMtime === (state?.activeCovdbMtime ?? 0) &&
-        cached.documentVersion === document.version
-    ) {
-        return cached.result;
-    }
-
-    const coverageKey = findIndexKey(resolvedPath);
-    const result =
-        state && coverageKey
-            ? await state.session.buildUncoveredCode(
-                  coverageKey,
-                  resolvedPath,
-                  document.getText(),
-                  {
-                      metadata: {
-                          workspaceRelativePath: vscode.workspace.asRelativePath(
-                              resolvedPath,
-                              false,
-                          ),
-                      },
-                  },
-              )
-            : emptyUncoveredCodeResult(resolvedPath);
-
-    uncoveredCodeCache.set(cacheKey, {
-        covdbPath: state?.activeCovdbPath,
-        covdbMtime: state?.activeCovdbMtime ?? 0,
-        documentVersion: document.version,
-        result,
-    });
-
-    return result;
-}
-
-async function exploreUncoveredFiles(
-    input: ExploreUncoveredFilesInput,
-): Promise<ExploreUncoveredFilesResult> {
-    const activeState = getActiveCoverageState();
-    if (!activeState?.activeCovdbPath || activeState.fileIndex.size === 0) {
-        return {
-            activeCovdbPath: activeState?.activeCovdbPath,
-            coverageSummary: emptyCoverageSummary(activeState?.fileIndex.size ?? 0),
-            totalIndexedFiles: activeState?.fileIndex.size ?? 0,
-            returnedFileCount: 0,
-            files: [],
-            llmGuidance: buildNoActiveCoverageExploreGuidance(),
-            message: "No active coverage database is loaded.",
-        };
-    }
-
-    return activeState.session.exploreUncoveredFiles(input, (candidatePath) =>
-        vscode.workspace.asRelativePath(candidatePath, false),
-    );
-}
-
-async function exploreCovdbgEnvironment(
-    context: vscode.ExtensionContext,
-    input: ExploreEnvironmentToolInput,
-): Promise<ExploreEnvironmentToolResult> {
-    const requestedWorkspaceRoot = input.workspaceRoot?.trim();
-    const targetWorkspace = requestedWorkspaceRoot
-        ? findWorkspaceFolderByPath(requestedWorkspaceRoot)
-        : getPreferredWorkspaceFolder(vscode.window.activeTextEditor?.document.uri.fsPath);
-    const workspaceRoot = targetWorkspace?.uri.fsPath ?? requestedWorkspaceRoot;
-    const settings = readRunnerSettings(targetWorkspace?.uri);
-    const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 20)));
-    const resolvedPaths = workspaceRoot ? resolveRunnerPaths(settings, workspaceRoot) : undefined;
-    const discoveredConfigFiles = targetWorkspace
-        ? await findCovdbgConfigFiles(targetWorkspace)
-        : await findCovdbgConfigFiles();
-    const discoveredCovdbFiles = targetWorkspace
-        ? await findDiscoveredCovdbFiles(targetWorkspace)
-        : await findDiscoveredCovdbFiles();
-    const discoveredTestBinaries = workspaceRoot
-        ? await listDiscoveredExecutablePaths(workspaceRoot)
-        : await listDiscoveredExecutablePaths();
-
-    let resolvedConfigPath: string | undefined;
-    if (workspaceRoot && resolvedPaths) {
-        if (settings.configPath) {
-            resolvedConfigPath = (await fileExists(resolvedPaths.configPath ?? ""))
-                ? resolvedPaths.configPath
-                : undefined;
-        } else if (discoveredTestBinaries[0]) {
-            resolvedConfigPath = await resolveEffectiveConfigPath(
-                settings.configPath,
-                discoveredTestBinaries[0],
-                workspaceRoot,
-            );
-        } else {
-            resolvedConfigPath = discoveredConfigFiles[0]?.fsPath;
-        }
-    }
-
-    const resolvedRuntime = workspaceRoot
-        ? await resolveCovdbgExecutable(context, settings, workspaceRoot)
-        : undefined;
-    const runtimeVersion = resolvedRuntime
-        ? await getCovdbgVersion(resolvedRuntime.path)
-        : undefined;
-    const activeCoverageState = targetWorkspace
-        ? getWorkspaceCoverageState(targetWorkspace)
-        : getActiveCoverageState();
-
-    return {
-        workspaceRoot,
-        workspaceFolderName: targetWorkspace?.name,
-        activeEditorPath: vscode.window.activeTextEditor?.document.uri.fsPath,
-        runtime: {
-            resolved: Boolean(resolvedRuntime?.path),
-            path: resolvedRuntime?.path,
-            source: resolvedRuntime?.source,
-            version: runtimeVersion,
-        },
-        runner: {
-            binaryDiscoveryPattern: settings.binaryDiscoveryPattern,
-            binaryDiscoveryExcludePattern: settings.binaryDiscoveryExcludePattern || undefined,
-            configuredConfigPath: resolvedPaths?.configPath,
-            resolvedConfigPath,
-            configuredOutputPath: resolvedPaths?.configuredOutputPath,
-            appDataPath: resolvedPaths?.appDataPath,
-            workingDirectory: resolvedPaths?.workingDirectory,
-        },
-        configFiles: {
-            discoveredCount: discoveredConfigFiles.length,
-            returnedCount: Math.min(discoveredConfigFiles.length, limit),
-            paths: discoveredConfigFiles.slice(0, limit).map((uri) => uri.fsPath),
-        },
-        coverageDatabases: {
-            activeCovdbPath: activeCoverageState?.activeCovdbPath,
-            discoveredCount: discoveredCovdbFiles.length,
-            returnedCount: Math.min(discoveredCovdbFiles.length, limit),
-            paths: discoveredCovdbFiles.slice(0, limit).map((uri) => uri.fsPath),
-        },
-        testBinaries: {
-            discoveredCount: discoveredTestBinaries.length,
-            returnedCount: Math.min(discoveredTestBinaries.length, limit),
-            paths: discoveredTestBinaries.slice(0, limit),
-        },
-        llmGuidance: buildExploreEnvironmentLlmGuidance(),
-        message: workspaceRoot
-            ? `Resolved covdbg environment details for ${targetWorkspace?.name ?? workspaceRoot}.`
-            : "No workspace folder is active, so only global covdbg context could be inspected.",
-    };
-}
-
-async function runTestWithCoverage(
-    context: vscode.ExtensionContext,
-    executablePaths: string[],
-): Promise<RunTestWithCoverageToolResult> {
-    const workflow = await withDeferredCovdbReloads(() =>
-        runTestWithCoverageWorkflow(executablePaths, {
-            resolveExecutablePath: (inputPath) => resolveWorkspaceRelativePath(inputPath),
-            fileExists,
-            buildBatchIntermediateOutputPath,
-            executeCoverageRun: (resolvedExecutablePath, outputPathOverride) =>
-                executeCoverageRun(context, resolvedExecutablePath, outputPathOverride),
-            finalizeBatchCoverageOutputs: (successfulOutputPaths, generatedOutputPaths) =>
-                finalizeBatchCoverageOutputs(context, successfulOutputPaths, generatedOutputPaths),
-            dedupePaths: dedupeNormalizedPaths,
-        }),
-    );
-
-    lastRunOutputPaths = workflow.lastRunOutputPaths;
-    return workflow.toolResult;
-}
-
 async function executeCoverageRun(
     context: vscode.ExtensionContext,
     targetExecutablePath: string,
@@ -1341,62 +1224,6 @@ function getCoverageSummaryForPath(filePath: string): CoverageSummary | undefine
     }
 
     return buildCoverageSummaryFromFileIndex(state.fileIndex);
-}
-
-async function openDocumentIfExists(filePath: string): Promise<vscode.TextDocument | undefined> {
-    try {
-        return await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-    } catch {
-        return undefined;
-    }
-}
-
-function resolveRequestedFilePath(filePath?: string): string | undefined {
-    const candidate = filePath?.trim() || vscode.window.activeTextEditor?.document.uri.fsPath;
-    if (!candidate) {
-        return undefined;
-    }
-
-    if (path.isAbsolute(candidate)) {
-        return path.normalize(candidate);
-    }
-
-    const editorPath = vscode.window.activeTextEditor?.document.uri.fsPath;
-    const workspaceFolder = editorPath
-        ? getWorkspaceFolderForPath(editorPath)
-        : getPreferredWorkspaceFolder();
-    const basePath =
-        workspaceFolder?.uri.fsPath ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-    return basePath
-        ? path.normalize(path.resolve(basePath, candidate))
-        : path.normalize(path.resolve(candidate));
-}
-
-function resolveWorkspaceRelativePath(inputPath?: string): string | undefined {
-    const candidate = inputPath?.trim();
-    if (!candidate) {
-        return undefined;
-    }
-
-    if (path.isAbsolute(candidate)) {
-        return path.normalize(candidate);
-    }
-
-    const editorPath = vscode.window.activeTextEditor?.document.uri.fsPath;
-    const workspaceFolder = editorPath
-        ? getWorkspaceFolderForPath(editorPath)
-        : getPreferredWorkspaceFolder();
-    const basePath =
-        workspaceFolder?.uri.fsPath ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-    return basePath
-        ? path.normalize(path.resolve(basePath, candidate))
-        : path.normalize(path.resolve(candidate));
-}
-
-function getUncoveredCodeCacheKey(filePath: string): string {
-    return path.normalize(filePath).toLowerCase();
 }
 
 function resolveWorkspacePathForFolder(
@@ -1758,13 +1585,6 @@ function getWorkspaceCoverageState(
     return coverageStates.get(getWorkspaceStateKey(workspaceFolder));
 }
 
-function findWorkspaceFolderByPath(workspaceRoot: string): vscode.WorkspaceFolder | undefined {
-    const normalizedTarget = path.normalize(workspaceRoot).toLowerCase();
-    return vscode.workspace.workspaceFolders?.find(
-        (folder) => path.normalize(folder.uri.fsPath).toLowerCase() === normalizedTarget,
-    );
-}
-
 function updateActiveWorkspaceUi(): void {
     const activeState = getActiveCoverageState();
     if (!activeState?.activeCovdbPath || activeState.fileIndex.size === 0) {
@@ -1791,7 +1611,6 @@ function clearCoverageState(
 
     disposeCovdbWatcher(stateKey);
     state.session.clear();
-    uncoveredCodeCache.clear();
 
     if (clearEditors) {
         for (const editor of vscode.window.visibleTextEditors) {

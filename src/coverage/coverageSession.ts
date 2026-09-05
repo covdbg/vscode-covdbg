@@ -1,14 +1,3 @@
-import {
-    buildExploreUncoveredFilesResult,
-    type ExploreUncoveredFilesInput,
-    type ExploreUncoveredFilesResult,
-} from "./exploreUncoveredFiles";
-import {
-    buildUncoveredCodeResult,
-    emptyUncoveredCodeResult,
-    type UncoveredCodeFileMetadata,
-    type UncoveredCodeResult,
-} from "./uncoveredCode";
 import type {
     CovdbFileCoverageResult,
     CovdbFileSummary,
@@ -43,11 +32,6 @@ export type LoadCoverageIndexResult = {
     loadedFileCount: number;
     totalFileCount: number;
     error?: string;
-};
-
-export type BuildUncoveredCodeOptions = {
-    metadata?: Partial<UncoveredCodeFileMetadata>;
-    noCoverageGuidance?: string[];
 };
 
 export class CoverageWorkspaceSession {
@@ -179,28 +163,4 @@ export class CoverageWorkspaceSession {
         return result.coverage;
     }
 
-    exploreUncoveredFiles(
-        input: ExploreUncoveredFilesInput,
-        workspaceRelativePathForFile?: (filePath: string) => string | undefined,
-    ): ExploreUncoveredFilesResult {
-        return buildExploreUncoveredFilesResult(this.index, {
-            ...input,
-            activeCovdbPath: this.covdbPath,
-            workspaceRelativePathForFile,
-        });
-    }
-
-    async buildUncoveredCode(
-        coverageKey: string,
-        resultFilePath: string,
-        documentText: string,
-        options: BuildUncoveredCodeOptions = {},
-    ): Promise<UncoveredCodeResult> {
-        const coverage = await this.getOrLoadFileCoverage(coverageKey);
-        if (!coverage) {
-            return emptyUncoveredCodeResult(resultFilePath, options.noCoverageGuidance);
-        }
-
-        return buildUncoveredCodeResult(resultFilePath, documentText, coverage, options.metadata);
-    }
 }

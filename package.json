@@ -21,8 +21,7 @@
     "categories": [
         "Testing",
         "Visualization",
-        "AI",
-        "Chat"
+        "AI"
     ],
     "keywords": [
         "coverage",
@@ -96,11 +95,6 @@
                 "category": "covdbg"
             },
             {
-                "command": "covdbg.getUncoveredCode",
-                "title": "Get Uncovered Code",
-                "category": "covdbg"
-            },
-            {
                 "command": "covdbg.createConfig",
                 "title": "Create .covdbg.yaml",
                 "category": "covdbg"
@@ -155,113 +149,10 @@
                 }
             ]
         },
-        "languageModelTools": [
+        "mcpServerDefinitionProviders": [
             {
-                "name": "covdbg_explore",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "workspace"
-                ],
-                "toolReferenceName": "covdbg_explore",
-                "displayName": "Explore covdbg Environment",
-                "modelDescription": "Preferred discovery tool for covdbg workspace setup. Use it to find where discovered test binaries are located, where .covdbg.yaml is configured or resolved, which coverage databases are present, and which runtime and runner paths are active before deciding what to run next.",
-                "userDescription": "Inspect the current covdbg workspace environment, including test binaries, config files, runtime, and coverage database locations.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(compass)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "workspaceRoot": {
-                            "type": "string",
-                            "description": "Optional absolute workspace root to inspect. If omitted, the preferred active workspace is used."
-                        },
-                        "limit": {
-                            "type": "number",
-                            "description": "Optional maximum number of discovered paths to return per category. Defaults to 20."
-                        }
-                    }
-                }
-            },
-            {
-                "name": "covdbg_code",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "code"
-                ],
-                "toolReferenceName": "covdbg_code",
-                "displayName": "Get Uncovered Code",
-                "modelDescription": "Returns structured uncovered code segments for a source file from covdbg's active native .covdb coverage data, including grouped uncovered ranges, code snippets, nearby context, and file coverage summary.",
-                "userDescription": "Read uncovered code segments for a file from covdbg coverage data.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(search-fuzzy)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "filePath": {
-                            "type": "string",
-                            "description": "Optional absolute or workspace-relative source file path. If omitted, the active editor file is used."
-                        }
-                    }
-                }
-            },
-            {
-                "name": "covdbg_files",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "exploration"
-                ],
-                "toolReferenceName": "covdbg_files",
-                "displayName": "Explore Active Coverage Files",
-                "modelDescription": "Reads the active loaded workspace coverage database and returns the currently indexed source files with uncovered lines, sorted to help an LLM choose the next file to inspect or fix.",
-                "userDescription": "List uncovered files from the active loaded covdbg coverage result.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(list-tree)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "limit": {
-                            "type": "number",
-                            "description": "Optional maximum number of uncovered files to return. Defaults to 20."
-                        },
-                        "maxCoveragePercent": {
-                            "type": "number",
-                            "description": "Optional upper coverage-percent filter. Only files at or below this percent are returned."
-                        }
-                    }
-                }
-            },
-            {
-                "name": "covdbg_run",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "runner"
-                ],
-                "toolReferenceName": "covdbg_run",
-                "displayName": "Run Test With Coverage",
-                "modelDescription": "Runs one or more specified test executables under covdbg coverage instrumentation, queues them sequentially, refreshes the active coverage database when runs succeed, and returns per-executable results.",
-                "userDescription": "Run one or more test executables with covdbg coverage and reload results.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(beaker-run)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "executablePaths": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "description": "Absolute or workspace-relative test executable paths to run sequentially with coverage."
-                        },
-                        "executablePath": {
-                            "type": "string",
-                            "description": "Deprecated singular alias for one executable path. Prefer executablePaths."
-                        }
-                    }
-                }
+                "id": "covdbg.mcp",
+                "label": "covdbg"
             }
         ],
         "menus": {

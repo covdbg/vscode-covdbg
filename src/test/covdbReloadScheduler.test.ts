@@ -64,3 +64,36 @@ test("CovdbReloadScheduler tracks nested executions before draining", () => {
         ],
     );
 });
+
+test("CovdbReloadScheduler stays usable after dropping a reload for another path", () => {
+    // An MCP run can write anywhere a model asks it to. A reload queued for a path that is not
+    // the active one is correctly dropped - switching the active database under the user is not
+    // this scheduler's job - but dropping it must not wedge the queue for the paths that ARE
+    // active, which is the failure the backlog worried about.
+    const scheduler = new CovdbReloadScheduler();
+    const active = new Map([["folder", "D:\\repo\\.covdbg\\coverage.covdb"]]);
+
+    scheduler.queueReload("folder", "D:\repo\somewhere-else\other.covdb");
+    assert.deepEqual(scheduler.drainPendingReloads(active), []);
+    assert.equal(scheduler.hasPendingReloads(), false, "the dropped entry must not linger");
+
+    scheduler.queueReload("folder", "D:\\repo\\.covdbg\\coverage.covdb");
+    const drained = scheduler.drainPendingReloads(active);
+
+    assert.equal(drained.length, 1, "a later reload for the active path must still be delivered");
+    assert.equal(drained[0].covdbPath, "D:\\repo\\.covdbg\\coverage.covdb");
+});
+
+test("CovdbReloadScheduler matches the active path regardless of case or separator style", () => {
+    // The active path comes from settings and the queued one from a file-system event, and on
+    // Windows those disagree about case and about forward versus backslashes routinely. Comparing
+    // them literally would drop every reload as though it were for another file.
+    const scheduler = new CovdbReloadScheduler();
+
+    scheduler.queueReload("folder", "D:/Repo/.covdbg/Coverage.covdb");
+    const drained = scheduler.drainPendingReloads(
+        new Map([["folder", "D:\\repo\\.covdbg\\coverage.covdb"]]),
+    );
+
+    assert.equal(drained.length, 1, "the same file spelled differently is still the same file");
+});
