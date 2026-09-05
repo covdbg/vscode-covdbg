@@ -18,7 +18,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 
-- Runs are licensed per seat, the way `covdbg` 2.0 licenses them everywhere: by the sign-in on the
+- Runs are licensed per seat, the way `covdbg` 1.3 licenses them everywhere: by the sign-in on the
   machine or by a project token in `covdbg.runner.env`. **covdbg: Sign In** opens the code to
   confirm in the browser and **covdbg: Sign Out** ends the session; the sidebar shows who is
   signed in, and a refused run offers the sign-in. The plugin demo licence is gone with the
@@ -36,7 +36,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   The MCP server replaces them, and it works with any MCP client rather than only VS Code chat.
 - The **covdbg: Get Uncovered Code** command. It returned a result that was never rendered, so
   running it from the palette did nothing visible.
-- The `covdbg.runner.licenseServerUrl` and `covdbg.runner.appDataPath` settings. covdbg 2.0 has
+- The `covdbg.runner.licenseServerUrl` and `covdbg.runner.appDataPath` settings. covdbg 1.3 has
   neither a licence server to point at nor an app-data option; the 30-day demo licence and
   `COVDBG_LICENSE` are gone with them.
 
