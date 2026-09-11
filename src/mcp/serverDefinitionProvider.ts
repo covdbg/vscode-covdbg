@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import * as output from "../views/outputChannel";
 import { resolveCovdbgExecutable } from "../runner/executableResolver";
-import { buildLicenseRunConfig } from "../runner/licenseRunConfig";
 import { getCovdbgVersion } from "../runner/runtimeInfo";
 import { isCovdbgRunnable } from "./preflight";
 import {
@@ -100,18 +99,15 @@ export class CovdbgMcpServerDefinitionProvider implements vscode.McpServerDefini
         server.command = resolved.path;
         server.args = ["mcp"];
 
-        // Environment, never arguments. covdbg accepts --demo and friends on the mcp subcommand,
-        // because they are global options, but the server itself holds no licence and does not
-        // pass them on: each run it spawns builds its own licence arguments from the environment
-        // it inherits. Giving them here would be silently ignored.
-        const license = buildLicenseRunConfig(settings);
+        // The server holds no licence: each run it spawns is decided from the machine's sign-in
+        // (`covdbg login`) or from COVDBG_PROJECT_TOKEN in the environment it inherits.
         const paths = resolveRunnerPaths(settings, workspaceRoot);
 
         // COVDBG_OUTPUT is where a run with no output_path of its own lands. Without it the
         // server writes into a temporary directory that nothing here watches, so a model could
         // run coverage successfully and the editor would show nothing. Named once here rather
         // than on every call; a model that passes output_path still overrides it.
-        const env: Record<string, string> = { ...license.env };
+        const env: Record<string, string> = { ...settings.env };
         env.COVDBG_OUTPUT = paths.configuredOutputPath;
         server.env = env;
         server.cwd = vscode.Uri.file(paths.workingDirectory);

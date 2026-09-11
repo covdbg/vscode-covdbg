@@ -46,7 +46,6 @@
                 "covdbg.runner.workingDirectory",
                 "covdbg.runner.configPath",
                 "covdbg.runner.outputPath",
-                "covdbg.runner.appDataPath",
                 "covdbg.runner.binaryDiscoveryPattern",
                 "covdbg.runner.env"
             ]
@@ -129,6 +128,16 @@
                 "title": "Refresh Home Dashboard",
                 "category": "covdbg",
                 "icon": "$(refresh)"
+            },
+            {
+                "command": "covdbg.signIn",
+                "title": "Sign In",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.signOut",
+                "title": "Sign Out",
+                "category": "covdbg"
             }
         ],
         "viewsContainers": {
@@ -243,17 +252,10 @@
                 },
                 "covdbg.runner.outputPath": {
                     "type": "string",
-                    "default": ".covdbg/coverage.covdb",
-                    "markdownDescription": "Output `.covdb` path for runs started from VS Code.",
+                    "default": "",
+                    "markdownDescription": "Where a run started from VS Code writes its `.covdb`. Leave empty for covdbg's own default, `.covdbg/coverage.covdb` under the run's working directory. A relative path is resolved from the workspace folder.",
                     "scope": "resource",
                     "order": 7
-                },
-                "covdbg.runner.appDataPath": {
-                    "type": "string",
-                    "default": ".covdbg",
-                    "markdownDescription": "Path for covdbg appdata (logs, cache). Default stores logs under `.covdbg/Logs`.",
-                    "scope": "resource",
-                    "order": 8
                 },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
@@ -264,17 +266,10 @@
                 },
                 "covdbg.runner.binaryDiscoveryExcludePattern": {
                     "type": "string",
-                    "default": "",
-                    "markdownDescription": "Optional glob pattern used to exclude discovered test binaries. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`, which is useful when post-build steps copy matching executables into additional folders.",
+                    "default": "**/{Release,RelWithDebInfo}/**",
+                    "markdownDescription": "Glob pattern for discovered test binaries to leave out. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`. The default skips optimized build trees, whose binaries carry the symbols covdbg needs only in part; it is also useful when post-build steps copy matching executables into additional folders.",
                     "scope": "resource",
                     "order": 10
-                },
-                "covdbg.runner.licenseServerUrl": {
-                    "type": "string",
-                    "default": "",
-                    "markdownDescription": "Optional override for the covdbg license server base URL.",
-                    "scope": "resource",
-                    "order": 11
                 },
                 "covdbg.runner.workingDirectory": {
                     "type": "string",
@@ -286,7 +281,7 @@
                 "covdbg.runner.env": {
                     "type": "object",
                     "default": {},
-                    "markdownDescription": "Additional environment variables passed to covdbg runs (for example `COVDBG_LICENSE`).",
+                    "markdownDescription": "Additional environment variables passed to covdbg runs, for example `COVDBG_PROJECT_TOKEN` where runs should use a team's project token instead of the machine's sign-in.",
                     "scope": "resource",
                     "order": 15
                 }

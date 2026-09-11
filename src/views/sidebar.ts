@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { CovdbFileSummary } from "../coverage/covdbParser";
 import { resolveCovdbgExecutable } from "../runner/executableResolver";
-import { LicenseStatusSnapshot, readLicenseStatus } from "../runner/licenseStatus";
+import { SignInState, querySignIn, signIn, signOut } from "../runner/signIn";
 import { getCovdbgVersion } from "../runner/runtimeInfo";
 import {
     getPreferredWorkspaceFolder,
@@ -54,12 +54,11 @@ interface SidebarDependencies {
         workspaceFolder?: vscode.WorkspaceFolder,
     ) => Promise<void>;
     refreshTestControllerItems: () => Promise<void>;
-    setLicenseStatus: (licenseStatus: LicenseStatusSnapshot | undefined) => void;
 }
 
 export class CovdbgSidebarController implements vscode.Disposable {
     private readonly homeDashboard = new CovdbgHomeDashboardView();
-    private lastLicenseStatus: LicenseStatusSnapshot | undefined;
+    private lastSignIn: SignInState = { checked: false };
     private lastDiscoveredTestCount = 0;
     private lastRuntimeSummary: RuntimeSummary = { checked: false };
     private dashboardRefreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -95,6 +94,8 @@ export class CovdbgSidebarController implements vscode.Disposable {
             vscode.commands.registerCommand("covdbg.openSettings", () =>
                 vscode.commands.executeCommand("workbench.action.openSettings", "covdbg"),
             ),
+            vscode.commands.registerCommand("covdbg.signIn", () => this.signInCommand()),
+            vscode.commands.registerCommand("covdbg.signOut", () => this.signOutCommand()),
         ];
     }
 
@@ -111,23 +112,81 @@ export class CovdbgSidebarController implements vscode.Disposable {
         this.scheduleRefresh();
     }
 
-    setLicenseStatus(licenseStatus: LicenseStatusSnapshot | undefined): void {
-        this.lastLicenseStatus = licenseStatus;
-        this.deps.setLicenseStatus(licenseStatus);
+    /** Asks covdbg who this machine is signed in as; the credential itself stays with covdbg. */
+    async refreshSignIn(): Promise<void> {
+        const executablePath = await this.resolveExecutablePath();
+        this.lastSignIn = executablePath
+            ? await querySignIn(executablePath)
+            : { checked: true, error: "covdbg.exe was not resolved." };
         this.scheduleRefresh();
     }
 
-    async refreshLicenseStatusFromDisk(): Promise<void> {
-        const workspaceFolder = getPreferredWorkspaceFolder();
-        const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
-        if (!workspaceRoot) {
-            this.setLicenseStatus(undefined);
+    private async signInCommand(): Promise<void> {
+        const executablePath = await this.resolveExecutablePath();
+        if (!executablePath) {
+            vscode.window.showErrorMessage(
+                "covdbg: Open a workspace folder with a resolved covdbg runtime before signing in.",
+            );
             return;
         }
 
+        const outcome = await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "covdbg: Signing in",
+                cancellable: true,
+            },
+            (progress, cancellation) =>
+                signIn(
+                    executablePath,
+                    (prompt) => {
+                        progress.report({
+                            message: `Confirm the code ${prompt.code} in your browser.`,
+                        });
+                        void vscode.env.openExternal(vscode.Uri.parse(prompt.url));
+                    },
+                    cancellation,
+                ),
+        );
+
+        if (outcome.email) {
+            output.log(`Signed in as ${outcome.email}.`);
+            vscode.window.showInformationMessage(`covdbg: Signed in as ${outcome.email}.`);
+        } else {
+            output.logError(`Sign-in did not complete: ${outcome.error}`);
+            vscode.window.showErrorMessage(`covdbg: ${outcome.error}`);
+        }
+        await this.refreshSignIn();
+    }
+
+    private async signOutCommand(): Promise<void> {
+        const executablePath = await this.resolveExecutablePath();
+        if (!executablePath) {
+            vscode.window.showErrorMessage(
+                "covdbg: Open a workspace folder with a resolved covdbg runtime before signing out.",
+            );
+            return;
+        }
+
+        const result = await signOut(executablePath);
+        output.log(result.message);
+        if (result.ok) {
+            vscode.window.showInformationMessage(`covdbg: ${result.message}`);
+        } else {
+            vscode.window.showErrorMessage(`covdbg: ${result.message}`);
+        }
+        await this.refreshSignIn();
+    }
+
+    private async resolveExecutablePath(): Promise<string | undefined> {
+        const workspaceFolder = getPreferredWorkspaceFolder();
+        const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
+        if (!workspaceRoot) {
+            return undefined;
+        }
         const settings = readRunnerSettings(workspaceFolder?.uri);
-        const paths = resolveRunnerPaths(settings, workspaceRoot);
-        this.setLicenseStatus(await readLicenseStatus(paths.appDataPath));
+        const resolved = await resolveCovdbgExecutable(this.context, settings, workspaceRoot);
+        return resolved?.path;
     }
 
     async refreshRuntimeSummary(): Promise<void> {
@@ -182,7 +241,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
     private async refreshDashboardCommand(): Promise<void> {
         await Promise.all([
             this.refreshRuntimeSummary(),
-            this.refreshLicenseStatusFromDisk(),
+            this.refreshSignIn(),
             this.deps.refreshTestControllerItems(),
             this.deps.discoverAndLoadIndex(),
         ]);
@@ -361,6 +420,12 @@ export class CovdbgSidebarController implements vscode.Disposable {
             activeWorkspace,
         );
 
+        // A project token in the run environment covers the runs on its own, as it does in CI.
+        const projectToken = Boolean(settings.env["COVDBG_PROJECT_TOKEN"]?.trim());
+        const signInHint = projectToken
+            ? "Runs use the project token from covdbg.runner.env."
+            : "Sign in once; a run without a sign-in or a project token is refused.";
+
         let resolvedConfigPath: string | undefined;
         let activeAppDataPath: string | undefined;
         let activeLogPath: string | undefined;
@@ -400,10 +465,22 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 tone: !runtimeChecked ? "muted" : runtimeReady ? "good" : "bad",
             },
             {
-                label: "License",
-                value: this.formatLicenseValue(this.lastLicenseStatus),
-                detail: this.formatLicenseBrief(this.lastLicenseStatus),
-                tone: this.getLicenseTone(this.lastLicenseStatus),
+                label: "Sign-in",
+                value: !this.lastSignIn.checked
+                    ? "Resolving..."
+                    : this.lastSignIn.email
+                      ? "Signed in"
+                      : this.lastSignIn.error
+                        ? "Unknown"
+                        : "Not signed in",
+                detail: this.lastSignIn.email ?? this.lastSignIn.error ?? signInHint,
+                tone: !this.lastSignIn.checked
+                    ? "muted"
+                    : this.lastSignIn.email
+                      ? "good"
+                      : projectToken
+                        ? "muted"
+                        : "warn",
             },
             {
                 label: "Workspace",
@@ -481,6 +558,15 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 commandLabel: "Settings",
             },
             {
+                label: "Signed in",
+                detail: this.lastSignIn.email
+                    ? `Runs are decided for ${this.lastSignIn.email}.`
+                    : signInHint,
+                done: Boolean(this.lastSignIn.email) || projectToken,
+                command: this.lastSignIn.email ? "covdbg.signOut" : "covdbg.signIn",
+                commandLabel: this.lastSignIn.email ? "Sign Out" : "Sign In",
+            },
+            {
                 label: ".covdbg.yaml configured",
                 detail: hasConfig
                     ? "File and function filters are active."
@@ -533,6 +619,9 @@ export class CovdbgSidebarController implements vscode.Disposable {
             },
             { label: "Select .covdb File…", command: "covdbg.configurePath" },
             { label: "Open Settings", command: "covdbg.openSettings" },
+            this.lastSignIn.email
+                ? { label: "Sign Out", command: "covdbg.signOut" }
+                : { label: "Sign In", command: "covdbg.signIn" },
         ];
 
         const logs: HomeAction[] = [];
@@ -587,47 +676,6 @@ export class CovdbgSidebarController implements vscode.Disposable {
             default:
                 return "Unknown";
         }
-    }
-
-    private formatLicenseValue(licenseStatus?: LicenseStatusSnapshot): string {
-        if (!licenseStatus?.status) {
-            return "Unknown";
-        }
-        if (licenseStatus.status === "active") {
-            return licenseStatus.source === "plugin-demo" ? "Demo" : "Active";
-        }
-        if (licenseStatus.status === "trial-used") {
-            return "Demo expired";
-        }
-        return licenseStatus.status;
-    }
-
-    private formatLicenseBrief(licenseStatus?: LicenseStatusSnapshot): string | undefined {
-        if (!licenseStatus) {
-            return undefined;
-        }
-        if (licenseStatus.status === "active" && licenseStatus.source === "plugin-demo") {
-            return `${Math.max(0, licenseStatus.daysRemaining ?? 0)} days remaining`;
-        }
-        if (licenseStatus.status === "trial-used") {
-            return "30-day demo already used";
-        }
-        return licenseStatus.message;
-    }
-
-    private getLicenseTone(
-        licenseStatus?: LicenseStatusSnapshot,
-    ): "good" | "warn" | "bad" | "muted" {
-        if (!licenseStatus?.status) {
-            return "warn";
-        }
-        if (licenseStatus.status === "active") {
-            return "good";
-        }
-        if (licenseStatus.status === "trial-used") {
-            return "bad";
-        }
-        return "warn";
     }
 
     private shortenPath(
