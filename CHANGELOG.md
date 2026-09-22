@@ -4,37 +4,70 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
-## [Unreleased]
+## [0.9.0] - 2026-09-22
+
+### Breaking
+
+- Requires covdbg 1.3 or newer. Older versions are no longer used, and an older covdbg named by
+  `covdbg.executablePath` is reported as too old instead of being run.
+- The `covdbg.runner.licenseServerUrl` and `covdbg.runner.appDataPath` settings are removed.
+  covdbg 1.3 has neither a license server to point at nor an app-data option, and rejects runs
+  that pass them.
+- `COVDBG_LICENSE*` variables and the 30-day demo license are no longer used. Runs are licensed by
+  the machine's sign-in or by `COVDBG_PROJECT_TOKEN` in `covdbg.runner.env`.
 
 ### Added
 
+- Sign-in from the editor. **covdbg: Sign In** opens the browser with the code to confirm, and
+  pressing ▶ while signed out signs in first and then continues the same run. **covdbg: Sign Out**
+  ends the session. The sign-in is the one `covdbg login` uses, so an existing one is picked up.
+- What the license service says about a run is shown once per run: a refused run, a new personal
+  lock, gated reporting or a sign-in that has ended, each with the action that helps.
+- **Choose Executable…** picks the test executables ▶ runs, from the discovered ones or any other
+  through Browse…. The choice is remembered for the workspace.
+- One-click re-run: ▶ runs the last chosen executables, or the only discovered one, without asking.
+- A run in a folder without `.covdbg.yaml` offers, once, to create a starter config and run.
 - covdbg's MCP server is offered to VS Code through `contributes.mcpServerDefinitionProviders`, so
-  chat-capable tooling can run coverage, inspect uncovered code, query a coverage database and
-  merge results without the extension proxying each call. One server per window; it is offered
-  only where a run could actually succeed - Windows, a trusted workspace, and no remote.
+  AI agents can run coverage, inspect uncovered code, query a coverage database and merge results.
+  It is offered only where a run could succeed: Windows, a trusted local workspace and covdbg 1.3
+  or newer. Runs with no output path of their own write where `covdbg.runner.outputPath` points,
+  so their results load into the editor.
 - Coverage databases written by something other than this extension are now noticed. A watcher per
   workspace folder over the discovery glob picks up a `.covdb` that has never been loaded, which
   previously went unseen until the window was reloaded.
 
 ### Changed
 
-- Runs are licensed per seat, the way `covdbg` 1.3 licenses them everywhere: by the sign-in on the
-  machine or by a project token in `covdbg.runner.env`. **covdbg: Sign In** opens the code to
-  confirm in the browser and **covdbg: Sign Out** ends the session; the sidebar shows who is
-  signed in, and a refused run offers the sign-in. The plugin demo licence is gone with the
-  licence it belonged to.
-- covdbg keeps its logs in `.covdbg` under the run's working directory, and the log and folder
-  entries in the sidebar follow that.
+- An installed covdbg is preferred over the bundled one: the `covdbg.executablePath` setting, then
+  `PATH`, then the known install folders (now including `%LOCALAPPDATA%\Programs\Liasoft\covdbg`),
+  and only then the bundled portable copy.
+- The Coverage view replaces the webview dashboard. It shows the coverage summary, the files with
+  the lowest coverage, the last run's notice and who is signed in, and says what is missing before
+  the first run. The status bar shows the line coverage, a spinner while running, or a sign-in
+  prompt when a run needs one, and is hidden otherwise.
+- Silent startup: no toasts, no notification progress and no Output panel. Problems with a
+  `.covdb` loaded on its own show in the Coverage view; run problems go to Test Results, with a
+  Show Log button.
+- Narrower activation: the extension starts only in workspaces with `.covdbg.yaml`, `.covdb`,
+  `CMakeLists.txt`, `.sln` or `.vcxproj` files, or when VS Code asks for its MCP server.
+- `covdbg.runner.binaryDiscoveryPattern` now also finds MSBuild `x64` and CLion `cmake-build-*`
+  trees, and `covdbg.runner.binaryDiscoveryExcludePattern` skips Release and RelWithDebInfo trees
+  by default, so optimized binaries are not offered beside the debug ones.
 - `covdbg.runner.outputPath` is empty by default and means covdbg's own default,
-  `.covdbg/coverage.covdb` under the run's working directory, which covdbg 1.3 writes to on its
-  own when no output is named.
-- `covdbg.runner.binaryDiscoveryExcludePattern` defaults to
-  `**/{Release,RelWithDebInfo,cmake-build-release*,cmake-build-relwithdebinfo*}/**`, so the
-  discovery pattern's build trees do not offer optimized binaries beside the debug ones.
-- MCP runs that name no output path write to the configured `covdbg.runner.outputPath`, so their
-  results load into the editor automatically.
+  `.covdbg/coverage.covdb` under the run's working directory.
+- covdbg keeps its logs in `.covdbg` under the run's working directory, and **Open covdbg.log**
+  follows that.
+- The starter `.covdbg.yaml` names no source files, so covdbg counts every file the debug
+  information names, less the Windows SDK, the MSVC toolchain and runtime sources and vendored
+  dependencies.
 - Reloads triggered by a coverage database changing on disk are debounced, so a file still being
   written is no longer read as a malformed database or an empty index.
+- Bundled portable runtime updated to covdbg 1.3.0.
+
+### Fixed
+
+- Runs against covdbg 1.3 failed with `program: File does not exist`, because the extension passed
+  arguments covdbg 1.3 no longer accepts.
 
 ### Removed
 
@@ -42,9 +75,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
   The MCP server replaces them, and it works with any MCP client rather than only VS Code chat.
 - The **covdbg: Get Uncovered Code** command. It returned a result that was never rendered, so
   running it from the palette did nothing visible.
-- The `covdbg.runner.licenseServerUrl` and `covdbg.runner.appDataPath` settings. covdbg 1.3 has
-  neither a licence server to point at nor an app-data option; the 30-day demo licence and
-  `COVDBG_LICENSE` are gone with them.
+- The dashboard commands: **Refresh** replaces the dashboard and test-binary refresh commands,
+  **Load .covdb…** now offers the discovered databases, and **Open AppData Folder** is gone.
 
 ## [0.8.1] - 2026-06-08
 

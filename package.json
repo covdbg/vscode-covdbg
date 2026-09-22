@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.8.1",
+    "version": "0.9.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -459,7 +459,7 @@
     },
     "scripts": {
         "prepare:portable": "node ./scripts/downloadPortable.js",
-        "release:check": "node ./scripts/verifyBundledCovdbg.js && node ./scripts/verifyReleaseVersion.js",
+        "release:check": "npm run check:vscode-engine && node ./scripts/verifyBundledCovdbg.js && node ./scripts/verifyReleaseVersion.js",
         "check:vscode-engine": "node ./scripts/syncVscodeEngine.js --check",
         "sync:vscode-engine": "node ./scripts/syncVscodeEngine.js --write",
         "vscode:prepublish": "npm run build",
