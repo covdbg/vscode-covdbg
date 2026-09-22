@@ -24,6 +24,7 @@ export interface SidebarCoverageState {
     workspaceFolder?: vscode.WorkspaceFolder;
     activeCovdbPath?: string;
     fileIndex: Map<string, CovdbFileSummary>;
+    loadProblem?: string;
 }
 
 interface RuntimeSummary {
@@ -52,6 +53,7 @@ interface SidebarDependencies {
         covdbPath: string,
         source: "settings" | "auto-discovered",
         workspaceFolder?: vscode.WorkspaceFolder,
+        userInitiated?: boolean,
     ) => Promise<void>;
     refreshTestControllerItems: () => Promise<void>;
 }
@@ -248,7 +250,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 ? vscode.ConfigurationTarget.WorkspaceFolder
                 : vscode.ConfigurationTarget.Workspace,
         );
-        await this.deps.loadIndex(picked.uri.fsPath, "settings", target);
+        await this.deps.loadIndex(picked.uri.fsPath, "settings", target, true);
     }
 
     private async openConfigCommand(workspaceFolderPath?: string): Promise<void> {
@@ -344,6 +346,7 @@ export class CovdbgSidebarController implements vscode.Disposable {
 
         const signIn = describeAuth(this.auth.state);
         const notice = this.auth.lastRunNotice;
+        const loadProblem = this.deps.getWorkspaceCoverageState(activeWorkspace)?.loadProblem;
 
         let resolvedConfigPath: string | undefined;
         let activeAppDataPath: string | undefined;
@@ -444,6 +447,15 @@ export class CovdbgSidebarController implements vscode.Disposable {
                     : undefined,
                 tone: coverageLoaded ? "good" : "muted",
             },
+            ...(loadProblem
+                ? [
+                      {
+                          label: "Coverage DB problem",
+                          value: loadProblem,
+                          tone: "bad" as const,
+                      },
+                  ]
+                : []),
         ];
 
         const setupSteps: HomeSetupStep[] = [
@@ -647,9 +659,11 @@ export class CovdbgSidebarController implements vscode.Disposable {
                 const discoveredCovdbFiles = await this.deps.findDiscoveredCovdbFiles(folder);
                 const hasLoadedCoverage = Boolean(state?.activeCovdbPath);
                 const isActive = activeWorkspace?.uri.toString() === folder.uri.toString();
-                const coverageValue = hasLoadedCoverage
-                    ? `${this.coveragePct(state?.fileIndex ?? new Map())} — ${state?.fileIndex.size ?? 0} files`
-                    : "No data loaded";
+                const coverageValue = state?.loadProblem
+                    ? state.loadProblem
+                    : hasLoadedCoverage
+                      ? `${this.coveragePct(state?.fileIndex ?? new Map())} — ${state?.fileIndex.size ?? 0} files`
+                      : "No data loaded";
                 const coverageDbValue = hasLoadedCoverage
                     ? `Loaded ${this.shortenPath(state?.activeCovdbPath, folder)}`
                     : discoveredCovdbFiles.length > 0

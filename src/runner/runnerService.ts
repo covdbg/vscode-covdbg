@@ -24,6 +24,13 @@ export interface RunResult {
     targetExecutablePath?: string;
     /** What covdbg said about the run's license: a refusal, an ended sign-in, a lock, gating. */
     notices: RunNotice[];
+    /** Why the run could not start, or found nothing to measure; the caller decides how to say so. */
+    problem?: RunProblem;
+}
+
+export interface RunProblem {
+    message: string;
+    actions: string[];
 }
 
 export async function runCoverageForTarget(
@@ -39,7 +46,6 @@ export async function runCoverageForTarget(
             targetExecutableOverride: targetExecutablePath,
             outputPathOverride,
             interactiveTargetSelection: false,
-            showProgress: false,
         },
         onStart,
         onFinish,
@@ -51,7 +57,6 @@ interface RunOptions {
     outputPathOverride?: string;
     workspaceFolderOverride?: vscode.WorkspaceFolder;
     interactiveTargetSelection: boolean;
-    showProgress: boolean;
 }
 
 async function runCoverageInternal(
@@ -62,17 +67,7 @@ async function runCoverageInternal(
 ): Promise<RunResult> {
     const trustErr = await ensurePreflight();
     if (trustErr) {
-        vscode.window.showErrorMessage(trustErr.message, ...trustErr.actions).then((action) => {
-            if (action === "Manage Trust") {
-                void vscode.commands.executeCommand("workbench.trust.manage");
-            } else if (action === "Open Settings") {
-                void vscode.commands.executeCommand(
-                    "workbench.action.openSettings",
-                    "covdbg.runner",
-                );
-            }
-        });
-        return { success: false, notices: [] };
+        return { success: false, notices: [], problem: trustErr };
     }
 
     const workspaceFolder =
@@ -81,8 +76,7 @@ async function runCoverageInternal(
     const settings = readRunnerSettings(workspaceFolder?.uri);
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
-        vscode.window.showErrorMessage("covdbg: Open a workspace folder before running coverage.");
-        return { success: false, notices: [] };
+        return fail("Open a workspace folder before running coverage.");
     }
 
     const effectiveTargetExecutablePath = await resolveOrSelectTargetExecutable(
@@ -91,10 +85,9 @@ async function runCoverageInternal(
         options.interactiveTargetSelection,
     );
     if (!effectiveTargetExecutablePath) {
-        vscode.window.showErrorMessage(
-            "covdbg: No runnable test executable found. Refresh test discovery or build a test binary first.",
+        return fail(
+            "No runnable test executable found. Refresh test discovery or build a test binary first.",
         );
-        return { success: false, notices: [] };
     }
 
     const paths = resolveRunnerPaths(settings, workspaceRoot);
@@ -109,10 +102,7 @@ async function runCoverageInternal(
         workspaceRoot,
     );
     if (explicitConfig && !effectiveConfigPath) {
-        vscode.window.showErrorMessage(
-            `covdbg: Config file not found: ${paths.configPath ?? explicitConfig}`,
-        );
-        return { success: false, notices: [] };
+        return fail(`Config file not found: ${paths.configPath ?? explicitConfig}`);
     }
     if (!effectiveConfigPath) {
         output.log(
@@ -122,12 +112,10 @@ async function runCoverageInternal(
 
     const resolvedExe = await resolveCovdbgRuntime(context, settings, workspaceRoot);
     if (resolvedExe.kind !== "ok") {
-        vscode.window.showErrorMessage(describeRuntimeProblem(resolvedExe));
-        return { success: false, notices: [] };
+        return fail(describeRuntimeProblem(resolvedExe));
     }
 
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    output.show();
     output.log(
         `Running coverage (${resolvedExe.source}): ${resolvedExe.path} (covdbg ${resolvedExe.version})`,
     );
@@ -159,6 +147,7 @@ async function runCoverageInternal(
         });
 
     onStart?.();
+    let problem: RunProblem | undefined;
     const executeRun = () =>
         new Promise<boolean>((resolve) => {
             const child = spawn(resolvedExe.path, args, {
@@ -183,7 +172,7 @@ async function runCoverageInternal(
                     const failureMessage = getCovdbgRunFailureMessage(code);
                     output.logError(failureMessage);
                     if (code === COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK) {
-                        void vscode.window.showWarningMessage(`covdbg: ${failureMessage}`);
+                        problem = { message: failureMessage, actions: [] };
                     }
                 } else {
                     output.log(`Coverage run finished. Output: ${outputPath}`);
@@ -192,16 +181,7 @@ async function runCoverageInternal(
             });
         });
 
-    const success = options.showProgress
-        ? await vscode.window.withProgress<boolean>(
-              {
-                  location: vscode.ProgressLocation.Notification,
-                  title: "covdbg: Running coverage",
-                  cancellable: false,
-              },
-              async () => executeRun(),
-          )
-        : await executeRun();
+    const success = await executeRun();
     onFinish?.(success);
 
     if (success) {
@@ -219,7 +199,12 @@ async function runCoverageInternal(
         configuredOutputPath: paths.configuredOutputPath,
         targetExecutablePath: effectiveTargetExecutablePath,
         notices,
+        problem,
     };
+}
+
+function fail(message: string): RunResult {
+    return { success: false, notices: [], problem: { message, actions: [] } };
 }
 
 export async function mergeCoverageFiles(
@@ -287,12 +272,7 @@ export async function mergeCoverageFiles(
     });
 }
 
-interface PreflightError {
-    message: string;
-    actions: string[];
-}
-
-async function ensurePreflight(): Promise<PreflightError | undefined> {
+async function ensurePreflight(): Promise<RunProblem | undefined> {
     if (process.platform !== "win32") {
         return {
             message: "covdbg runner is supported only on Windows.",

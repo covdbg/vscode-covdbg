@@ -10,6 +10,7 @@ import {
     type CoverageSummary,
 } from "./coverage/coverageSummary";
 import { CovdbReloadScheduler } from "./coverage/covdbReloadScheduler";
+import { reportLoadProblem } from "./coverage/loadProblem";
 import { findBestCoverageKey } from "./coverage/coverageKeyMatcher";
 import { StatusBar } from "./views/statusBar";
 import { CoverageReport } from "./views/coverageReport";
@@ -21,7 +22,7 @@ import {
     MenuActions,
 } from "./views/menuPopup";
 import { CovdbgSidebarController, SidebarCoverageState } from "./views/sidebar";
-import { mergeCoverageFiles, runCoverageForTarget } from "./runner/runnerService";
+import { RunProblem, mergeCoverageFiles, runCoverageForTarget } from "./runner/runnerService";
 import { AuthService } from "./auth/authService";
 import { resolveCovdbgRuntime } from "./runner/executableResolver";
 import { APP_URL, NoticeAction, PROFILE_URL, RunNotice, pickBatchToast } from "./runner/runOutcome";
@@ -92,6 +93,9 @@ const DISCOVERY_EXCLUDE_GLOB = "**/{.git,node_modules,.vscode,assets}/**";
 const MAX_DISCOVERED_COVDB_FILES = 50;
 
 class CoverageWorkspaceState implements SidebarCoverageState {
+    /** Why the last .covdb load showed nothing, for the view. */
+    loadProblem: string | undefined;
+
     constructor(
         public workspaceFolder: vscode.WorkspaceFolder | undefined,
         public readonly session: CoverageWorkspaceSession,
@@ -190,6 +194,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand("covdbg.clearLastRunResult", () =>
             clearLastRunResultCommand(),
         ),
+        vscode.commands.registerCommand("covdbg.showOutput", () => output.show()),
         vscode.commands.registerCommand("covdbg.refreshTestBinaries", () =>
             refreshTestControllerItems(),
         ),
@@ -357,6 +362,7 @@ async function loadIndex(
     covdbPath: string,
     source: "settings" | "auto-discovered" = "settings",
     workspaceFolder?: vscode.WorkspaceFolder,
+    userInitiated = false,
 ): Promise<void> {
     if (isLoadingIndex) {
         return;
@@ -377,12 +383,12 @@ async function loadIndex(
                 ? undefined
                 : (fileIndex) => filterToWorkspaceFiles(fileIndex, targetWorkspaceFolder),
         });
-        if (result.error) {
-            vscode.window.showErrorMessage(`covdbg: ${result.error}`);
-            return;
-        }
-        if (result.totalFileCount === 0) {
-            vscode.window.showWarningMessage("covdbg: No coverage data in .covdb");
+        state.loadProblem = reportLoadProblem(result, userInitiated, {
+            log: output.logError,
+            toast: (message) => void vscode.window.showWarningMessage(message),
+        });
+        if (state.loadProblem) {
+            sidebar.scheduleRefresh();
             return;
         }
 
@@ -791,7 +797,7 @@ async function showMenu(context: vscode.ExtensionContext): Promise<void> {
         createConfig: () => createConfigCommand(context),
         openSettings: () =>
             vscode.commands.executeCommand("workbench.action.openSettings", "covdbg"),
-        switchDatabase: (covdbPath) => loadIndex(covdbPath, "settings"),
+        switchDatabase: (covdbPath) => loadIndex(covdbPath, "settings", undefined, true),
         closeDatabase: () => closeCovdb(),
         runCoverage: () => runCoverageCommand(context),
         clearLastRunResult: () => clearLastRunResultCommand(),
@@ -854,6 +860,8 @@ async function pickCovdbFile(): Promise<void> {
         title: "Select .covdb file",
     });
     if (result && result.length > 0) {
+        // Loaded here, before the setting's own reload, so a file that shows nothing says why.
+        await loadIndex(result[0].fsPath, "settings", undefined, true);
         const config = vscode.workspace.getConfiguration("covdbg");
         await config.update("covdbPath", result[0].fsPath, vscode.ConfigurationTarget.Workspace);
     }
@@ -883,9 +891,6 @@ async function createConfigInWorkspace(
 
     const doc = await vscode.workspace.openTextDocument(configPath);
     await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
-    vscode.window.showInformationMessage(
-        `covdbg: Created ${CONFIG_FILE_NAME} in ${targetFolder.name}.`,
-    );
     sidebar.scheduleRefresh();
 }
 
@@ -1012,6 +1017,23 @@ function showRefusal(notice: RunNotice, runAgain: () => void): void {
         });
 }
 
+function showRunProblem(problem: RunProblem): void {
+    void vscode.window
+        .showErrorMessage(`covdbg: ${problem.message}`, ...problem.actions)
+        .then((action) => {
+            if (action === "Manage Trust") {
+                void vscode.commands.executeCommand("workbench.trust.manage");
+            }
+        });
+}
+
+/** A message in Test Results, with a Show Log button: the run's output is in the covdbg log. */
+function runMessage(text: string): vscode.TestMessage {
+    const message = new vscode.TestMessage(text);
+    message.contextValue = "covdbg.run";
+    return message;
+}
+
 async function clearLastRunResultCommand(): Promise<void> {
     const toDelete = [...lastRunOutputPaths];
     closeCovdb();
@@ -1038,15 +1060,11 @@ async function clearLastRunResultCommand(): Promise<void> {
             }
         }
 
-        if (deletedCount > 0) {
-            vscode.window.showInformationMessage("covdbg: Last run result cleared.");
-        } else {
+        if (deletedCount === 0) {
             output.log("Cleared UI state for last run result.");
-            vscode.window.showInformationMessage("covdbg: Cleared last run state.");
         }
     } else {
         output.log("Cleared UI state for last run result.");
-        vscode.window.showInformationMessage("covdbg: Cleared last run state.");
     }
     lastRunOutputPaths = [];
     sidebar.scheduleRefresh();
@@ -1072,6 +1090,7 @@ async function executeCoverageRun(
     coverageLoaded: boolean;
     coverageSummary?: CoverageSummary;
     notices: RunNotice[];
+    problem?: RunProblem;
 }> {
     statusBar.setRunning();
     const result = await runCoverageForTarget(
@@ -1106,6 +1125,7 @@ async function executeCoverageRun(
         coverageLoaded,
         coverageSummary,
         notices: result.notices,
+        problem: result.problem,
     };
 }
 
@@ -1637,6 +1657,7 @@ function clearCoverageState(
 
     disposeCovdbWatcher(stateKey);
     state.session.clear();
+    state.loadProblem = undefined;
 
     if (clearEditors) {
         for (const editor of vscode.window.visibleTextEditors) {
@@ -1791,6 +1812,7 @@ async function runCoverageFromTestRequest(
         const successfulOutputPaths: string[] = [];
         const generatedOutputPaths: string[] = [];
         const notices: RunNotice[] = [];
+        let problem: RunProblem | undefined;
         const batchMode = targets.length > 1;
         let requiresFinalization = batchMode;
 
@@ -1818,7 +1840,7 @@ async function runCoverageFromTestRequest(
                 if (!targetExecutablePath) {
                     run.errored(
                         item,
-                        new vscode.TestMessage("covdbg test item is missing an executable path."),
+                        runMessage("covdbg test item is missing an executable path."),
                     );
                     statusBar.setRunFailed();
                     continue;
@@ -1839,13 +1861,18 @@ async function runCoverageFromTestRequest(
                     }
                     run.passed(item);
                 } else if (refusal) {
-                    run.errored(
-                        item,
-                        new vscode.TestMessage(`This run is not licensed: ${refusal.message}`),
-                    );
+                    run.errored(item, runMessage(`This run is not licensed: ${refusal.message}`));
+                } else if (execution.problem) {
+                    problem ??= execution.problem;
+                    run.errored(item, runMessage(execution.problem.message));
                 } else {
-                    run.failed(item, new vscode.TestMessage("Coverage run failed"));
+                    run.failed(item, runMessage("Coverage run failed"));
                 }
+            }
+
+            // Test Results already says what went wrong; the palette has nothing else to show it.
+            if (fromPalette && problem) {
+                showRunProblem(problem);
             }
 
             auth.applyRunNotices(notices);

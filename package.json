@@ -32,9 +32,11 @@
         "ai assisted cpp coverage"
     ],
     "activationEvents": [
-        "onStartupFinished",
         "workspaceContains:**/.covdbg.yaml",
         "workspaceContains:**/*.covdb",
+        "workspaceContains:**/CMakeLists.txt",
+        "workspaceContains:**/*.sln",
+        "workspaceContains:**/*.vcxproj",
         "onMcpCollection:covdbg.mcp"
     ],
     "main": "./out/extension.js",
@@ -108,6 +110,11 @@
             {
                 "command": "covdbg.openLog",
                 "title": "Open covdbg.log",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.showOutput",
+                "title": "Show Log",
                 "category": "covdbg"
             },
             {
@@ -185,6 +192,12 @@
                 {
                     "command": "covdbg.cancelSignIn",
                     "when": "covdbg.auth == signingIn"
+                }
+            ],
+            "testing/message/content": [
+                {
+                    "command": "covdbg.showOutput",
+                    "when": "testMessage == covdbg.run"
                 }
             ],
             "view/title": [

@@ -12,6 +12,7 @@ type PackageManifest = {
     contributes?: {
         languageModelTools?: unknown;
         mcpServerDefinitionProviders?: { id: string; label: string }[];
+        menus?: Record<string, { command: string; when?: string }[]>;
     };
 };
 
@@ -82,4 +83,35 @@ test("asking for the MCP collection activates the extension in any window", () =
 
 test("the language-model tool contribution is gone", () => {
     assert.equal(readPackageManifest().contributes?.languageModelTools, undefined);
+});
+
+test("the extension activates only in C++ or covdbg workspaces, not at every startup", () => {
+    const events = readPackageManifest().activationEvents ?? [];
+
+    assert.ok(!events.includes("onStartupFinished"));
+    for (const glob of [
+        "**/.covdbg.yaml",
+        "**/*.covdb",
+        "**/CMakeLists.txt",
+        "**/*.sln",
+        "**/*.vcxproj",
+    ]) {
+        assert.ok(events.includes(`workspaceContains:${glob}`), glob);
+    }
+});
+
+test("a run's message in Test Results offers the log", () => {
+    // The run no longer opens the Output panel on its own, so this button is the way to it.
+    const source = fs.readFileSync(path.resolve(process.cwd(), "src/extension.ts"), "utf8");
+    const contextValue = /message\.contextValue = "([^"]+)"/.exec(source)?.[1];
+    const menu = readPackageManifest().contributes?.menus?.["testing/message/content"] ?? [];
+
+    assert.ok(contextValue, "could not find the TestMessage contextValue in extension.ts");
+    assert.ok(
+        menu.some(
+            (entry) =>
+                entry.command === "covdbg.showOutput" &&
+                entry.when === `testMessage == ${contextValue}`,
+        ),
+    );
 });
