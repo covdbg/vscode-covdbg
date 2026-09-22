@@ -38,6 +38,11 @@ export class AuthService implements vscode.Disposable {
     private _lastRunNotice: RunNotice | undefined;
     private pendingSignIn: { promise: Promise<boolean>; abort: AbortController } | undefined;
     private refreshGeneration = 0;
+    /**
+     * A run said the sign-in has ended. whoami only reads the stored credential and still says
+     * signed in, so this holds until the editor signs in or out again.
+     */
+    private signInEnded = false;
 
     constructor(private readonly deps: AuthServiceDeps) {}
 
@@ -113,6 +118,7 @@ export class AuthService implements vscode.Disposable {
             output.logError(`Sign-out failed: ${result.message}`);
             void vscode.window.showErrorMessage(`covdbg: ${result.message}`);
         } else {
+            this.signInEnded = false;
             output.log(result.message);
             if (result.serviceProblem) {
                 output.log(result.serviceProblem);
@@ -148,6 +154,7 @@ export class AuthService implements vscode.Disposable {
     applyRunNotices(notices: readonly RunNotice[]): void {
         this._lastRunNotice = summarizeNotices(notices);
         if (endsSignIn(notices)) {
+            this.signInEnded = true;
             this.setState({ kind: "signedOut" });
         } else {
             this.changed.fire();
@@ -169,7 +176,8 @@ export class AuthService implements vscode.Disposable {
         if (env["COVDBG_PROJECT_TOKEN"]?.trim()) {
             return { kind: "token" };
         }
-        return querySignIn(runtime.path, env, this.deps.start);
+        const answer = await querySignIn(runtime.path, env, this.deps.start);
+        return answer.kind === "signedIn" && this.signInEnded ? { kind: "signedOut" } : answer;
     }
 
     private async runSignIn(signal: AbortSignal): Promise<boolean> {
@@ -190,6 +198,7 @@ export class AuthService implements vscode.Disposable {
         this.pendingSignIn = undefined;
 
         if (result.kind === "signedIn") {
+            this.signInEnded = false;
             output.log(`Signed in${result.email ? ` as ${result.email}` : ""}.`);
             if (this._lastRunNotice?.action === "signIn") {
                 this._lastRunNotice = undefined;

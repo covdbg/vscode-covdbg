@@ -970,6 +970,7 @@ async function runCoverageCommand(context: vscode.ExtensionContext): Promise<voi
             new vscode.TestRunRequest(selectedItems),
             cancellation.token,
             context,
+            true,
         );
     } finally {
         cancellation.dispose();
@@ -1768,6 +1769,7 @@ async function runCoverageFromTestRequest(
     request: vscode.TestRunRequest,
     token: vscode.CancellationToken,
     context: vscode.ExtensionContext,
+    fromPalette = false,
 ): Promise<void> {
     await withDeferredCovdbReloads(async () => {
         if (!testingController) {
@@ -1792,6 +1794,10 @@ async function runCoverageFromTestRequest(
             if (!readiness.run) {
                 run.appendOutput(`${readiness.reason}\r\n`);
                 targets.forEach((item) => run.skipped(item));
+                // A cancelled sign-in needs no word; a missing covdbg does when nothing else shows it.
+                if (fromPalette && auth.state.kind === "unavailable") {
+                    void vscode.window.showErrorMessage(`covdbg: ${readiness.reason}`);
+                }
                 return;
             }
 

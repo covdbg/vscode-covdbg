@@ -534,9 +534,9 @@ export class CovdbgSidebarController implements vscode.Disposable {
             },
             { label: "Select .covdb File…", command: "covdbg.configurePath" },
             { label: "Open Settings", command: "covdbg.openSettings" },
-            this.auth.state.kind === "signedIn"
-                ? { label: "Sign Out", command: "covdbg.signOut" }
-                : { label: "Sign In", command: "covdbg.signIn" },
+            ...(signIn.command === "covdbg.signIn"
+                ? [{ label: "Sign In", command: "covdbg.signIn" }]
+                : []),
         ];
 
         const logs: HomeAction[] = [];
@@ -785,8 +785,6 @@ function describeAuth(state: AuthState): AuthSummary {
                     : "Runs are decided for this machine's sign-in.",
                 tone: "good",
                 done: true,
-                command: "covdbg.signOut",
-                commandLabel: "Sign Out",
             };
         case "signedOut":
             return {
