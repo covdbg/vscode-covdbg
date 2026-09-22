@@ -5,7 +5,7 @@ This document covers building, testing, packaging, and releasing the covdbg VS C
 ## Repository Layout
 
 - `src/` contains the extension source.
-- `views/` contains report and UI helpers.
+- `src/views/` contains the Coverage view, the status bar and the report.
 - `scripts/` contains bundling, portable download, and release validation scripts.
 - `assets/portable/` is used for the portable covdbg runtime archive during local packaging.
 
@@ -110,15 +110,15 @@ Build a VSIX locally:
 npm run package
 ```
 
-The package flow downloads the current portable covdbg runtime from `https://covdbg.com/download/latest/portable.zip` if needed.
+`vscode:prepublish` runs the build, so packaging downloads the current portable covdbg runtime from `https://covdbg.com/download/latest/portable.zip` every time.
 
 ## Release Process
 
 Create and push a Git tag in the form `vX.Y.Z` that matches the version in `package.json`.
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 The release workflow then:
@@ -154,5 +154,5 @@ It fails unless the bundled covdbg reports `covdbgBundledVersion` from `package.
 ## Notes
 
 - Coverage viewing works independently from coverage execution.
-- Coverage execution requires the proprietary covdbg runtime and license flow.
+- Coverage execution requires covdbg 1.3 or newer, and a sign-in or a project token for the license service.
 - Repository-facing end-user documentation belongs in `README.md`; contributor workflow documentation belongs in this file.
