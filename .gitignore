@@ -19,3 +19,4 @@ vscode*.d.ts
 
 assets/portable
 test-out/
+.vscode-test/

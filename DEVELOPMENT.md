@@ -96,6 +96,21 @@ npm run test:coverage
 
 The coverage command measures compiled extension modules under `test-out/`, excludes compiled test files, prints a text summary, and writes `coverage/lcov.info` for Codecov.
 
+Run the end-to-end tests (Windows only, run locally, not in CI):
+
+```bash
+npm run test:e2e             # every scenario
+npm run test:e2e -- signIn   # one scenario: plainFolder, firstRun or signIn
+```
+
+They launch VS Code with the extension against a fresh copy of the [quick-start](https://github.com/liasoft/covdbg-quick-start) sample. That copy is built with CMake, then run with the real covdbg, so they need:
+
+- covdbg 1.3+ on `PATH`, signed in;
+- CMake with MSVC;
+- quick-start checked out next to this repository (or at `COVDBG_E2E_QUICKSTART`).
+
+The sign-in scenario uses a covdbg stand-in (`src/e2e/fakeCovdbg`), so the machine's own sign-in is never touched. Set `COVDBG_E2E_VSCODE` to an installed `Code.exe` to skip downloading VS Code into `.vscode-test/`. Scratch folders go to `%TEMP%\covdbg-e2e`.
+
 Run linting:
 
 ```bash
