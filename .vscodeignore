@@ -18,3 +18,7 @@ tsconfig.tests.json
 !**/*.d.ts
 QUICKSTART.md
 gif/**
+AGENTS.md
+eslint.config.cjs
+.prettierignore
+coverage/**
