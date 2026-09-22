@@ -34,7 +34,7 @@ The build performs two steps:
 1. `npm run prepare:portable`
 2. `npm run compile`
 
-If `assets/portable/covdbg-portable.zip` is missing or empty, the portable archive is downloaded automatically.
+Every build downloads a fresh `assets/portable/covdbg-portable.zip`, so the bundled covdbg is never a leftover from an earlier build.
 
 ## Development Loop
 
@@ -65,7 +65,6 @@ Then start the `Run Extension` launch configuration or press `F5`.
 
 Notes:
 
-- `npm run build` is idempotent with respect to the portable archive.
 - The downloaded archive stays local because it is ignored by git.
 - Set `COVDBG_PORTABLE_URL` to test with a different portable artifact.
 
@@ -143,11 +142,14 @@ Marketplace prerequisites:
 
 Once the secret is present, a `vX.Y.Z` tag will both publish the extension to the VS Code Marketplace and attach the same VSIX to the GitHub release.
 
-Use this check locally before tagging:
+Use this check locally, on Windows, before tagging:
 
 ```bash
-npm run release:check
+npm run build
+npm run release:check -- vX.Y.Z
 ```
+
+It fails unless the bundled covdbg reports `covdbgBundledVersion` from `package.json` and the tag matches the package version.
 
 ## Notes
 

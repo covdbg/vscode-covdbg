@@ -37,6 +37,7 @@
         "workspaceContains:**/*.covdb"
     ],
     "main": "./out/extension.js",
+    "covdbgBundledVersion": "1.3.0",
     "capabilities": {
         "untrustedWorkspaces": {
             "supported": "limited",
@@ -290,7 +291,7 @@
     },
     "scripts": {
         "prepare:portable": "node ./scripts/downloadPortable.js",
-        "release:check": "node ./scripts/verifyReleaseVersion.js",
+        "release:check": "node ./scripts/verifyBundledCovdbg.js && node ./scripts/verifyReleaseVersion.js",
         "check:vscode-engine": "node ./scripts/syncVscodeEngine.js --check",
         "sync:vscode-engine": "node ./scripts/syncVscodeEngine.js --write",
         "vscode:prepublish": "npm run build",
