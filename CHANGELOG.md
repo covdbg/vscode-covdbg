@@ -68,6 +68,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 - Runs against covdbg 1.3 failed with `program: File does not exist`, because the extension passed
   arguments covdbg 1.3 no longer accepts.
+- A folder opened by its short 8.3 name (for example under `%TEMP%`) showed no coverage after a
+  successful run, because every file was taken for one outside the workspace.
 
 ### Removed
 
