@@ -7,7 +7,7 @@ out/
 .vs/
 */.vs/
 .covdbg/
-coverage/
+/coverage/
 *.vsix
 tsconfig.lsif.json
 *.lsif

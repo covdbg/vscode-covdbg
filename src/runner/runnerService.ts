@@ -38,7 +38,6 @@ export async function runCoverageForTarget(
     targetExecutablePath: string,
     outputPathOverride?: string,
     onStart?: () => void,
-    onFinish?: (success: boolean) => void,
 ): Promise<RunResult> {
     return runCoverageInternal(
         context,
@@ -48,7 +47,6 @@ export async function runCoverageForTarget(
             interactiveTargetSelection: false,
         },
         onStart,
-        onFinish,
     );
 }
 
@@ -63,7 +61,6 @@ async function runCoverageInternal(
     context: vscode.ExtensionContext,
     options: RunOptions,
     onStart?: () => void,
-    onFinish?: (success: boolean) => void,
 ): Promise<RunResult> {
     const trustErr = await ensurePreflight();
     if (trustErr) {
@@ -182,7 +179,6 @@ async function runCoverageInternal(
         });
 
     const success = await executeRun();
-    onFinish?.(success);
 
     if (success) {
         return {

@@ -387,6 +387,10 @@ async function loadIndex(
             log: output.logError,
             toast: (message) => void vscode.window.showWarningMessage(message),
         });
+        // A .covdb that failed to parse leaves the last good one on screen; say which that is.
+        if (result.error && state.activeCovdbPath) {
+            state.loadProblem += ` (still showing the last good load of ${path.basename(state.activeCovdbPath)})`;
+        }
         if (state.loadProblem) {
             sidebar.scheduleRefresh();
             return;
@@ -1093,13 +1097,13 @@ async function executeCoverageRun(
     problem?: RunProblem;
 }> {
     statusBar.setRunning();
-    const result = await runCoverageForTarget(
-        context,
-        targetExecutablePath,
-        outputPathOverride,
-        undefined,
-        (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
-    );
+    const result = await runCoverageForTarget(context, targetExecutablePath, outputPathOverride);
+    // Also a run that never started, so the status bar stops spinning.
+    if (result.success) {
+        statusBar.setRunSucceeded();
+    } else {
+        statusBar.setRunFailed();
+    }
 
     let coverageLoaded = false;
     let coverageSummary: CoverageSummary | undefined;
