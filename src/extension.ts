@@ -31,6 +31,8 @@ import {
     listDiscoveredExecutablePaths,
     resolveEffectiveConfigPath,
 } from "./runner/workspaceDefaults";
+import { buildStarterConfig } from "./runner/starterConfig";
+import { needsRepositoryHint } from "./runner/repositoryHint";
 import {
     COVDBG_MCP_PROVIDER_ID,
     CovdbgMcpServerDefinitionProvider,
@@ -55,6 +57,8 @@ let coverageTree: CoverageTree;
 let auth: AuthService;
 /** The extension's install URI, used to resolve bundled assets. */
 let extensionUri: vscode.Uri;
+/** Where each folder's last chosen targets are kept. */
+let workspaceState: vscode.Memento;
 
 /** Guard to prevent overlapping loadIndex calls. */
 let isLoadingIndex = false;
@@ -68,6 +72,8 @@ let testingRootItem: vscode.TestItem | undefined;
 const testExecutablePaths: Map<string, string> = new Map();
 /** Set once the first discovery has ended, so the Coverage view does not say none were found. */
 let testDiscoveryDone = false;
+/** The preferred folder has no git remote and no commit, as of the last discovery. */
+let repositoryHint = false;
 const covdbReloadScheduler = new CovdbReloadScheduler();
 const covdbWatchers = new Map<string, { covdbPath: string; watcher: vscode.FileSystemWatcher }>();
 /**
@@ -89,6 +95,8 @@ let lastDiscoveredTestBinaryIds: string | undefined;
 let lastRunOutputPaths: string[] = [];
 
 const CONFIG_FILE_NAME = ".covdbg.yaml";
+/** Prefix of the workspaceState key, per folder URI, holding the targets ▶ runs. */
+const LAST_TARGETS_KEY = "covdbg.lastTargets";
 /** How long the writes to a new .covdb must stop before it is read. */
 const DISCOVERY_RELOAD_DEBOUNCE_MS = 750;
 const CONFIG_FILE_GLOB = `**/${CONFIG_FILE_NAME}`;
@@ -127,6 +135,7 @@ export function activate(context: vscode.ExtensionContext) {
     output.log("covdbg extension activated");
 
     extensionUri = context.extensionUri;
+    workspaceState = context.workspaceState;
     decorator = new CoverageDecorator();
     statusBar = new StatusBar();
     report = new CoverageReport();
@@ -152,10 +161,15 @@ export function activate(context: vscode.ExtensionContext) {
     });
     coverageTree = new CoverageTree(auth, {
         getCoverage: getFolderCoverage,
-        getTargets: () =>
-            testDiscoveryDone
-                ? [...testExecutablePaths.values()].map((p) => vscode.workspace.asRelativePath(p))
-                : undefined,
+        getTargets: () => {
+            if (!testDiscoveryDone) {
+                return undefined;
+            }
+            const remembered = getRememberedTargets(getPreferredWorkspaceFolder());
+            const targets = remembered.length > 0 ? remembered : [...testExecutablePaths.values()];
+            return targets.map((p) => vscode.workspace.asRelativePath(p));
+        },
+        needsRepositoryHint: () => repositoryHint,
     });
 
     // Restore persisted render mode (workspace state takes priority, then setting)
@@ -200,6 +214,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand("workbench.action.openSettings", "covdbg"),
         ),
         vscode.commands.registerCommand("covdbg.runCoverage", () => runCoverageCommand(context)),
+        vscode.commands.registerCommand("covdbg.chooseExecutable", () => chooseExecutable()),
         vscode.commands.registerCommand("covdbg.clearLastRunResult", () =>
             clearLastRunResultCommand(),
         ),
@@ -878,7 +893,7 @@ async function createConfigInWorkspace(
         return;
     }
 
-    await fs.writeFile(configPath, buildStarterConfigContents(), "utf8");
+    await fs.writeFile(configPath, buildStarterConfig(), "utf8");
 
     const doc = await vscode.workspace.openTextDocument(configPath);
     await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
@@ -996,10 +1011,24 @@ function configuredRunnerConfigMatches(
     );
 }
 
+/**
+ * ▶: the folder's last chosen targets, else its only discovered one, else whatever the user
+ * chooses now, which is then remembered.
+ */
 async function runCoverageCommand(context: vscode.ExtensionContext): Promise<void> {
     await refreshTestControllerItems();
-    const selectedItems = await promptForDiscoveredTestItems();
-    if (!selectedItems || selectedItems.length === 0) {
+    const remembered = getRememberedTargets(getPreferredWorkspaceFolder());
+    const discovered = [...testExecutablePaths.values()];
+    const targets =
+        remembered.length > 0
+            ? remembered
+            : discovered.length === 1
+              ? discovered
+              : await chooseExecutable();
+    const selectedItems = (targets ?? [])
+        .map((target) => testingRootItem?.children.get(path.normalize(target)))
+        .filter((item): item is vscode.TestItem => item !== undefined);
+    if (selectedItems.length === 0) {
         return;
     }
 
@@ -1467,108 +1496,6 @@ async function pickWorkspaceFolderForConfig(): Promise<vscode.WorkspaceFolder | 
     return picked?.folder;
 }
 
-function buildStarterConfigContents(): string {
-    return [
-        "# Coverage settings for covdbg",
-        "# Format version: 1",
-        "",
-        "version: 1",
-        'source_root: "."',
-        "coverage:",
-        "  default:",
-        "    files:",
-        "      # Select which source files are included in the coverage report.",
-        "      #",
-        "      # The patterns are glob-style:",
-        "      #   - '*'  matches any characters within a single path segment (no directory separators)",
-        "      #   - '**' matches across directory boundaries (recursive)",
-        "      #",
-        "      # Files matched by 'include' are added to the coverage database even if they are",
-        "      # not discovered via linked debug info (PDB). If they are never executed, they",
-        "      # will appear as 0% coverage (LCOV-like behavior).",
-        "      include:",
-        '        - "**/*.cpp"',
-        '        - "**/*.h"',
-        "",
-        "      # Exclude specific files or directories from the report.",
-        "      # Exclude rules always take precedence over include rules.",
-        "      exclude:",
-        "        # =====================================================================",
-        "        # Windows SDK and Universal CRT (installed paths)",
-        '        # "C:/Program Files*/Windows Kits/**"',
-        "        # =====================================================================",
-        '        - "**/Windows Kits/**"',
-        "",
-        "        # =====================================================================",
-        "        # MSVC Toolchain (installed paths)",
-        '        # "C:/Program Files*/Microsoft Visual Studio/**/VC/Tools/**"',
-        "        # =====================================================================",
-        '        - "**/VC/Tools/MSVC/**"',
-        "",
-        "        # =====================================================================",
-        "        # MSVC CRT/STL Source (build server paths from PDBs)",
-        "        # These patterns match paths embedded in Microsoft's pre-built binaries",
-        "        # from their internal build systems (D:\\a\\_work\\1\\s\\src\\...)",
-        "        # =====================================================================",
-        '        - "**/vctools/crt/**"           # CRT runtime, startup, vcruntime',
-        '        - "**/vctools/langapi/**"       # Language API (undname, etc.)',
-        '        - "**/stl/inc/**"               # STL headers',
-        '        - "**/stl/src/**"               # STL source',
-        "",
-        "        # =====================================================================",
-        "        # Universal CRT (UCRT) - minkernel paths from Windows PDBs",
-        "        # =====================================================================",
-        '        - "**/minkernel/crts/ucrt/**"   # UCRT implementation',
-        '        - "**/minkernel/crts/crtw32/**" # Legacy CRT components',
-        "",
-        "        # =====================================================================",
-        "        # Windows SDK internals (onecore paths from Windows PDBs)",
-        "        # =====================================================================",
-        '        - "**/onecore/**"               # OneCore SDK internals',
-        "",
-        "        # =====================================================================",
-        "        # External SDK includes embedded in PDBs",
-        "        # =====================================================================",
-        '        - "**/ExternalAPIs/**"          # External API headers',
-        '        - "**/binaries/amd64ret/inc/**" # Binary distribution includes',
-        "",
-        "        # =====================================================================",
-        "        # Project-specific exclusions",
-        "        # =====================================================================",
-        "        # Build dependencies (CMake FetchContent, etc.)",
-        '        - "build/**/_deps/**"',
-        '        - "third_party/**"',
-        '        - "external/**"',
-        '        - "vendor/**"',
-        "",
-        "        # Test files or test support code you do not want counted in product coverage",
-        '        - "src/**/*Tests.cpp"',
-        '        - "tests/helpers/**"',
-        "",
-        "    functions:",
-        "      # Control which functions are included in function-level coverage.",
-        "      #",
-        "      # Patterns can be fully qualified names (e.g. Namespace::Class::Method) or",
-        "      # wildcard expressions using '*'.",
-        "      include:",
-        '        - "*"  # Include all functions by default',
-        "",
-        "      # Exclude specific functions (or patterns) from function-level coverage.",
-        "      # These are compiler-generated or runtime functions that add noise.",
-        "      exclude:",
-        "        # MSVC empty global delete (generated by compiler)",
-        '        - "__empty_global_delete"',
-        "",
-        "        # CRT startup/initialization functions",
-        '        - "__scrt_*"',
-        '        - "_RTC_*"',
-        '        - "__security_*"',
-        '        - "__GSHandler*"',
-        "",
-        "",
-    ].join("\n");
-}
-
 function dedupePaths(paths: string[]): string[] {
     const seen = new Set<string>();
     const deduped: string[] = [];
@@ -1794,7 +1721,14 @@ async function refreshTestControllerItems(): Promise<void> {
         return;
     }
 
-    const binaries = await listDiscoveredExecutablePaths();
+    const binaries = dedupePaths([
+        ...(await listDiscoveredExecutablePaths()),
+        ...(await listRememberedTargets()),
+    ]);
+    const preferredFolder = getPreferredWorkspaceFolder();
+    repositoryHint = preferredFolder
+        ? await needsRepositoryHint(preferredFolder.uri.fsPath)
+        : false;
     const items: vscode.TestItem[] = [];
     for (const binaryPath of binaries) {
         const id = path.normalize(binaryPath);
@@ -1853,6 +1787,12 @@ async function runCoverageFromTestRequest(
                 if (fromPalette && auth.state.kind === "unavailable") {
                     void vscode.window.showErrorMessage(`covdbg: ${readiness.reason}`);
                 }
+                return;
+            }
+
+            if (!(await ensureRunConfigs(context, targets))) {
+                run.appendOutput(`${NEEDS_CONFIG}\r\n`);
+                targets.forEach((item) => run.skipped(item));
                 return;
             }
 
@@ -1928,6 +1868,59 @@ async function runCoverageFromTestRequest(
     });
 }
 
+const NEEDS_CONFIG = "covdbg needs a .covdbg.yaml.";
+
+/**
+ * covdbg does not run without a .covdbg.yaml. When a target's folder has none, one modal offers
+ * the starter at the folder's root; declined, the run is skipped. A configured covdbg.runner.configPath
+ * is left to the runner, which says when it is missing.
+ */
+async function ensureRunConfigs(
+    context: vscode.ExtensionContext,
+    targets: vscode.TestItem[],
+): Promise<boolean> {
+    const missing = new Map<string, vscode.WorkspaceFolder>();
+    for (const item of targets) {
+        const target = getExecutablePathForTestItem(item);
+        const folder = target ? getPreferredWorkspaceFolder(target) : undefined;
+        if (!target || !folder || missing.has(folder.uri.toString())) {
+            continue;
+        }
+        const settings = readRunnerSettings(folder.uri);
+        if (settings.configPath) {
+            continue;
+        }
+        // covdbg looks in its working directory first, then beside the target.
+        const { workingDirectory } = resolveRunnerPaths(settings, folder.uri.fsPath);
+        const found =
+            (await fileExists(path.join(workingDirectory, CONFIG_FILE_NAME))) ||
+            (await resolveEffectiveConfigPath("", target, folder.uri.fsPath)) !== undefined;
+        if (!found) {
+            missing.set(folder.uri.toString(), folder);
+        }
+    }
+    if (missing.size === 0) {
+        return true;
+    }
+
+    const create = "Create and run";
+    const answer = await vscode.window.showInformationMessage(
+        NEEDS_CONFIG,
+        {
+            modal: true,
+            detail: `A starter .covdbg.yaml is written to the root of ${[...missing.values()].map((folder) => folder.name).join(", ")}. It counts every source file the tests' debug info names, except the Windows SDK, the MSVC runtime and vendored dependencies.`,
+        },
+        create,
+    );
+    if (answer !== create) {
+        return false;
+    }
+    for (const folder of missing.values()) {
+        await createConfigInWorkspace(context, folder);
+    }
+    return true;
+}
+
 function collectRequestedTests(
     request: vscode.TestRunRequest,
     controller: vscode.TestController,
@@ -1969,41 +1962,90 @@ function collectLeafTestItems(
     item.children.forEach((child) => collectLeafTestItems(child, excludedIds, collected));
 }
 
-async function promptForDiscoveredTestItems(): Promise<vscode.TestItem[] | undefined> {
-    const items = getDiscoveredExecutableTestItems();
-    if (items.length === 0) {
-        vscode.window.showErrorMessage(
-            "covdbg: No discovered test executables found. Adjust covdbg.runner.binaryDiscoveryPattern or covdbg.runner.binaryDiscoveryExcludePattern and refresh test binaries.",
+/**
+ * Choose Executable…: the discovered test executables, the folder's current choice ticked, plus
+ * Browse… for one discovery does not find. The choice is what ▶ runs from then on.
+ */
+async function chooseExecutable(): Promise<string[] | undefined> {
+    const folder = getPreferredWorkspaceFolder();
+    if (!folder) {
+        void vscode.window.showWarningMessage(
+            "covdbg: Open a workspace folder before choosing an executable.",
         );
         return undefined;
     }
 
-    const picks = await vscode.window.showQuickPick(
-        items.map((item) => ({
-            label: item.label,
-            description: item.description,
-            detail: getExecutablePathForTestItem(item),
-            item,
-        })),
-        {
-            title: "covdbg: Select discovered tests",
-            placeHolder: "Choose the discovered test executables to run under coverage",
-            canPickMany: true,
-            matchOnDescription: true,
-            matchOnDetail: true,
-        },
-    );
-    return picks?.map((pick) => pick.item);
-}
-
-function getDiscoveredExecutableTestItems(): vscode.TestItem[] {
-    if (!testingRootItem) {
-        return [];
+    const remembered = new Set(getRememberedTargets(folder).map((p) => path.normalize(p)));
+    const discovered = [...testExecutablePaths.values()];
+    const browse = { label: "$(folder-opened) Browse…", alwaysShow: true };
+    let chosen: string[] = [];
+    let browsing = discovered.length === 0;
+    if (!browsing) {
+        const picks = await vscode.window.showQuickPick(
+            [
+                ...discovered.map((binaryPath) => ({
+                    label: path.basename(binaryPath),
+                    description: vscode.workspace.asRelativePath(binaryPath),
+                    binaryPath,
+                    picked: remembered.has(path.normalize(binaryPath)),
+                })),
+                browse,
+            ],
+            {
+                title: "covdbg: Choose test executables",
+                placeHolder: "The executables to run under coverage",
+                canPickMany: true,
+                matchOnDescription: true,
+            },
+        );
+        if (!picks) {
+            return undefined;
+        }
+        chosen = picks.flatMap((pick) => ("binaryPath" in pick ? [pick.binaryPath] : []));
+        browsing = picks.includes(browse);
+    }
+    if (browsing) {
+        const uris = await vscode.window.showOpenDialog({
+            title: "covdbg: Choose test executables",
+            defaultUri: folder.uri,
+            canSelectMany: true,
+            filters: { Executables: ["exe"] },
+        });
+        chosen.push(...(uris ?? []).map((uri) => uri.fsPath));
+    }
+    if (chosen.length === 0) {
+        return undefined;
     }
 
-    const items: vscode.TestItem[] = [];
-    testingRootItem.children.forEach((item) => items.push(item));
-    return items;
+    await workspaceState.update(`${LAST_TARGETS_KEY}:${folder.uri.toString()}`, chosen);
+    // A browsed executable becomes a test item, so it runs like a discovered one.
+    await refreshTestControllerItems();
+    return chosen;
+}
+
+/** The folder's chosen targets that are still test items, that is, still there. */
+function getRememberedTargets(folder: vscode.WorkspaceFolder | undefined): string[] {
+    if (!folder) {
+        return [];
+    }
+    return (workspaceState.get<string[]>(`${LAST_TARGETS_KEY}:${folder.uri.toString()}`) ?? [])
+        .map((target) => testExecutablePaths.get(path.normalize(target)))
+        .filter((target): target is string => target !== undefined);
+}
+
+/** Every folder's chosen targets that still exist, including ones discovery does not find. */
+async function listRememberedTargets(): Promise<string[]> {
+    const targets: string[] = [];
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+        const stored =
+            workspaceState.get<string[]>(`${LAST_TARGETS_KEY}:${folder.uri.toString()}`) ?? [];
+        for (const target of stored) {
+            if (await fileExists(target)) {
+                targets.push(target);
+            }
+        }
+    }
+    return targets;
 }
 
 function getExecutablePathForTestItem(item: vscode.TestItem): string | undefined {

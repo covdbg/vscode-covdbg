@@ -3,9 +3,10 @@ import * as vscode from "vscode";
 import { ensureArrayOfStrings } from "./runnerArgs";
 import { deriveCoverageBatchOutputPath } from "./outputPaths";
 import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
-
-const DEFAULT_BINARY_DISCOVERY_PATTERN = "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
-const DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN = "**/{Release,RelWithDebInfo}/**";
+import {
+    DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
+    DEFAULT_BINARY_DISCOVERY_PATTERN,
+} from "./discoveryPatterns";
 
 export function readRunnerSettings(scope?: vscode.ConfigurationScope): RunnerSettings {
     const config = vscode.workspace.getConfiguration("covdbg", scope);

@@ -26,6 +26,8 @@ export interface CoverageViewInput {
     notice?: RunNotice;
     /** Discovered test executables, as shown to the user, best first; unset until discovery ends. */
     targets?: readonly string[];
+    /** The folder has no git remote and no commit, so covdbg cannot name the repository. */
+    repositoryHint?: boolean;
     coverage: readonly FolderCoverage[];
     multiRoot: boolean;
     now: number;
@@ -116,6 +118,15 @@ export function describeCoverageView(input: CoverageViewInput): CoverageView {
             icon: "beaker",
             contextValue: "ready",
         });
+        if (input.repositoryHint) {
+            rows.push({
+                id: "repositoryHint",
+                label: "Add a git remote or make a first commit",
+                tooltip:
+                    "covdbg names the repository a run belongs to by its git remote, or by its first commit when there is no remote.",
+                icon: "info",
+            });
+        }
     }
 
     if (loaded.length > 0) {
@@ -292,6 +303,7 @@ export interface CoverageTreeDeps {
     getCoverage: () => FolderCoverage[];
     /** Unset until the first discovery ends. */
     getTargets: () => string[] | undefined;
+    needsRepositoryHint: () => boolean;
 }
 
 /**
@@ -339,6 +351,7 @@ export class CoverageTree implements vscode.TreeDataProvider<CoverageRow>, vscod
             runtime: this.auth.runtime,
             notice: this.auth.lastRunNotice,
             targets: this.deps.getTargets(),
+            repositoryHint: this.deps.needsRepositoryHint(),
             coverage,
             multiRoot: (vscode.workspace.workspaceFolders?.length ?? 0) > 1,
             now: Date.now(),

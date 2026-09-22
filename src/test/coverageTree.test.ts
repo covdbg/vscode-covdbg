@@ -106,6 +106,26 @@ test("several targets are counted", () => {
     assert.equal(view.rows[0].label, "Ready: 2 test executables");
 });
 
+test("ready says so when covdbg could not name the repository", () => {
+    const view = describeCoverageView(input({ repositoryHint: true }));
+
+    assert.deepEqual(labels(view.rows), [
+        "Ready: build/Debug/test_app.exe",
+        "Add a git remote or make a first commit",
+        "Signed in as dev@example.com",
+    ]);
+});
+
+test("the repository hint waits for something to run", () => {
+    const signedOut = describeCoverageView(
+        input({ auth: { kind: "signedOut" }, repositoryHint: true }),
+    );
+    const loaded = describeCoverageView(input({ coverage: [LOADED], repositoryHint: true }));
+
+    assert.equal(signedOut.welcome, "signedOut");
+    assert.ok(!labels(loaded.rows).includes("Add a git remote or make a first commit"));
+});
+
 test("a project token is named, with no sign-in offered", () => {
     const view = describeCoverageView(input({ auth: { kind: "token" } }));
     const account = view.rows.find((row) => row.id === "account");
