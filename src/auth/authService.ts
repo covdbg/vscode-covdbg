@@ -36,6 +36,7 @@ export class AuthService implements vscode.Disposable {
 
     private _state: AuthState = { kind: "unknown" };
     private _lastRunNotice: RunNotice | undefined;
+    private _runtime: RuntimeState | undefined;
     private pendingSignIn: { promise: Promise<boolean>; abort: AbortController } | undefined;
     private refreshGeneration = 0;
     /**
@@ -52,6 +53,11 @@ export class AuthService implements vscode.Disposable {
 
     get lastRunNotice(): RunNotice | undefined {
         return this._lastRunNotice;
+    }
+
+    /** The covdbg the last check found, for showing which one runs. */
+    get runtime(): RuntimeState | undefined {
+        return this._runtime;
     }
 
     dispose(): void {
@@ -168,6 +174,7 @@ export class AuthService implements vscode.Disposable {
 
     private async check(): Promise<AuthState> {
         const runtime = await this.deps.resolveRuntime();
+        this._runtime = runtime;
         if (runtime.kind !== "ok") {
             return { kind: "unavailable", runtime };
         }

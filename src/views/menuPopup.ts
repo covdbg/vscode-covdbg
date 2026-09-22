@@ -14,7 +14,6 @@ export interface MenuContext {
     activeCovdbPath: string | undefined;
     fileIndex: Map<string, CovdbFileSummary>;
     currentRenderMode: RenderMode;
-    activeFileSummary: CovdbFileSummary | undefined;
     /** All .covdb files discovered in the workspace (for the switcher). */
     availableCovdbFiles: vscode.Uri[];
 }
@@ -23,16 +22,10 @@ export interface MenuContext {
 export interface MenuActions {
     toggle(): void;
     setRenderMode(mode: RenderMode): void;
-    browse(): void;
     showReport(): void;
     configure(): void;
-    createConfig(): void;
-    openSettings(): void;
     switchDatabase(covdbPath: string): void;
     closeDatabase(): void;
-    runCoverage(): void;
-    clearLastRunResult(): void;
-    openTestsView(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,127 +38,58 @@ interface MenuItem extends vscode.QuickPickItem {
 }
 
 export async function showMenu(ctx: MenuContext, actions: MenuActions): Promise<void> {
+    if (!ctx.isLoaded || !ctx.activeCovdbPath) {
+        await showDatabaseSwitcher(ctx, actions);
+        return;
+    }
+
     const items: MenuItem[] = [];
     const modeLabel = (m: RenderMode) =>
         m === "line" ? "Full Line" : m === "gutter" ? "Gutter" : "Both";
 
-    if (ctx.isLoaded && ctx.activeCovdbPath) {
-        // ── Database section ──
-        const overall = computeOverallStats(ctx.fileIndex);
-        const pct = overall.total > 0 ? (overall.covered / overall.total) * 100 : 0;
-        items.push({
-            label: "Coverage Database",
-            kind: vscode.QuickPickItemKind.Separator,
-            action: "",
-        });
-        items.push({
-            label: `$(database)  ${path.basename(ctx.activeCovdbPath)}`,
-            description: `${ctx.fileIndex.size} files — click to switch`,
-            detail: `    ${overall.covered} / ${overall.total} lines — ${pct.toFixed(1)}%`,
-            action: "switch-database",
-        });
+    // ── Database section ──
+    const overall = computeOverallStats(ctx.fileIndex);
+    const pct = overall.total > 0 ? (overall.covered / overall.total) * 100 : 0;
+    items.push({
+        label: "Coverage Database",
+        kind: vscode.QuickPickItemKind.Separator,
+        action: "",
+    });
+    items.push({
+        label: `$(database)  ${path.basename(ctx.activeCovdbPath)}`,
+        description: `${ctx.fileIndex.size} files — click to switch`,
+        detail: `    ${overall.covered} / ${overall.total} lines — ${pct.toFixed(1)}%`,
+        action: "switch-database",
+    });
 
-        // ── Active file section ──
-        if (ctx.activeFileSummary) {
-            const s = ctx.activeFileSummary;
-            items.push({
-                label: "Current File",
-                kind: vscode.QuickPickItemKind.Separator,
-                action: "",
-            });
-            const display = vscode.workspace.workspaceFolders
-                ? vscode.workspace.asRelativePath(s.filePath)
-                : path.basename(s.filePath);
-            items.push({
-                label: `$(file-code)  ${display}`,
-                detail: `    ${s.coveredLines} / ${s.totalLines} lines — ${s.coveragePercent.toFixed(1)}%`,
-                action: "noop",
-            });
-        }
-
-        // ── Rendering section ──
-        items.push({ label: "Rendering", kind: vscode.QuickPickItemKind.Separator, action: "" });
-        for (const m of ["line", "gutter", "both"] as RenderMode[]) {
-            const active = m === ctx.currentRenderMode;
-            items.push({
-                label: `${active ? "$(check)" : "$(blank)"}  ${modeLabel(m)}`,
-                action: "render-mode",
-                mode: m,
-            });
-        }
-
-        // ── Actions section ──
-        items.push({ label: "", kind: vscode.QuickPickItemKind.Separator, action: "" });
+    // ── Rendering section ──
+    items.push({ label: "Rendering", kind: vscode.QuickPickItemKind.Separator, action: "" });
+    for (const m of ["line", "gutter", "both"] as RenderMode[]) {
+        const active = m === ctx.currentRenderMode;
         items.push({
-            label: `$(list-flat)  Browse Files`,
-            description: `${ctx.fileIndex.size} files`,
-            action: "browse",
-        });
-        items.push({
-            label: `$(graph)  Coverage Report`,
-            action: "report",
-        });
-        items.push({
-            label: "$(beaker)  Run Coverage",
-            action: "run-coverage",
-        });
-        items.push({
-            label: "$(beaker)  Open Test Explorer",
-            action: "open-tests",
-        });
-        items.push({
-            label: "$(new-file)  Open or Create .covdbg.yaml",
-            action: "create-config",
-        });
-        items.push({
-            label: "$(trash)  Clear Last Run Result",
-            action: "clear-last-run",
-        });
-        items.push({
-            label: ctx.isCoverageEnabled ? "$(eye-closed)  Hide Coverage" : "$(eye)  Show Coverage",
-            action: "toggle",
-        });
-        items.push({
-            label: "$(settings-gear)  Settings",
-            action: "settings",
-        });
-    } else {
-        // ── Not-loaded state ──
-        items.push({ label: "Setup", kind: vscode.QuickPickItemKind.Separator, action: "" });
-        items.push({
-            label: "$(folder-opened)  Select .covdb File…",
-            detail: "    Set covdbg.covdbPath or place a .covdb in the workspace",
-            action: "configure",
-        });
-        items.push({
-            label: "$(new-file)  Create .covdbg.yaml",
-            detail: "    Generate a starter config in a workspace folder",
-            action: "create-config",
-        });
-        items.push({
-            label: "$(beaker)  Run Coverage",
-            action: "run-coverage",
-        });
-        items.push({
-            label: "$(beaker)  Open Test Explorer",
-            action: "open-tests",
-        });
-        items.push({
-            label: "$(trash)  Clear Last Run Result",
-            action: "clear-last-run",
-        });
-        items.push({
-            label: "$(settings-gear)  Settings",
-            action: "settings",
+            label: `${active ? "$(check)" : "$(blank)"}  ${modeLabel(m)}`,
+            action: "render-mode",
+            mode: m,
         });
     }
+
+    // ── Actions section ──
+    items.push({ label: "", kind: vscode.QuickPickItemKind.Separator, action: "" });
+    items.push({
+        label: `$(graph)  Coverage Report`,
+        action: "report",
+    });
+    items.push({
+        label: ctx.isCoverageEnabled ? "$(eye-closed)  Hide Coverage" : "$(eye)  Show Coverage",
+        action: "toggle",
+    });
 
     const picked = await vscode.window.showQuickPick(items, {
         placeHolder: "covdbg",
         matchOnDescription: true,
         matchOnDetail: true,
     });
-    if (!picked || !picked.action || picked.action === "noop") {
+    if (!picked || !picked.action) {
         return;
     }
 
@@ -178,32 +102,11 @@ export async function showMenu(ctx: MenuContext, actions: MenuActions): Promise<
                 actions.setRenderMode(picked.mode);
             }
             break;
-        case "browse":
-            actions.browse();
-            break;
         case "report":
             actions.showReport();
             break;
-        case "configure":
-            actions.configure();
-            break;
-        case "create-config":
-            actions.createConfig();
-            break;
-        case "settings":
-            actions.openSettings();
-            break;
         case "switch-database":
             await showDatabaseSwitcher(ctx, actions);
-            break;
-        case "run-coverage":
-            actions.runCoverage();
-            break;
-        case "clear-last-run":
-            actions.clearLastRunResult();
-            break;
-        case "open-tests":
-            actions.openTestsView();
             break;
     }
 }
@@ -212,7 +115,8 @@ export async function showMenu(ctx: MenuContext, actions: MenuActions): Promise<
 // Database switcher popup
 // ---------------------------------------------------------------------------
 
-async function showDatabaseSwitcher(ctx: MenuContext, actions: MenuActions): Promise<void> {
+/** Load .covdb…: the discovered databases, a file picker, and closing the current one. */
+export async function showDatabaseSwitcher(ctx: MenuContext, actions: MenuActions): Promise<void> {
     interface DbItem extends vscode.QuickPickItem {
         covdbPath?: string;
         action?: string;
@@ -221,13 +125,15 @@ async function showDatabaseSwitcher(ctx: MenuContext, actions: MenuActions): Pro
     const items: DbItem[] = [];
 
     // Close current database
-    items.push({
-        label: "$(close)  Close Current Database",
-        description: ctx.activeCovdbPath ? path.basename(ctx.activeCovdbPath) : "",
-        action: "close",
-    });
+    if (ctx.activeCovdbPath) {
+        items.push({
+            label: "$(close)  Close Current Database",
+            description: path.basename(ctx.activeCovdbPath),
+            action: "close",
+        });
 
-    items.push({ label: "", kind: vscode.QuickPickItemKind.Separator });
+        items.push({ label: "", kind: vscode.QuickPickItemKind.Separator });
+    }
 
     // Available .covdb files in the workspace
     for (const uri of ctx.availableCovdbFiles) {

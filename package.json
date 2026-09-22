@@ -84,18 +84,14 @@
             },
             {
                 "command": "covdbg.configurePath",
-                "title": "Select .covdb File…",
-                "category": "covdbg"
-            },
-            {
-                "command": "covdbg.pickDiscoveredCovdb",
-                "title": "Pick Discovered .covdb",
+                "title": "Load .covdb…",
                 "category": "covdbg"
             },
             {
                 "command": "covdbg.runCoverage",
                 "title": "Run Coverage",
-                "category": "covdbg"
+                "category": "covdbg",
+                "icon": "$(play)"
             },
             {
                 "command": "covdbg.createConfig",
@@ -104,7 +100,7 @@
             },
             {
                 "command": "covdbg.openConfig",
-                "title": "Open .covdbg.yaml",
+                "title": "Open or Create .covdbg.yaml",
                 "category": "covdbg"
             },
             {
@@ -118,25 +114,20 @@
                 "category": "covdbg"
             },
             {
-                "command": "covdbg.openAppDataFolder",
-                "title": "Open .covdbg Folder",
+                "command": "covdbg.refresh",
+                "title": "Refresh",
+                "category": "covdbg",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "covdbg.openSettings",
+                "title": "Open Settings",
                 "category": "covdbg"
             },
             {
                 "command": "covdbg.clearLastRunResult",
-                "title": "Clear Last Run Result",
+                "title": "Clear Last Run",
                 "category": "covdbg"
-            },
-            {
-                "command": "covdbg.refreshTestBinaries",
-                "title": "Refresh Test Binaries",
-                "category": "covdbg"
-            },
-            {
-                "command": "covdbg.refreshDashboard",
-                "title": "Refresh Home Dashboard",
-                "category": "covdbg",
-                "icon": "$(refresh)"
             },
             {
                 "command": "covdbg.signIn",
@@ -151,12 +142,20 @@
             {
                 "command": "covdbg.copySignInCode",
                 "title": "Copy Sign-In Code",
-                "category": "covdbg"
+                "category": "covdbg",
+                "icon": "$(copy)"
+            },
+            {
+                "command": "covdbg.openSignInPage",
+                "title": "Open Sign-In Page Again",
+                "category": "covdbg",
+                "icon": "$(link-external)"
             },
             {
                 "command": "covdbg.cancelSignIn",
                 "title": "Cancel Sign-In",
-                "category": "covdbg"
+                "category": "covdbg",
+                "icon": "$(close)"
             }
         ],
         "viewsContainers": {
@@ -172,11 +171,37 @@
             "covdbg-sidebar": [
                 {
                     "id": "covdbg.homeView",
-                    "name": "Home",
-                    "type": "webview"
+                    "name": "Coverage"
                 }
             ]
         },
+        "viewsWelcome": [
+            {
+                "view": "covdbg.homeView",
+                "contents": "covdbg runs Windows executables locally, in a trusted workspace.\n[Manage Workspace Trust](command:workbench.trust.manage)",
+                "when": "covdbg.welcome == unsupported"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "covdbg 1.3 or newer is needed.\n[Install covdbg](https://covdbg.com/download)\n[Refresh](command:covdbg.refresh)",
+                "when": "covdbg.welcome == runtime"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "covdbg 1.3 or newer is needed. The covdbg.executablePath setting points at an older one.\n[Open Setting](command:workbench.action.openSettings?%5B%22covdbg.executablePath%22%5D)\n[Refresh](command:covdbg.refresh)",
+                "when": "covdbg.welcome == runtimeSetting"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "Sign in to measure coverage. Free for public repositories and one private repository.\n[Sign in](command:covdbg.signIn)",
+                "when": "covdbg.welcome == signedOut"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "No test executable found.\n[Discovery Settings](command:workbench.action.openSettings?%5B%22covdbg.runner.binaryDiscovery%22%5D)\n[Refresh](command:covdbg.refresh)",
+                "when": "covdbg.welcome == noTarget"
+            }
+        ],
         "mcpServerDefinitionProviders": [
             {
                 "id": "covdbg.mcp",
@@ -192,6 +217,38 @@
                 {
                     "command": "covdbg.cancelSignIn",
                     "when": "covdbg.auth == signingIn"
+                },
+                {
+                    "command": "covdbg.openSignInPage",
+                    "when": "covdbg.auth == signingIn"
+                },
+                {
+                    "command": "covdbg.signIn",
+                    "when": "covdbg.auth != signedIn && covdbg.auth != token"
+                },
+                {
+                    "command": "covdbg.signOut",
+                    "when": "covdbg.auth == signedIn"
+                },
+                {
+                    "command": "covdbg.setRenderMode",
+                    "when": "false"
+                },
+                {
+                    "command": "covdbg.toggleCoverage",
+                    "when": "covdbg.hasCoverage"
+                },
+                {
+                    "command": "covdbg.showReport",
+                    "when": "covdbg.hasCoverage"
+                },
+                {
+                    "command": "covdbg.browseFiles",
+                    "when": "covdbg.hasCoverage"
+                },
+                {
+                    "command": "covdbg.clearLastRunResult",
+                    "when": "covdbg.hasCoverage"
                 }
             ],
             "testing/message/content": [
@@ -207,9 +264,66 @@
                     "group": "navigation@1"
                 },
                 {
-                    "command": "covdbg.refreshDashboard",
+                    "command": "covdbg.refresh",
                     "when": "view == covdbg.homeView",
                     "group": "navigation@2"
+                },
+                {
+                    "command": "covdbg.openConfig",
+                    "when": "view == covdbg.homeView",
+                    "group": "1_config@1"
+                },
+                {
+                    "command": "covdbg.configurePath",
+                    "when": "view == covdbg.homeView",
+                    "group": "2_coverage@1"
+                },
+                {
+                    "command": "covdbg.showReport",
+                    "when": "view == covdbg.homeView && covdbg.hasCoverage",
+                    "group": "2_coverage@2"
+                },
+                {
+                    "command": "covdbg.clearLastRunResult",
+                    "when": "view == covdbg.homeView && covdbg.hasCoverage",
+                    "group": "2_coverage@3"
+                },
+                {
+                    "command": "covdbg.openLog",
+                    "when": "view == covdbg.homeView",
+                    "group": "3_log@1"
+                },
+                {
+                    "command": "covdbg.signOut",
+                    "when": "view == covdbg.homeView && covdbg.auth == signedIn",
+                    "group": "4_account@1"
+                },
+                {
+                    "command": "covdbg.openSettings",
+                    "when": "view == covdbg.homeView",
+                    "group": "5_settings@1"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "covdbg.copySignInCode",
+                    "when": "view == covdbg.homeView && viewItem == signingIn",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "covdbg.openSignInPage",
+                    "when": "view == covdbg.homeView && viewItem == signingIn",
+                    "group": "inline@2"
+                },
+                {
+                    "command": "covdbg.cancelSignIn",
+                    "when": "view == covdbg.homeView && viewItem == signingIn",
+                    "group": "inline@3"
+                },
+                {
+                    "command": "covdbg.runCoverage",
+                    "when": "view == covdbg.homeView && viewItem == ready",
+                    "group": "inline@1"
                 }
             ]
         },

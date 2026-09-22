@@ -10,6 +10,9 @@ type PackageManifest = {
         vscode?: string;
     };
     contributes?: {
+        commands?: { command: string }[];
+        views?: Record<string, { id: string; type?: string }[]>;
+        viewsWelcome?: { view: string; when?: string }[];
         languageModelTools?: unknown;
         mcpServerDefinitionProviders?: { id: string; label: string }[];
         menus?: Record<string, { command: string; when?: string }[]>;
@@ -114,4 +117,45 @@ test("a run's message in Test Results offers the log", () => {
                 entry.when === `testMessage == ${contextValue}`,
         ),
     );
+});
+
+/** Every non-test source file, concatenated. */
+function readSources(): string {
+    const root = path.resolve(process.cwd(), "src");
+    const files = fs.readdirSync(root, { recursive: true, encoding: "utf8" });
+    return files
+        .filter((file) => file.endsWith(".ts") && !file.startsWith("test"))
+        .map((file) => fs.readFileSync(path.join(root, file), "utf8"))
+        .join("\n");
+}
+
+test("contributed commands are exactly the registered ones", () => {
+    const contributed = (readPackageManifest().contributes?.commands ?? []).map((c) => c.command);
+    const registered = [...readSources().matchAll(/registerCommand\(\s*"(covdbg\.[^"]+)"/g)].map(
+        (match) => match[1],
+    );
+
+    assert.deepEqual([...contributed].sort(), [...registered].sort());
+});
+
+test("the Coverage view keeps its id and is a native tree", () => {
+    // Keeping covdbg.homeView keeps where users put the view.
+    const views = readPackageManifest().contributes?.views?.["covdbg-sidebar"] ?? [];
+
+    assert.deepEqual(
+        views.map((view) => [view.id, view.type]),
+        [["covdbg.homeView", undefined]],
+    );
+});
+
+test("every context key a welcome state waits for is set somewhere", () => {
+    const sources = readSources();
+    const welcome = readPackageManifest().contributes?.viewsWelcome ?? [];
+    const keys = new Set(welcome.flatMap((entry) => entry.when?.match(/covdbg\.\w+/g) ?? []));
+
+    assert.ok(keys.size > 0);
+    for (const key of keys) {
+        const pattern = `"setContext",\\s*"${key.replace(".", "\\.")}"`;
+        assert.match(sources, new RegExp(pattern), key);
+    }
 });

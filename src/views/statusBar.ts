@@ -2,22 +2,23 @@ import * as vscode from "vscode";
 import { RenderMode } from "../types";
 import type { AuthState } from "../auth/authService";
 import type { RunNotice } from "../runner/runOutcome";
+import type { RuntimeState } from "../runner/runnerTypes";
+import { describeRuntime } from "./coverageTree";
 
 export class StatusBar {
     private _item: vscode.StatusBarItem;
     private _enabled: boolean = true;
     private _loaded: boolean = false;
     private _renderMode: RenderMode = "gutter";
-    private _runState: "idle" | "running" | "failed" = "idle";
+    private _percent = 0;
+    private _running = false;
     private _auth: AuthState = { kind: "unknown" };
     private _notice: RunNotice | undefined;
+    private _runtime: RuntimeState | undefined;
 
     constructor() {
         this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-        this._item.command = "covdbg.showMenu";
-        this._item.text = "$(shield) covdbg";
-        this._item.tooltip = "covdbg — Click to open";
-        this._item.show();
+        this._item.name = "covdbg";
     }
 
     public isCoverageEnabled(): boolean {
@@ -38,12 +39,13 @@ export class StatusBar {
 
     public setIdle(): void {
         this._loaded = false;
-        this._runState = "idle";
         this.updateAppearance();
     }
 
-    public setLoaded(): void {
+    /** Coverage is loaded; `percent` is its line coverage. */
+    public setLoaded(percent: number): void {
         this._loaded = true;
+        this._percent = percent;
         this.updateAppearance();
     }
 
@@ -53,36 +55,33 @@ export class StatusBar {
     }
 
     public setRunning(): void {
-        this._runState = "running";
+        this._running = true;
         this.updateAppearance();
     }
 
-    public setRunSucceeded(): void {
-        this._runState = "idle";
+    /** A run ended, whether it worked or not: Test Results says which. */
+    public setRunFinished(): void {
+        this._running = false;
         this.updateAppearance();
     }
 
-    public setRunFailed(): void {
-        this._runState = "failed";
-        this.updateAppearance();
-    }
-
-    public setAuth(auth: AuthState, notice: RunNotice | undefined): void {
+    public setAuth(
+        auth: AuthState,
+        notice: RunNotice | undefined,
+        runtime: RuntimeState | undefined,
+    ): void {
         this._auth = auth;
         this._notice = notice;
-        this.updateAppearance();
-    }
-
-    public clearLastRunResult(): void {
-        this._runState = "idle";
+        this._runtime = runtime;
         this.updateAppearance();
     }
 
     private updateAppearance(): void {
         this._item.command = "covdbg.showMenu";
-        if (this._runState === "running") {
-            this._item.text = `covdbg $(sync~spin)`;
-            this._item.tooltip = `covdbg - Coverage run in progress`;
+        this._item.show();
+        if (this._running) {
+            this._item.text = "$(sync~spin) covdbg";
+            this._item.tooltip = "covdbg - Coverage run in progress";
             return;
         }
 
@@ -100,18 +99,8 @@ export class StatusBar {
             return;
         }
 
-        // What covdbg said about the last run's license (gated, a lock, ...) rides along below.
-        const notice = this._notice ? `\n${this._notice.message}` : "";
-
-        if (this._runState === "failed") {
-            this._item.text = `covdbg $(error)`;
-            this._item.tooltip = `covdbg - Last coverage run failed${notice}`;
-            return;
-        }
-
         if (!this._loaded) {
-            this._item.text = `covdbg $(workspace-unknown)`;
-            this._item.tooltip = `covdbg - No coverage loaded${notice}`;
+            this._item.hide();
             return;
         }
         const modeLabel =
@@ -120,13 +109,13 @@ export class StatusBar {
                 : this._renderMode === "gutter"
                   ? "Gutter"
                   : "Both";
-        if (this._enabled) {
-            this._item.text = `covdbg $(workspace-trusted)`;
-            this._item.tooltip = `covdbg - Coverage ON (${modeLabel})${notice}`;
-        } else {
-            this._item.text = `covdbg $(workspace-untrusted)`;
-            this._item.tooltip = `covdbg - Coverage OFF (${modeLabel})${notice}`;
-        }
+        // Which covdbg runs, and what it said about the last run's license (gated, a lock, ...).
+        const details = [describeRuntime(this._runtime), this._notice?.message]
+            .filter(Boolean)
+            .map((line) => `\n${line}`)
+            .join("");
+        this._item.text = `$(beaker) ${this._percent.toFixed(1)}%`;
+        this._item.tooltip = `covdbg - Coverage ${this._enabled ? "ON" : "OFF"} (${modeLabel})${details}`;
     }
 
     public dispose(): void {
