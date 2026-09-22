@@ -1671,7 +1671,8 @@ async function runCoverageFromTestRequest(
 
         try {
             // Signed out, this signs in first and the same run goes on; cancelled, it is skipped.
-            const readiness = await auth.ensureReadyToRun();
+            const stopSignIn = token.onCancellationRequested(() => auth.cancelSignIn());
+            const readiness = await auth.ensureReadyToRun().finally(() => stopSignIn.dispose());
             if (!readiness.run) {
                 run.appendOutput(`${readiness.reason}\r\n`);
                 targets.forEach((item) => run.skipped(item));
@@ -1852,8 +1853,9 @@ function collectLeafTestItems(
 }
 
 /**
- * Choose Executable…: the discovered test executables, the current choice ticked, plus Browse…
- * for one discovery does not find. The choice is what ▶ runs from then on; none ticked clears it.
+ * Choose Executable…: the discovered test executables, the current choice (or, before one, all)
+ * ticked, plus Browse… for one discovery does not find. The choice is what ▶ runs from then on;
+ * none ticked clears it.
  */
 async function chooseExecutable(): Promise<string[] | undefined> {
     const folder = getPreferredWorkspaceFolder();
@@ -1876,7 +1878,8 @@ async function chooseExecutable(): Promise<string[] | undefined> {
                     label: path.basename(binaryPath),
                     description: vscode.workspace.asRelativePath(binaryPath),
                     binaryPath,
-                    picked: remembered.has(path.normalize(binaryPath)),
+                    // Nothing chosen yet, all are ticked, so accepting runs them all.
+                    picked: remembered.size === 0 || remembered.has(path.normalize(binaryPath)),
                 })),
                 browse,
             ],

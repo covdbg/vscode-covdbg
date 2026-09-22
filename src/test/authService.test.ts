@@ -52,7 +52,6 @@ test("whoami's answer becomes the state, and the context keys follow", async () 
     await auth.refresh();
     assert.deepEqual(auth.state, { kind: "signedOut" });
     assert.equal(vscodeStub.commands.context.get("covdbg.auth"), "signedOut");
-    assert.equal(vscodeStub.commands.context.get("covdbg.runtime"), "ok");
 
     state.email = "dev@example.com";
     await auth.refresh();
@@ -85,7 +84,6 @@ test("no usable covdbg makes sign-in unavailable, and a run is skipped with the 
     const { auth, whoamis, logins } = machine({ runtime });
     const readiness = await auth.ensureReadyToRun();
     assert.deepEqual(auth.state, { kind: "unavailable", runtime });
-    assert.equal(vscodeStub.commands.context.get("covdbg.runtime"), "tooOld");
     assert.equal(readiness.run, false);
     assert.match(!readiness.run ? readiness.reason : "", /1\.2\.0/);
     assert.equal(whoamis().length + logins().length, 0);

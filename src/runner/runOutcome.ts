@@ -24,15 +24,26 @@ const PROGRESS_LINES = [
 
 /**
  * Reads one whole line of a run's output. A refusal is logged as an error, so it arrives on
- * stderr; everything the service attached to a granted run is printed on stdout.
+ * stderr; everything the service attached to a granted run is printed on stdout. With a project
+ * token in the run's environment, covdbg decides on the token, so signing in fixes nothing.
  */
-export function classifyRunLine(stream: "stdout" | "stderr", line: string): RunNotice | undefined {
+export function classifyRunLine(
+    stream: "stdout" | "stderr",
+    line: string,
+    projectToken = false,
+): RunNotice | undefined {
     const text = line.trim();
     if (stream === "stderr") {
         const refusal = /This run is not licensed: (.+)$/.exec(text)?.[1].trim();
-        return refusal
-            ? { kind: "refused", message: refusal, action: routeRefusal(refusal) }
-            : undefined;
+        if (!refusal) {
+            return undefined;
+        }
+        const action = routeRefusal(refusal);
+        return {
+            kind: "refused",
+            message: refusal,
+            action: projectToken && action === "signIn" ? "openApp" : action,
+        };
     }
 
     const message = /^covdbg: (.+)$/.exec(text)?.[1].trim();
@@ -40,9 +51,15 @@ export function classifyRunLine(stream: "stdout" | "stderr", line: string): RunN
         return undefined;
     }
     // The service rejected the credential (401) and covdbg fell back to running offline: the run
-    // went ahead, but the sign-in is gone.
+    // went ahead, but the sign-in (or the project token) is no longer accepted.
     if (/could not be reached/.test(message) && /covdbg login/.test(message)) {
-        return { kind: "sessionInvalid", message: "Your sign-in has ended.", action: "signIn" };
+        return projectToken
+            ? {
+                  kind: "message",
+                  message: "The license service did not accept COVDBG_PROJECT_TOKEN.",
+                  action: "openApp",
+              }
+            : { kind: "sessionInvalid", message: "Your sign-in has ended.", action: "signIn" };
     }
     if (/now locked to/i.test(message)) {
         return { kind: "lockSet", message, action: "openProfile" };
@@ -54,7 +71,7 @@ export function classifyRunLine(stream: "stdout" | "stderr", line: string): RunN
 }
 
 /** The fix to offer for a refusal, from its message. */
-export function routeRefusal(message: string): NoticeAction | undefined {
+function routeRefusal(message: string): NoticeAction | undefined {
     if (/covdbg login|sign in/i.test(message)) {
         return "signIn";
     }

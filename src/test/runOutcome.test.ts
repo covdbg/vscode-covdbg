@@ -73,6 +73,26 @@ test("an offline fallback that names covdbg login means the sign-in has ended", 
     }
 });
 
+test("with a project token, a rejected credential is the token's, not an ended sign-in", () => {
+    const problem = "Sign in with `covdbg login`, or set COVDBG_PROJECT_TOKEN in CI.";
+    assert.deepEqual(
+        classifyRunLine(
+            "stdout",
+            `covdbg: The license service could not be reached (${problem}); proceeding on your credential.`,
+            true,
+        ),
+        {
+            kind: "message",
+            message: "The license service did not accept COVDBG_PROJECT_TOKEN.",
+            action: "openApp",
+        },
+    );
+    assert.deepEqual(
+        classifyRunLine("stderr", `covdbg: This run is not licensed: ${problem}`, true),
+        { kind: "refused", message: problem, action: "openApp" },
+    );
+});
+
 test("a plain offline fallback is passed on as it stands", () => {
     for (const message of [
         "The license service could not be reached (Could not resolve host); proceeding on your credential.",

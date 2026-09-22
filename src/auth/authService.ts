@@ -188,21 +188,25 @@ export class AuthService implements vscode.Disposable {
     }
 
     private async runSignIn(signal: AbortSignal): Promise<boolean> {
-        const runtime = await this.deps.resolveRuntime();
-        const result =
-            runtime.kind === "ok"
-                ? await signIn(
-                      runtime.path,
-                      this.runEnvironment(),
-                      (prompt) => {
-                          this.setState({ kind: "signingIn", ...prompt });
-                          this.openSignInPage();
-                      },
-                      signal,
-                      this.deps.start,
-                  )
-                : ({ kind: "failed", message: describeRuntimeProblem(runtime) } as const);
-        this.pendingSignIn = undefined;
+        let result: Awaited<ReturnType<typeof signIn>>;
+        try {
+            const runtime = await this.deps.resolveRuntime();
+            result =
+                runtime.kind === "ok"
+                    ? await signIn(
+                          runtime.path,
+                          this.runEnvironment(),
+                          (prompt) => {
+                              this.setState({ kind: "signingIn", ...prompt });
+                              this.openSignInPage();
+                          },
+                          signal,
+                          this.deps.start,
+                      )
+                    : { kind: "failed", message: describeRuntimeProblem(runtime) };
+        } finally {
+            this.pendingSignIn = undefined;
+        }
 
         if (result.kind === "signedIn") {
             this.signInEnded = false;
@@ -235,15 +239,6 @@ export class AuthService implements vscode.Disposable {
     private setState(state: AuthState): void {
         this._state = state;
         void vscode.commands.executeCommand("setContext", "covdbg.auth", state.kind);
-        void vscode.commands.executeCommand(
-            "setContext",
-            "covdbg.runtime",
-            state.kind === "unavailable"
-                ? state.runtime.kind
-                : state.kind === "unknown"
-                  ? "unknown"
-                  : "ok",
-        );
         this.changed.fire();
     }
 }

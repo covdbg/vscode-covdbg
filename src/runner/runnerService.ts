@@ -124,11 +124,12 @@ async function runCoverageInternal(
         ...process.env,
         ...settings.env,
     };
+    const projectToken = Boolean(env["COVDBG_PROJECT_TOKEN"]?.trim());
     const notices: RunNotice[] = [];
     const readLines = (stream: "stdout" | "stderr") =>
         new LineBuffer((line) => {
             output.log(line);
-            const notice = classifyRunLine(stream, line);
+            const notice = classifyRunLine(stream, line, projectToken);
             if (notice) {
                 notices.push(notice);
             }

@@ -217,7 +217,6 @@ async function expandBundledPortable(
     if (cachedBundledExe && portableArchiveStampMatches(bundledZipStamp, cachedStamp)) {
         return cachedBundledExe;
     }
-    await fs.mkdir(extractPath, { recursive: true });
     try {
         await fs.rm(extractPath, { recursive: true, force: true });
         await fs.mkdir(extractPath, { recursive: true });

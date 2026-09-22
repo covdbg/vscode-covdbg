@@ -239,7 +239,7 @@
                 },
                 {
                     "command": "covdbg.signIn",
-                    "when": "covdbg.auth != signedIn && covdbg.auth != token"
+                    "when": "covdbg.auth != signedIn && covdbg.auth != token && covdbg.auth != unavailable"
                 },
                 {
                     "command": "covdbg.signOut",
