@@ -95,7 +95,7 @@ let lastDiscoveredTestBinaryIds: string | undefined;
 let lastRunOutputPaths: string[] = [];
 
 const CONFIG_FILE_NAME = ".covdbg.yaml";
-/** Prefix of the workspaceState key, per folder URI, holding the targets ▶ runs. */
+/** The workspaceState key holding the targets ▶ runs. */
 const LAST_TARGETS_KEY = "covdbg.lastTargets";
 /** How long the writes to a new .covdb must stop before it is read. */
 const DISCOVERY_RELOAD_DEBOUNCE_MS = 750;
@@ -165,7 +165,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (!testDiscoveryDone) {
                 return undefined;
             }
-            const remembered = getRememberedTargets(getPreferredWorkspaceFolder());
+            const remembered = getRememberedTargets();
             const targets = remembered.length > 0 ? remembered : [...testExecutablePaths.values()];
             return targets.map((p) => vscode.workspace.asRelativePath(p));
         },
@@ -1012,12 +1012,12 @@ function configuredRunnerConfigMatches(
 }
 
 /**
- * ▶: the folder's last chosen targets, else its only discovered one, else whatever the user
- * chooses now, which is then remembered.
+ * ▶: the last chosen targets, else the only discovered one, else whatever the user chooses now,
+ * which is then remembered.
  */
 async function runCoverageCommand(context: vscode.ExtensionContext): Promise<void> {
     await refreshTestControllerItems();
-    const remembered = getRememberedTargets(getPreferredWorkspaceFolder());
+    const remembered = getRememberedTargets();
     const discovered = [...testExecutablePaths.values()];
     const targets =
         remembered.length > 0
@@ -1963,8 +1963,8 @@ function collectLeafTestItems(
 }
 
 /**
- * Choose Executable…: the discovered test executables, the folder's current choice ticked, plus
- * Browse… for one discovery does not find. The choice is what ▶ runs from then on.
+ * Choose Executable…: the discovered test executables, the current choice ticked, plus Browse…
+ * for one discovery does not find. The choice is what ▶ runs from then on; none ticked clears it.
  */
 async function chooseExecutable(): Promise<string[] | undefined> {
     const folder = getPreferredWorkspaceFolder();
@@ -1975,7 +1975,7 @@ async function chooseExecutable(): Promise<string[] | undefined> {
         return undefined;
     }
 
-    const remembered = new Set(getRememberedTargets(folder).map((p) => path.normalize(p)));
+    const remembered = new Set(getRememberedTargets().map((p) => path.normalize(p)));
     const discovered = [...testExecutablePaths.values()];
     const browse = { label: "$(folder-opened) Browse…", alwaysShow: true };
     let chosen: string[] = [];
@@ -2001,6 +2001,11 @@ async function chooseExecutable(): Promise<string[] | undefined> {
         if (!picks) {
             return undefined;
         }
+        if (picks.length === 0) {
+            await workspaceState.update(LAST_TARGETS_KEY, undefined);
+            await refreshTestControllerItems();
+            return undefined;
+        }
         chosen = picks.flatMap((pick) => ("binaryPath" in pick ? [pick.binaryPath] : []));
         browsing = picks.includes(browse);
     }
@@ -2017,32 +2022,25 @@ async function chooseExecutable(): Promise<string[] | undefined> {
         return undefined;
     }
 
-    await workspaceState.update(`${LAST_TARGETS_KEY}:${folder.uri.toString()}`, chosen);
+    await workspaceState.update(LAST_TARGETS_KEY, chosen);
     // A browsed executable becomes a test item, so it runs like a discovered one.
     await refreshTestControllerItems();
     return chosen;
 }
 
-/** The folder's chosen targets that are still test items, that is, still there. */
-function getRememberedTargets(folder: vscode.WorkspaceFolder | undefined): string[] {
-    if (!folder) {
-        return [];
-    }
-    return (workspaceState.get<string[]>(`${LAST_TARGETS_KEY}:${folder.uri.toString()}`) ?? [])
+/** The chosen targets that are still test items, that is, still there. */
+function getRememberedTargets(): string[] {
+    return (workspaceState.get<string[]>(LAST_TARGETS_KEY) ?? [])
         .map((target) => testExecutablePaths.get(path.normalize(target)))
         .filter((target): target is string => target !== undefined);
 }
 
-/** Every folder's chosen targets that still exist, including ones discovery does not find. */
+/** The chosen targets that still exist, including ones discovery does not find. */
 async function listRememberedTargets(): Promise<string[]> {
     const targets: string[] = [];
-    for (const folder of vscode.workspace.workspaceFolders ?? []) {
-        const stored =
-            workspaceState.get<string[]>(`${LAST_TARGETS_KEY}:${folder.uri.toString()}`) ?? [];
-        for (const target of stored) {
-            if (await fileExists(target)) {
-                targets.push(target);
-            }
+    for (const target of workspaceState.get<string[]>(LAST_TARGETS_KEY) ?? []) {
+        if (await fileExists(target)) {
+            targets.push(target);
         }
     }
     return targets;

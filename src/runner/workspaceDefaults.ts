@@ -188,7 +188,10 @@ async function findNearestCovdbgYaml(
         }
         current = parent;
     }
-    return undefined;
+    // A target outside the folder, chosen through Browse…, uses the folder's own config, which is
+    // where the starter is written.
+    const rootConfig = path.join(root, ".covdbg.yaml");
+    return (await isFile(rootConfig)) ? rootConfig : undefined;
 }
 
 async function isFile(filePath: string): Promise<boolean> {

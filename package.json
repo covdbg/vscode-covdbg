@@ -435,7 +435,7 @@
                 },
                 "covdbg.runner.binaryDiscoveryExcludePattern": {
                     "type": "string",
-                    "default": "**/{Release,RelWithDebInfo}/**",
+                    "default": "**/{Release,RelWithDebInfo,cmake-build-release*,cmake-build-relwithdebinfo*}/**",
                     "markdownDescription": "Glob pattern for discovered test binaries to leave out. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`. The default skips optimized build trees, whose binaries carry the symbols covdbg needs only in part; it is also useful when post-build steps copy matching executables into additional folders.",
                     "scope": "resource",
                     "order": 10

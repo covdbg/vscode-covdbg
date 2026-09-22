@@ -5,7 +5,6 @@ import { buildStarterConfig } from "../runner/starterConfig";
 
 type StarterConfig = {
     version: number;
-    source_root: string;
     coverage: {
         default: {
             files: { include?: string[]; exclude: string[] };
@@ -18,7 +17,7 @@ const config = load(buildStarterConfig()) as StarterConfig;
 
 test("the starter config is version 1, rooted at the folder it is written to", () => {
     assert.equal(config.version, 1);
-    assert.equal(config.source_root, ".");
+    assert.equal((config as Record<string, unknown>).source_root, ".");
 });
 
 test("the starter config names no source files, so every file the PDB names counts", () => {

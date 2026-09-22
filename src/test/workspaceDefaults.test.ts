@@ -1,12 +1,15 @@
+import "./vscodeStub";
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import {
     DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
     DEFAULT_BINARY_DISCOVERY_PATTERN,
     buildExecutableDiscoveryExcludePattern,
 } from "../runner/discoveryPatterns";
+import { resolveEffectiveConfigPath } from "../runner/workspaceDefaults";
 
 test("buildExecutableDiscoveryExcludePattern returns builtin excludes by default", () => {
     assert.equal(
@@ -45,6 +48,8 @@ test("default discovery skips optimized builds and executables that are not test
     for (const skipped of [
         "build/Release/test_app.exe",
         "x64/RelWithDebInfo/ParserTests.exe",
+        "cmake-build-release/tests/app_test.exe",
+        "cmake-build-relwithdebinfo-visual-studio/tests/app_test.exe",
         "build/Debug/app.exe",
         "tools/test_runner.exe",
     ]) {
@@ -66,4 +71,28 @@ test("the manifest's discovery defaults are the ones the settings fall back to",
         properties["covdbg.runner.binaryDiscoveryExcludePattern"].default,
         DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
     );
+});
+
+test("a target outside the folder uses the folder's own .covdbg.yaml", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "covdbg-config-"));
+    try {
+        const folder = path.join(dir, "project");
+        const nested = path.join(folder, "build", "Debug");
+        fs.mkdirSync(nested, { recursive: true });
+        fs.mkdirSync(path.join(dir, "elsewhere"));
+        const rootConfig = path.join(folder, ".covdbg.yaml");
+        fs.writeFileSync(rootConfig, "version: 1");
+        fs.writeFileSync(path.join(nested, ".covdbg.yaml"), "version: 1");
+
+        assert.equal(
+            await resolveEffectiveConfigPath("", path.join(dir, "elsewhere", "test.exe"), folder),
+            rootConfig,
+        );
+        assert.equal(
+            await resolveEffectiveConfigPath("", path.join(nested, "test.exe"), folder),
+            path.join(nested, ".covdbg.yaml"),
+        );
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });
