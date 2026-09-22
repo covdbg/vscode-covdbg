@@ -6,8 +6,11 @@ export const MIN_COVDBG_VERSION = "1.3.0";
 
 const PROBE_TIMEOUT_MS = 5000;
 
-/** Probed versions, keyed by path and modification time so a replaced exe is probed again. */
-const versionCache = new Map<string, string | undefined>();
+/**
+ * Versions probed successfully, keyed by path and modification time so a replaced exe is probed
+ * again. A failed probe is not kept: a slow first start must not rule covdbg out for the session.
+ */
+const versionCache = new Map<string, string>();
 
 /** `covdbg --version` prints `covdbg <semver>`. */
 export function parseCovdbgVersion(stdout: string): string | undefined {
@@ -39,10 +42,14 @@ export async function probeCovdbgVersion(executablePath: string): Promise<string
     } catch {
         return undefined;
     }
-    if (!versionCache.has(key)) {
-        versionCache.set(key, await runVersion(executablePath));
+    let version = versionCache.get(key);
+    if (!version) {
+        version = await runVersion(executablePath);
+        if (version) {
+            versionCache.set(key, version);
+        }
     }
-    return versionCache.get(key);
+    return version;
 }
 
 function runVersion(executablePath: string): Promise<string | undefined> {

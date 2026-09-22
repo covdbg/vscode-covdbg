@@ -1,6 +1,7 @@
 import { vscodeStub } from "./vscodeStub";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -8,8 +9,10 @@ import type * as vscode from "vscode";
 import { getKnownInstallPaths } from "../runner/installPaths";
 import {
     RuntimeCandidate,
+    describeRuntimeProblem,
     getRuntimeCandidates,
     pickRuntime,
+    resolveBundledPortable,
     resolveCovdbgRuntime,
 } from "../runner/executableResolver";
 import type { RunnerSettings } from "../runner/runnerTypes";
@@ -150,34 +153,43 @@ test("when every covdbg found is too old the first one is reported", async () =>
     });
 });
 
+test("a covdbg that reports no version is not called too old", () => {
+    const message = describeRuntimeProblem({
+        kind: "tooOld",
+        path: "broken.exe",
+        fromSetting: false,
+    });
+    assert.match(message, /broken\.exe, but it did not report its version/);
+});
+
 test("when no covdbg is found at all the runtime is missing", async () => {
     const state = await pickRuntime([candidate("path", undefined)], probe);
     assert.deepEqual(state, { kind: "missing" });
 });
 
 test(
-    "overlapping resolutions share one, so the bundled copy is expanded only once",
-    { skip: process.platform !== "win32" && "covdbg runs only on Windows" },
+    "overlapping calls share one expansion of the bundled archive",
+    { skip: process.platform !== "win32" && "the archive is expanded with PowerShell" },
     async () => {
-        // An empty covdbg.exe does not answer --version, so this settles on the setting and never
-        // reaches PATH or the bundled copy of whoever runs the test.
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "covdbg-resolver-"));
-        const exePath = path.join(dir, "covdbg.exe");
-        fs.writeFileSync(exePath, "");
+        const portableDir = path.join(dir, "extension", "assets", "portable");
+        fs.mkdirSync(portableDir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "covdbg.exe"), "");
+        execFileSync("powershell.exe", [
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            `Compress-Archive -LiteralPath '${path.join(dir, "covdbg.exe")}' -DestinationPath '${path.join(portableDir, "covdbg-portable.zip")}'`,
+        ]);
+        const bundledContext = {
+            extensionUri: { fsPath: path.join(dir, "extension") },
+        } as unknown as vscode.ExtensionContext;
+        const settings = { ...settingsWith(), portableCachePath: path.join(dir, "cache") };
         try {
-            const settings = settingsWith(exePath);
-            const first = resolveCovdbgRuntime(context, settings, dir);
-            const second = resolveCovdbgRuntime(context, settings, dir);
+            const first = resolveBundledPortable(bundledContext, settings);
+            const second = resolveBundledPortable(bundledContext, settings);
             assert.equal(first, second);
-            assert.deepEqual(await first, {
-                kind: "tooOld",
-                path: exePath,
-                version: undefined,
-                fromSetting: true,
-            });
-            const later = resolveCovdbgRuntime(context, settings, dir);
-            assert.notEqual(later, first);
-            await later;
+            assert.equal(await first, path.join(dir, "cache", "bundled", "covdbg.exe"));
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
         }

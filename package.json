@@ -223,7 +223,7 @@
                 "covdbg.executablePath": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg is resolved from bundled portable first, then PATH/known install paths/cache.",
+                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg 1.3.0 or newer is looked for on PATH, then in the known install folders, then the bundled portable copy.",
                     "scope": "resource",
                     "order": 3
                 },

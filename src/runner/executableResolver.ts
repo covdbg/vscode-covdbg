@@ -24,14 +24,10 @@ export interface RuntimeCandidate {
     locate: () => Promise<string | undefined>;
 }
 
-const pendingResolutions = new Map<string, Promise<RuntimeState>>();
+/** Bundled expansions in progress, keyed by the folder they expand into. */
+const pendingBundledExpansions = new Map<string, Promise<string | undefined>>();
 
-/**
- * The covdbg to run, or why there is none.
- *
- * Calls that overlap share one resolution, so two first runs never expand the bundled archive
- * into the same folder at the same time.
- */
+/** The covdbg to run, or why there is none. */
 export function resolveCovdbgRuntime(
     context: vscode.ExtensionContext,
     settings: RunnerSettings,
@@ -46,16 +42,7 @@ export function resolveCovdbgRuntime(
         return Promise.resolve({ kind: "unsupported", reason });
     }
 
-    const key = [workspaceRoot, settings.executablePath, settings.portableCachePath].join("|");
-    let pending = pendingResolutions.get(key);
-    if (!pending) {
-        pending = pickRuntime(
-            getRuntimeCandidates(context, settings, workspaceRoot),
-            probeCovdbgVersion,
-        ).finally(() => pendingResolutions.delete(key));
-        pendingResolutions.set(key, pending);
-    }
-    return pending;
+    return pickRuntime(getRuntimeCandidates(context, settings, workspaceRoot), probeCovdbgVersion);
 }
 
 /** Where covdbg is looked for, best first: the setting, PATH, installs, then the bundled copy. */
@@ -132,10 +119,15 @@ export function describeRuntimeProblem(state: Exclude<RuntimeState, { kind: "ok"
         case "missing":
             return `covdbg ${MIN_COVDBG_VERSION} or newer was not found. Install covdbg, or set covdbg.executablePath.`;
         case "tooOld": {
-            const found = state.version ? `covdbg ${state.version}` : state.path;
+            if (!state.version) {
+                // It did not answer `--version`: broken or slow to start, not necessarily old.
+                return state.fromSetting
+                    ? `covdbg.executablePath points at ${state.path}, which did not report its version. Check that file, or point the setting at covdbg ${MIN_COVDBG_VERSION} or newer.`
+                    : `Found ${state.path}, but it did not report its version. Check that file, or install covdbg ${MIN_COVDBG_VERSION} or newer, or set covdbg.executablePath.`;
+            }
             return state.fromSetting
-                ? `covdbg.executablePath points at ${found}, but covdbg ${MIN_COVDBG_VERSION} or newer is needed.`
-                : `Found ${found}, but covdbg ${MIN_COVDBG_VERSION} or newer is needed. Install a newer covdbg, or set covdbg.executablePath.`;
+                ? `covdbg.executablePath points at covdbg ${state.version}, but covdbg ${MIN_COVDBG_VERSION} or newer is needed.`
+                : `Found covdbg ${state.version}, but covdbg ${MIN_COVDBG_VERSION} or newer is needed. Install a newer covdbg, or set covdbg.executablePath.`;
         }
         case "unsupported":
             return {
@@ -178,9 +170,30 @@ async function findCachedPortableExecutable(portableRoot: string): Promise<strin
     return await findFileRecursively(portableRoot, COVDBG_EXE, 4);
 }
 
-async function resolveBundledPortable(
+/**
+ * The bundled covdbg, expanded into the portable cache when it ships as an archive.
+ *
+ * Calls that overlap on one cache folder share one expansion, so two first runs never expand the
+ * archive into the same folder at the same time.
+ */
+export function resolveBundledPortable(
     context: vscode.ExtensionContext,
     settings: RunnerSettings,
+): Promise<string | undefined> {
+    const extractPath = path.join(getPortableRoot(context, settings), "bundled");
+    let pending = pendingBundledExpansions.get(extractPath);
+    if (!pending) {
+        pending = expandBundledPortable(context, extractPath).finally(() =>
+            pendingBundledExpansions.delete(extractPath),
+        );
+        pendingBundledExpansions.set(extractPath, pending);
+    }
+    return pending;
+}
+
+async function expandBundledPortable(
+    context: vscode.ExtensionContext,
+    extractPath: string,
 ): Promise<string | undefined> {
     const bundledRoot = path.join(context.extensionUri.fsPath, "assets", "portable");
     const bundledExe = await findFileRecursively(bundledRoot, COVDBG_EXE, 4);
@@ -198,8 +211,6 @@ async function resolveBundledPortable(
         size: bundledZipStats.size,
         mtimeMs: bundledZipStats.mtimeMs,
     };
-    const cacheRoot = getPortableRoot(context, settings);
-    const extractPath = path.join(cacheRoot, "bundled");
     const statePath = path.join(extractPath, BUNDLED_PORTABLE_STATE);
     const cachedBundledExe = await findFileRecursively(extractPath, COVDBG_EXE, 5);
     const cachedStamp = await readPortableArchiveStamp(statePath);
