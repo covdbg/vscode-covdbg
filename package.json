@@ -139,6 +139,16 @@
                 "command": "covdbg.signOut",
                 "title": "Sign Out",
                 "category": "covdbg"
+            },
+            {
+                "command": "covdbg.copySignInCode",
+                "title": "Copy Sign-In Code",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.cancelSignIn",
+                "title": "Cancel Sign-In",
+                "category": "covdbg"
             }
         ],
         "viewsContainers": {
@@ -166,6 +176,16 @@
             }
         ],
         "menus": {
+            "commandPalette": [
+                {
+                    "command": "covdbg.copySignInCode",
+                    "when": "covdbg.auth == signingIn"
+                },
+                {
+                    "command": "covdbg.cancelSignIn",
+                    "when": "covdbg.auth == signingIn"
+                }
+            ],
             "view/title": [
                 {
                     "command": "covdbg.runCoverage",

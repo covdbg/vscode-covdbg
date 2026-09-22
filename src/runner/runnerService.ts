@@ -6,6 +6,8 @@ import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
 import { describeRuntimeProblem, resolveCovdbgRuntime } from "./executableResolver";
 import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
+import { LineBuffer } from "./lineBuffer";
+import { RunNotice, classifyRunLine } from "./runOutcome";
 import type { RunnerSettings } from "./runnerTypes";
 import {
     getPreferredWorkspaceFolder,
@@ -20,8 +22,8 @@ export interface RunResult {
     outputPath?: string;
     configuredOutputPath?: string;
     targetExecutablePath?: string;
-    /** Why the license service refused the run, when it did. */
-    refusal?: string;
+    /** What covdbg said about the run's license: a refusal, an ended sign-in, a lock, gating. */
+    notices: RunNotice[];
 }
 
 export async function runCoverageForTarget(
@@ -70,7 +72,7 @@ async function runCoverageInternal(
                 );
             }
         });
-        return { success: false };
+        return { success: false, notices: [] };
     }
 
     const workspaceFolder =
@@ -80,7 +82,7 @@ async function runCoverageInternal(
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
         vscode.window.showErrorMessage("covdbg: Open a workspace folder before running coverage.");
-        return { success: false };
+        return { success: false, notices: [] };
     }
 
     const effectiveTargetExecutablePath = await resolveOrSelectTargetExecutable(
@@ -92,7 +94,7 @@ async function runCoverageInternal(
         vscode.window.showErrorMessage(
             "covdbg: No runnable test executable found. Refresh test discovery or build a test binary first.",
         );
-        return { success: false };
+        return { success: false, notices: [] };
     }
 
     const paths = resolveRunnerPaths(settings, workspaceRoot);
@@ -110,7 +112,7 @@ async function runCoverageInternal(
         vscode.window.showErrorMessage(
             `covdbg: Config file not found: ${paths.configPath ?? explicitConfig}`,
         );
-        return { success: false };
+        return { success: false, notices: [] };
     }
     if (!effectiveConfigPath) {
         output.log(
@@ -121,7 +123,7 @@ async function runCoverageInternal(
     const resolvedExe = await resolveCovdbgRuntime(context, settings, workspaceRoot);
     if (resolvedExe.kind !== "ok") {
         vscode.window.showErrorMessage(describeRuntimeProblem(resolvedExe));
-        return { success: false };
+        return { success: false, notices: [] };
     }
 
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
@@ -132,7 +134,7 @@ async function runCoverageInternal(
 
     // The run carries no licence of its own: covdbg decides it from the machine's sign-in
     // (`covdbg login`) or from COVDBG_PROJECT_TOKEN in the environment, and says so when neither is
-    // there. The refusal is picked out of stderr so the editor can offer the fix.
+    // there. Its notices about the license are read from whole lines, so the editor can offer the fix.
     const args = buildCovdbgArguments(
         {
             ...paths,
@@ -146,7 +148,15 @@ async function runCoverageInternal(
         ...process.env,
         ...settings.env,
     };
-    let refusal: string | undefined;
+    const notices: RunNotice[] = [];
+    const readLines = (stream: "stdout" | "stderr") =>
+        new LineBuffer((line) => {
+            output.log(line);
+            const notice = classifyRunLine(stream, line);
+            if (notice) {
+                notices.push(notice);
+            }
+        });
 
     onStart?.();
     const executeRun = () =>
@@ -157,17 +167,17 @@ async function runCoverageInternal(
                 windowsHide: true,
             });
 
-            child.stdout.on("data", (chunk) => output.log(String(chunk).trimEnd()));
-            child.stderr.on("data", (chunk) => {
-                const text = String(chunk).trimEnd();
-                output.log(text);
-                refusal ??= /This run is not licensed: (.+)$/m.exec(text)?.[1].trim();
-            });
+            const stdout = readLines("stdout");
+            const stderr = readLines("stderr");
+            child.stdout.on("data", (chunk) => stdout.push(chunk));
+            child.stderr.on("data", (chunk) => stderr.push(chunk));
             child.on("error", (error) => {
                 output.logError(`Failed to start covdbg: ${error.message}`);
                 resolve(false);
             });
             child.on("close", (code) => {
+                stdout.flush();
+                stderr.flush();
                 const ok = code === 0;
                 if (!ok) {
                     const failureMessage = getCovdbgRunFailureMessage(code);
@@ -200,6 +210,7 @@ async function runCoverageInternal(
             outputPath,
             configuredOutputPath: paths.configuredOutputPath,
             targetExecutablePath: effectiveTargetExecutablePath,
+            notices,
         };
     }
     return {
@@ -207,7 +218,7 @@ async function runCoverageInternal(
         outputPath,
         configuredOutputPath: paths.configuredOutputPath,
         targetExecutablePath: effectiveTargetExecutablePath,
-        refusal,
+        notices,
     };
 }
 

@@ -53,15 +53,25 @@ interface DashboardCommandMessage {
 export class CovdbgHomeDashboardView implements vscode.WebviewViewProvider, vscode.Disposable {
     private view: vscode.WebviewView | undefined;
     private data: HomeDashboardData = createPlaceholderData();
+    private badge: vscode.ViewBadge | undefined;
     private readonly disposables: vscode.Disposable[] = [];
+
+    constructor(private readonly onDidBecomeVisible: () => void) {}
 
     resolveWebviewView(view: vscode.WebviewView): void {
         this.view = view;
         view.webview.options = { enableScripts: true };
+        view.badge = this.badge;
+        this.onDidBecomeVisible();
         this.disposables.push(
             view.onDidDispose(() => {
                 if (this.view === view) {
                     this.view = undefined;
+                }
+            }),
+            view.onDidChangeVisibility(() => {
+                if (view.visible) {
+                    this.onDidBecomeVisible();
                 }
             }),
             view.webview.onDidReceiveMessage((msg: DashboardCommandMessage) =>
@@ -69,6 +79,13 @@ export class CovdbgHomeDashboardView implements vscode.WebviewViewProvider, vsco
             ),
         );
         this.render();
+    }
+
+    setBadge(badge: vscode.ViewBadge | undefined): void {
+        this.badge = badge;
+        if (this.view) {
+            this.view.badge = badge;
+        }
     }
 
     update(data: HomeDashboardData): void {

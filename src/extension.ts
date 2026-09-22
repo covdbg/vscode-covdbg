@@ -22,6 +22,9 @@ import {
 } from "./views/menuPopup";
 import { CovdbgSidebarController, SidebarCoverageState } from "./views/sidebar";
 import { mergeCoverageFiles, runCoverageForTarget } from "./runner/runnerService";
+import { AuthService } from "./auth/authService";
+import { resolveCovdbgRuntime } from "./runner/executableResolver";
+import { APP_URL, NoticeAction, PROFILE_URL, RunNotice, pickBatchToast } from "./runner/runOutcome";
 import {
     listDiscoveredExecutablePaths,
     resolveEffectiveConfigPath,
@@ -47,6 +50,7 @@ let decorator: CoverageDecorator;
 let statusBar: StatusBar;
 let report: CoverageReport;
 let sidebar: CovdbgSidebarController;
+let auth: AuthService;
 /** The extension's install URI, used to resolve bundled assets. */
 let extensionUri: vscode.Uri;
 
@@ -119,7 +123,20 @@ export function activate(context: vscode.ExtensionContext) {
     decorator = new CoverageDecorator();
     statusBar = new StatusBar();
     report = new CoverageReport();
-    sidebar = new CovdbgSidebarController(context, {
+    auth = new AuthService({
+        // Sign-in needs covdbg, not a workspace folder: with none open, relative settings resolve
+        // against the process directory and are unlikely to matter.
+        resolveRuntime: () => {
+            const folder = getPreferredWorkspaceFolder();
+            return resolveCovdbgRuntime(
+                context,
+                readRunnerSettings(folder?.uri),
+                folder?.uri.fsPath ?? getWorkspaceRoot() ?? process.cwd(),
+            );
+        },
+        readSettingsEnv: () => readRunnerSettings(getPreferredWorkspaceFolder()?.uri).env,
+    });
+    sidebar = new CovdbgSidebarController(context, auth, {
         createConfig: () => createConfigCommand(context),
         createConfigInWorkspace: (workspaceFolder) =>
             createConfigInWorkspace(context, workspaceFolder),
@@ -143,8 +160,14 @@ export function activate(context: vscode.ExtensionContext) {
     statusBar.setRenderMode(initialMode);
 
     context.subscriptions.push(
+        auth,
+        auth.onDidChange(() => statusBar.setAuth(auth.state, auth.lastRunNotice)),
         sidebar,
         ...sidebar.getDisposables(),
+        vscode.commands.registerCommand("covdbg.signIn", () => auth.signIn()),
+        vscode.commands.registerCommand("covdbg.signOut", () => auth.signOut()),
+        vscode.commands.registerCommand("covdbg.cancelSignIn", () => auth.cancelSignIn()),
+        vscode.commands.registerCommand("covdbg.copySignInCode", () => auth.copySignInCode()),
         vscode.commands.registerCommand("covdbg.showMenu", () => showMenu(context)),
         vscode.commands.registerCommand("covdbg.toggleCoverage", () => toggleVisibility()),
         vscode.commands.registerCommand("covdbg.showReport", showCoverageReportCommand),
@@ -211,13 +234,22 @@ export function activate(context: vscode.ExtensionContext) {
             }
             if (
                 e.affectsConfiguration("covdbg.executablePath") ||
+                e.affectsConfiguration("covdbg.portableCachePath") ||
+                e.affectsConfiguration("covdbg.runner.env")
+            ) {
+                void auth.refresh();
+            }
+            if (
+                e.affectsConfiguration("covdbg.executablePath") ||
                 e.affectsConfiguration("covdbg.portableCachePath")
             ) {
                 await sidebar.refreshRuntimeSummary();
             }
             sidebar.scheduleRefresh();
         }),
+        vscode.workspace.onDidGrantWorkspaceTrust(() => void auth.refresh()),
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            void auth.refresh();
             void refreshTestControllerItems();
             ensureCovdbDiscoveryWatchers(context);
             void discoverAndLoadIndex(context);
@@ -246,7 +278,7 @@ export function activate(context: vscode.ExtensionContext) {
     initializeTestingController(context);
     statusBar.setIdle();
     sidebar.scheduleRefresh();
-    void sidebar.refreshSignIn();
+    void auth.refresh();
     void sidebar.refreshRuntimeSummary();
     ensureCovdbDiscoveryWatchers(context);
     void discoverAndLoadIndex(context);
@@ -944,17 +976,32 @@ async function runCoverageCommand(context: vscode.ExtensionContext): Promise<voi
     }
 }
 
-/** A refused run names its reason; the fix for the usual one is a sign-in. */
-function offerFixForRefusal(refusal: string): void {
-    const action = /sign/i.test(refusal) ? "Sign In" : "Open app.covdbg.com";
+const NOTICE_ACTION_LABELS: Record<NoticeAction, string> = {
+    signIn: "Sign in and run again",
+    openProfile: "Open profile",
+    openApp: "Open app.covdbg.com",
+};
+
+/** The one toast a batch may show: a refusal, with its fix. The sign-in fix runs the batch again. */
+function showRefusal(notice: RunNotice, runAgain: () => void): void {
+    const label = notice.action ? NOTICE_ACTION_LABELS[notice.action] : undefined;
     void vscode.window
-        .showWarningMessage(`covdbg: This run is not licensed: ${refusal}`, action)
-        .then((chosen) => {
-            if (chosen === "Sign In") {
-                void vscode.commands.executeCommand("covdbg.signIn");
-            } else if (chosen) {
-                void vscode.env.openExternal(vscode.Uri.parse("https://app.covdbg.com"));
+        .showWarningMessage(
+            `covdbg: This run is not licensed: ${notice.message}`,
+            ...(label ? [label] : []),
+        )
+        .then(async (chosen) => {
+            if (!chosen) {
+                return;
             }
+            if (notice.action === "signIn") {
+                if (await auth.signIn()) {
+                    runAgain();
+                }
+                return;
+            }
+            const url = notice.action === "openProfile" ? PROFILE_URL : APP_URL;
+            void vscode.env.openExternal(vscode.Uri.parse(url));
         });
 }
 
@@ -1017,6 +1064,7 @@ async function executeCoverageRun(
     configuredOutputPath?: string;
     coverageLoaded: boolean;
     coverageSummary?: CoverageSummary;
+    notices: RunNotice[];
 }> {
     statusBar.setRunning();
     const result = await runCoverageForTarget(
@@ -1026,10 +1074,6 @@ async function executeCoverageRun(
         undefined,
         (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
     );
-
-    if (result.refusal) {
-        offerFixForRefusal(result.refusal);
-    }
 
     let coverageLoaded = false;
     let coverageSummary: CoverageSummary | undefined;
@@ -1054,6 +1098,7 @@ async function executeCoverageRun(
         configuredOutputPath: result.configuredOutputPath,
         coverageLoaded,
         coverageSummary,
+        notices: result.notices,
     };
 }
 
@@ -1737,10 +1782,19 @@ async function runCoverageFromTestRequest(
 
         const successfulOutputPaths: string[] = [];
         const generatedOutputPaths: string[] = [];
+        const notices: RunNotice[] = [];
         const batchMode = targets.length > 1;
         let requiresFinalization = batchMode;
 
         try {
+            // Signed out, this signs in first and the same run goes on; cancelled, it is skipped.
+            const readiness = await auth.ensureReadyToRun();
+            if (!readiness.run) {
+                run.appendOutput(`${readiness.reason}\r\n`);
+                targets.forEach((item) => run.skipped(item));
+                return;
+            }
+
             for (const item of targets) {
                 if (token.isCancellationRequested) {
                     run.skipped(item);
@@ -1765,14 +1819,32 @@ async function runCoverageFromTestRequest(
                 if (execution.outputPath) {
                     generatedOutputPaths.push(execution.outputPath);
                 }
+                notices.push(...execution.notices);
+                const refusal = execution.notices.find((notice) => notice.kind === "refused");
                 if (execution.success) {
                     if (execution.outputPath) {
                         successfulOutputPaths.push(execution.outputPath);
                     }
                     run.passed(item);
+                } else if (refusal) {
+                    run.errored(
+                        item,
+                        new vscode.TestMessage(`This run is not licensed: ${refusal.message}`),
+                    );
                 } else {
                     run.failed(item, new vscode.TestMessage("Coverage run failed"));
                 }
+            }
+
+            auth.applyRunNotices(notices);
+            const toast = pickBatchToast(notices);
+            if (toast) {
+                showRefusal(toast, () => {
+                    const cancellation = new vscode.CancellationTokenSource();
+                    void runCoverageFromTestRequest(request, cancellation.token, context).finally(
+                        () => cancellation.dispose(),
+                    );
+                });
             }
 
             if (requiresFinalization) {
