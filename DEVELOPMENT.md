@@ -149,7 +149,7 @@ npm run build
 npm run release:check -- vX.Y.Z
 ```
 
-It fails unless the bundled covdbg reports `covdbgBundledVersion` from `package.json` and the tag matches the package version.
+It fails unless the VS Code engine matches `@types/vscode`, the bundled covdbg reports `covdbgBundledVersion` from `package.json`, the tag matches the package version, and `CHANGELOG.md` has a dated section for that version.
 
 ## Notes
 
