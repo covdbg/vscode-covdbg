@@ -136,6 +136,13 @@ export function activate(context: vscode.ExtensionContext) {
         },
         readSettingsEnv: () => readRunnerSettings(getPreferredWorkspaceFolder()?.uri).env,
     });
+    // Every change to trust, folders, covdbg or covdbg.runner.env refreshes auth, which is when
+    // the server definition may have changed too.
+    const mcpProvider = new CovdbgMcpServerDefinitionProvider({
+        resolveRuntime: (settings, workspaceRoot) =>
+            resolveCovdbgRuntime(context, settings, workspaceRoot),
+        runtimeProblem: () => (auth.state.kind === "unavailable" ? auth.state.runtime : undefined),
+    });
     sidebar = new CovdbgSidebarController(context, auth, {
         createConfig: () => createConfigCommand(context),
         createConfigInWorkspace: (workspaceFolder) =>
@@ -162,6 +169,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         auth,
         auth.onDidChange(() => statusBar.setAuth(auth.state, auth.lastRunNotice)),
+        mcpProvider,
+        auth.onDidChange(() => mcpProvider.refresh()),
         sidebar,
         ...sidebar.getDisposables(),
         vscode.commands.registerCommand("covdbg.signIn", () => auth.signIn()),
@@ -184,10 +193,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand("covdbg.refreshTestBinaries", () =>
             refreshTestControllerItems(),
         ),
-        vscode.lm.registerMcpServerDefinitionProvider(
-            COVDBG_MCP_PROVIDER_ID,
-            new CovdbgMcpServerDefinitionProvider(context),
-        ),
+        vscode.lm.registerMcpServerDefinitionProvider(COVDBG_MCP_PROVIDER_ID, mcpProvider),
     );
 
     // Decorate when switching editors

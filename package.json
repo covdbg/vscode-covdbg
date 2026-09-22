@@ -34,7 +34,8 @@
     "activationEvents": [
         "onStartupFinished",
         "workspaceContains:**/.covdbg.yaml",
-        "workspaceContains:**/*.covdb"
+        "workspaceContains:**/*.covdb",
+        "onMcpCollection:covdbg.mcp"
     ],
     "main": "./out/extension.js",
     "covdbgBundledVersion": "1.3.0",

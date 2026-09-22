@@ -14,14 +14,39 @@ class EventEmitter<T> {
     }
 }
 
+class McpStdioServerDefinition {
+    cwd: unknown;
+    version: string | undefined;
+    constructor(
+        public label: string,
+        public command: string,
+        public args: string[] = [],
+        public env: Record<string, string> = {},
+    ) {}
+}
+
 /**
  * Just enough of the vscode API for modules that read it when called. Import this before the
  * module under test: `vscode` exists only inside the editor, not under node:test.
  */
 export const vscodeStub = {
     EventEmitter,
-    Uri: { parse: (value: string) => ({ toString: () => value }) },
-    workspace: { isTrusted: true },
+    McpStdioServerDefinition,
+    Uri: {
+        parse: (value: string) => ({ toString: () => value }),
+        file: (fsPath: string) => ({ fsPath, toString: () => fsPath }),
+    },
+    workspace: {
+        isTrusted: true,
+        workspaceFolders: undefined as { uri: { fsPath: string } }[] | undefined,
+        getWorkspaceFolder: () => undefined,
+        /** The `covdbg.*` settings, by key without the prefix. */
+        settings: {} as Record<string, unknown>,
+        getConfiguration: () => ({
+            get: <T>(key: string, fallback: T): T =>
+                (vscodeStub.workspace.settings[key] as T | undefined) ?? fallback,
+        }),
+    },
     env: {
         remoteName: undefined as string | undefined,
         /** Every URL opened, as text. */
@@ -47,6 +72,7 @@ export const vscodeStub = {
         },
     },
     window: {
+        activeTextEditor: undefined,
         createOutputChannel: () => ({ appendLine: () => undefined }),
         /** Every toast shown, as its message. */
         toasts: [] as string[],
