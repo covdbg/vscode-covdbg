@@ -91,24 +91,36 @@ Chat-capable tooling can then drive coverage end to end:
   of any one of them with their surrounding context.
 - Query a coverage database directly with read-only SQL, and merge several databases into one.
 
-A run that names no output path writes to the location `covdbg.runner.outputPath` configures
-(`.covdbg/coverage.covdb` by default), so the result loads into the editor on its own - the
-gutter decorations and the sidebar update without a command.
+A run that names no output path writes where `covdbg.runner.outputPath` points, or to covdbg's
+own default of `.covdbg/coverage.covdb` under the working directory, so the result loads into the
+editor on its own - the gutter decorations and the sidebar update without a command.
 
 This supports a tight loop: inspect uncovered code, make a fix, rebuild, rerun the real tests
 with coverage, and query the updated result again.
 
-Licensing follows the same rules as a run started from the UI. If `COVDBG_LICENSE` or
-`COVDBG_LICENSE_FILE` is set for the window, covdbg uses it; otherwise a plugin demo licence is
-requested.
+A run the server starts is licensed like one started from the UI: by the machine's sign-in, or by
+a project token in the run environment.
 
 ## Quick Start
 
 1. Install the extension on Windows and open your C++ workspace.
 2. Open the covdbg sidebar to verify runtime, config, and discovered targets.
-3. Add or generate `.covdbg.yaml` so the report matches your project boundaries.
-4. Run coverage on a discovered executable.
-5. Review inline highlights or open the report for deeper inspection.
+3. Sign in once with **covdbg: Sign In**: a code opens in your browser, and confirming it there
+   signs this machine in. Signing in is free; it is what tells the license service who is asking.
+4. Add or generate `.covdbg.yaml` so the report matches your project boundaries.
+5. Run coverage on a discovered executable.
+6. Review inline highlights or open the report for deeper inspection.
+
+## Licensing
+
+Every run is decided by the license service for the person signed in on the machine, with the same
+rules as `covdbg` on the command line: a seat in any team covers every repository, and without one,
+personal use covers public repositories without limit and one private repository at a time. Seats,
+teams and your personal lock are managed at [app.covdbg.com](https://app.covdbg.com).
+
+Where runs should carry a team's project token instead, as in CI, put `COVDBG_PROJECT_TOKEN` into
+`covdbg.runner.env`. A run with neither a sign-in nor a token is refused, and the editor offers the
+sign-in.
 
 If you already have a `.covdb` result, load it and start browsing immediately.
 

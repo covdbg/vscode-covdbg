@@ -32,7 +32,6 @@ import {
     COVDBG_MCP_PROVIDER_ID,
     CovdbgMcpServerDefinitionProvider,
 } from "./mcp/serverDefinitionProvider";
-import { LicenseStatusSnapshot } from "./runner/licenseStatus";
 import {
     getPreferredWorkspaceFolder,
     resolvePathFromWorkspace,
@@ -134,7 +133,6 @@ export function activate(context: vscode.ExtensionContext) {
         getWorkspaceFolderForPath,
         loadIndex,
         refreshTestControllerItems,
-        setLicenseStatus: (licenseStatus) => statusBar.setLicenseStatus(licenseStatus),
     });
 
     // Restore persisted render mode (workspace state takes priority, then setting)
@@ -219,12 +217,6 @@ export function activate(context: vscode.ExtensionContext) {
             ) {
                 await sidebar.refreshRuntimeSummary();
             }
-            if (
-                e.affectsConfiguration("covdbg.runner.appDataPath") ||
-                e.affectsConfiguration("covdbg.runner.env")
-            ) {
-                await sidebar.refreshLicenseStatusFromDisk();
-            }
             sidebar.scheduleRefresh();
         }),
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -256,7 +248,7 @@ export function activate(context: vscode.ExtensionContext) {
     initializeTestingController(context);
     statusBar.setIdle();
     sidebar.scheduleRefresh();
-    void sidebar.refreshLicenseStatusFromDisk();
+    void sidebar.refreshSignIn();
     void sidebar.refreshRuntimeSummary();
     ensureCovdbDiscoveryWatchers(context);
     void discoverAndLoadIndex(context);
@@ -954,34 +946,18 @@ async function runCoverageCommand(context: vscode.ExtensionContext): Promise<voi
     }
 }
 
-async function handleLicenseStatusUpdate(
-    context: vscode.ExtensionContext,
-    licenseStatus: LicenseStatusSnapshot | undefined,
-    runSucceeded: boolean,
-): Promise<void> {
-    sidebar.setLicenseStatus(licenseStatus);
-    if (!licenseStatus || licenseStatus.source !== "plugin-demo") {
-        return;
-    }
-
-    if (licenseStatus.status === "active" && licenseStatus.isFirstIssue) {
-        const noticeKey = "covdbg.demoNoticeShown";
-        if (!context.globalState.get<boolean>(noticeKey)) {
-            const daysRemaining = Math.max(0, licenseStatus.daysRemaining ?? 30);
-            await context.globalState.update(noticeKey, true);
-            void vscode.window.showInformationMessage(
-                `covdbg: The VS Code edition can be used free for 30 days. ${daysRemaining} day(s) remaining.`,
-            );
-        }
-        return;
-    }
-
-    if (!runSucceeded && licenseStatus.status === "trial-used") {
-        void vscode.window.showWarningMessage(
-            licenseStatus.message ||
-                "covdbg: The 30-day demo has already been used on this machine.",
-        );
-    }
+/** A refused run names its reason; the fix for the usual one is a sign-in. */
+function offerFixForRefusal(refusal: string): void {
+    const action = /sign/i.test(refusal) ? "Sign In" : "Open app.covdbg.com";
+    void vscode.window
+        .showWarningMessage(`covdbg: This run is not licensed: ${refusal}`, action)
+        .then((chosen) => {
+            if (chosen === "Sign In") {
+                void vscode.commands.executeCommand("covdbg.signIn");
+            } else if (chosen) {
+                void vscode.env.openExternal(vscode.Uri.parse("https://app.covdbg.com"));
+            }
+        });
 }
 
 async function clearLastRunResultCommand(): Promise<void> {
@@ -1043,7 +1019,6 @@ async function executeCoverageRun(
     configuredOutputPath?: string;
     coverageLoaded: boolean;
     coverageSummary?: CoverageSummary;
-    licenseStatus?: LicenseStatusSnapshot;
 }> {
     statusBar.setRunning();
     const result = await runCoverageForTarget(
@@ -1054,7 +1029,9 @@ async function executeCoverageRun(
         (ok) => (ok ? statusBar.setRunSucceeded() : statusBar.setRunFailed()),
     );
 
-    await handleLicenseStatusUpdate(context, result.licenseStatus, result.success);
+    if (result.refusal) {
+        offerFixForRefusal(result.refusal);
+    }
 
     let coverageLoaded = false;
     let coverageSummary: CoverageSummary | undefined;
@@ -1079,7 +1056,6 @@ async function executeCoverageRun(
         configuredOutputPath: result.configuredOutputPath,
         coverageLoaded,
         coverageSummary,
-        licenseStatus: result.licenseStatus,
     };
 }
 

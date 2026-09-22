@@ -5,7 +5,7 @@ import { deriveCoverageBatchOutputPath } from "./outputPaths";
 import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 
 const DEFAULT_BINARY_DISCOVERY_PATTERN = "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*";
-const DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN = "";
+const DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN = "**/{Release,RelWithDebInfo}/**";
 
 export function readRunnerSettings(scope?: vscode.ConfigurationScope): RunnerSettings {
     const config = vscode.workspace.getConfiguration("covdbg", scope);
@@ -23,11 +23,9 @@ export function readRunnerSettings(scope?: vscode.ConfigurationScope): RunnerSet
                 DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,
             )
             .trim(),
-        licenseServerUrl: config.get<string>("runner.licenseServerUrl", "").trim(),
         targetArgs: ensureArrayOfStrings(config.get("runner.targetArgs", [])),
         configPath: config.get<string>("runner.configPath", "").trim(),
-        outputPath: config.get<string>("runner.outputPath", ".covdbg/coverage.covdb").trim(),
-        appDataPath: config.get<string>("runner.appDataPath", ".covdbg").trim() || ".covdbg",
+        outputPath: config.get<string>("runner.outputPath", "").trim(),
         workingDirectory: config.get<string>("runner.workingDirectory", "").trim(),
         env: sanitizeEnv(env),
     };
@@ -80,14 +78,15 @@ export function resolveRunnerPaths(
     settings: RunnerSettings,
     workspaceRoot: string,
 ): RunnerResolvedPaths {
-    const configuredOutputPath = resolvePathFromWorkspace(
-        settings.outputPath || ".covdbg/coverage.covdb",
-        workspaceRoot,
-    );
-    const appDataPath = resolvePathFromWorkspace(settings.appDataPath || ".covdbg", workspaceRoot);
     const workingDirectory = settings.workingDirectory
         ? resolvePathFromWorkspace(settings.workingDirectory, workspaceRoot)
         : workspaceRoot;
+    const appDataPath = path.join(workingDirectory, ".covdbg");
+    // covdbg's own default, spelled out here because the editor has to know where the result lands
+    // to load it: .covdbg/coverage.covdb under the directory the run starts from.
+    const configuredOutputPath = settings.outputPath
+        ? resolvePathFromWorkspace(settings.outputPath, workspaceRoot)
+        : path.join(appDataPath, "coverage.covdb");
 
     const configPath = settings.configPath
         ? resolvePathFromWorkspace(settings.configPath, workspaceRoot)

@@ -3,11 +3,9 @@ export interface RunnerSettings {
     portableCachePath: string;
     binaryDiscoveryPattern: string;
     binaryDiscoveryExcludePattern: string;
-    licenseServerUrl: string;
     targetArgs: string[];
     configPath: string;
     outputPath: string;
-    appDataPath: string;
     workingDirectory: string;
     env: Record<string, string>;
 }
@@ -17,6 +15,7 @@ export interface RunnerResolvedPaths {
     configPath?: string;
     configuredOutputPath: string;
     outputPath: string;
+    /** Where covdbg keeps its logs: `.covdbg` under the directory it is started from. */
     appDataPath: string;
     workingDirectory: string;
 }

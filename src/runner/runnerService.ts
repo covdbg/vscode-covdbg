@@ -4,9 +4,7 @@ import { spawn } from "child_process";
 import * as vscode from "vscode";
 import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
-import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
 import { resolveCovdbgExecutable } from "./executableResolver";
-import { buildLicenseRunConfig } from "./licenseRunConfig";
 import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
 import type { RunnerSettings } from "./runnerTypes";
 import {
@@ -23,7 +21,8 @@ export interface RunResult {
     outputPath?: string;
     configuredOutputPath?: string;
     targetExecutablePath?: string;
-    licenseStatus?: LicenseStatusSnapshot;
+    /** Why the license service refused the run, when it did. */
+    refusal?: string;
 }
 
 export async function runCoverageForTarget(
@@ -129,20 +128,14 @@ async function runCoverageInternal(
     }
 
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.mkdir(paths.appDataPath, { recursive: true });
     output.show();
     const version = await getCovdbgVersion(resolvedExe.path);
     const versionInfo = version ? ` (${version})` : "";
     output.log(`Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`);
 
-    const extensionVersion = vscode.extensions.getExtension("covdbg.covdbg")?.packageJSON?.version;
-    const licenseRunConfig = buildLicenseRunConfig(
-        settings,
-        typeof extensionVersion === "string" ? extensionVersion : undefined,
-    );
-    if (licenseRunConfig.requestsDemoLicense) {
-        output.log("covdbg: Auto-requesting plugin demo license for VS Code run.");
-    }
+    // The run carries no licence of its own: covdbg decides it from the machine's sign-in
+    // (`covdbg login`) or from COVDBG_PROJECT_TOKEN in the environment, and says so when neither is
+    // there. The refusal is picked out of stderr so the editor can offer the fix.
     const args = buildCovdbgArguments(
         {
             ...paths,
@@ -151,12 +144,12 @@ async function runCoverageInternal(
         },
         effectiveTargetExecutablePath,
         settings.targetArgs,
-        licenseRunConfig.args,
     );
     const env = {
         ...process.env,
-        ...licenseRunConfig.env,
+        ...settings.env,
     };
+    let refusal: string | undefined;
 
     onStart?.();
     const executeRun = () =>
@@ -168,7 +161,11 @@ async function runCoverageInternal(
             });
 
             child.stdout.on("data", (chunk) => output.log(String(chunk).trimEnd()));
-            child.stderr.on("data", (chunk) => output.log(String(chunk).trimEnd()));
+            child.stderr.on("data", (chunk) => {
+                const text = String(chunk).trimEnd();
+                output.log(text);
+                refusal ??= /This run is not licensed: (.+)$/m.exec(text)?.[1].trim();
+            });
             child.on("error", (error) => {
                 output.logError(`Failed to start covdbg: ${error.message}`);
                 resolve(false);
@@ -198,7 +195,6 @@ async function runCoverageInternal(
               async () => executeRun(),
           )
         : await executeRun();
-    const licenseStatus = await readLicenseStatus(paths.appDataPath);
     onFinish?.(success);
 
     if (success) {
@@ -207,7 +203,6 @@ async function runCoverageInternal(
             outputPath,
             configuredOutputPath: paths.configuredOutputPath,
             targetExecutablePath: effectiveTargetExecutablePath,
-            licenseStatus,
         };
     }
     return {
@@ -215,7 +210,7 @@ async function runCoverageInternal(
         outputPath,
         configuredOutputPath: paths.configuredOutputPath,
         targetExecutablePath: effectiveTargetExecutablePath,
-        licenseStatus,
+        refusal,
     };
 }
 
