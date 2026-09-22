@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { realpathSync } from "fs";
 import { CoverageDecorator } from "./coverage/coverageDecorator";
 import { RenderMode } from "./types";
 import { CovdbParser, CovdbFileSummary, type FileCoverage } from "./coverage/covdbParser";
@@ -1950,10 +1951,15 @@ function filterToWorkspaceFiles(
     files: Map<string, CovdbFileSummary>,
     workspaceFolder?: vscode.WorkspaceFolder,
 ): Map<string, CovdbFileSummary> {
-    const roots = workspaceFolder
-        ? [path.normalize(workspaceFolder.uri.fsPath).toLowerCase()]
-        : vscode.workspace.workspaceFolders?.map((f) => path.normalize(f.uri.fsPath).toLowerCase());
-    if (!roots || roots.length === 0) {
+    const folders = workspaceFolder ? [workspaceFolder] : (vscode.workspace.workspaceFolders ?? []);
+    // covdbg records long paths; a folder opened by its 8.3 name (C:\Users\SVENSC~1\...) is
+    // compared by its long name too.
+    const roots = folders.flatMap((folder) =>
+        [folder.uri.fsPath, longPath(folder.uri.fsPath)].map((root) =>
+            path.normalize(root).toLowerCase(),
+        ),
+    );
+    if (roots.length === 0) {
         return files; // no workspace open — keep everything
     }
     const filtered = new Map<string, CovdbFileSummary>();
@@ -1964,4 +1970,12 @@ function filterToWorkspaceFiles(
         }
     }
     return filtered;
+}
+
+function longPath(fsPath: string): string {
+    try {
+        return realpathSync.native(fsPath);
+    } catch {
+        return fsPath;
+    }
 }
