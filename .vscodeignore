@@ -17,4 +17,4 @@ tsconfig.tests.json
 **/*.ts
 !**/*.d.ts
 QUICKSTART.md
-
+gif/**
