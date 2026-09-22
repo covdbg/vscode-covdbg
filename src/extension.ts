@@ -66,6 +66,8 @@ let testingController: vscode.TestController | undefined;
 let testingRootItem: vscode.TestItem | undefined;
 /** Executable path lookup for file-less test items. */
 const testExecutablePaths: Map<string, string> = new Map();
+/** Set once the first discovery has ended, so the Coverage view does not say none were found. */
+let testDiscoveryDone = false;
 const covdbReloadScheduler = new CovdbReloadScheduler();
 const covdbWatchers = new Map<string, { covdbPath: string; watcher: vscode.FileSystemWatcher }>();
 /**
@@ -151,7 +153,9 @@ export function activate(context: vscode.ExtensionContext) {
     coverageTree = new CoverageTree(auth, {
         getCoverage: getFolderCoverage,
         getTargets: () =>
-            [...testExecutablePaths.values()].map((p) => vscode.workspace.asRelativePath(p)),
+            testDiscoveryDone
+                ? [...testExecutablePaths.values()].map((p) => vscode.workspace.asRelativePath(p))
+                : undefined,
     });
 
     // Restore persisted render mode (workspace state takes priority, then setting)
@@ -1061,6 +1065,7 @@ function runMessage(text: string): vscode.TestMessage {
 async function clearLastRunResultCommand(): Promise<void> {
     const toDelete = [...lastRunOutputPaths];
     closeCovdb();
+    auth.clearLastRunNotice();
 
     if (toDelete.length > 0) {
         let deletedCount = 0;
@@ -1783,6 +1788,7 @@ async function refreshTestControllerItems(): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
         testingRootItem.description = "Open a workspace folder to discover tests";
+        testDiscoveryDone = true;
         coverageTree.refresh();
         lastDiscoveredTestBinaryIds = undefined;
         return;
@@ -1804,6 +1810,7 @@ async function refreshTestControllerItems(): Promise<void> {
             ? "No discovered tests"
             : `${binaries.length} discovered test${binaries.length === 1 ? "" : "s"}`;
     testingRootItem.children.replace(items);
+    testDiscoveryDone = true;
     coverageTree.refresh();
     const discoveredBinaryIds = items.map((item) => item.id).join("|");
     if (discoveredBinaryIds !== lastDiscoveredTestBinaryIds) {

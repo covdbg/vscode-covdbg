@@ -179,7 +179,17 @@
             {
                 "view": "covdbg.homeView",
                 "contents": "covdbg runs Windows executables locally, in a trusted workspace.\n[Manage Workspace Trust](command:workbench.trust.manage)",
-                "when": "covdbg.welcome == unsupported"
+                "when": "covdbg.welcome == untrusted"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "covdbg runs only in a local window, not a remote one.",
+                "when": "covdbg.welcome == remote"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "covdbg runs only on Windows.",
+                "when": "covdbg.welcome == platform"
             },
             {
                 "view": "covdbg.homeView",
@@ -248,7 +258,7 @@
                 },
                 {
                     "command": "covdbg.clearLastRunResult",
-                    "when": "covdbg.hasCoverage"
+                    "when": "covdbg.hasCoverage || covdbg.hasNotice"
                 }
             ],
             "testing/message/content": [
@@ -285,7 +295,7 @@
                 },
                 {
                     "command": "covdbg.clearLastRunResult",
-                    "when": "view == covdbg.homeView && covdbg.hasCoverage",
+                    "when": "view == covdbg.homeView && (covdbg.hasCoverage || covdbg.hasNotice)",
                     "group": "2_coverage@3"
                 },
                 {

@@ -47,9 +47,11 @@ test("covdbg that cannot run here, or is missing or too old, is a welcome state"
         describeCoverageView(input({ auth: { kind: "unavailable", runtime } }));
 
     assert.deepEqual(unavailable({ kind: "unsupported", reason: "untrusted" }), {
-        welcome: "unsupported",
+        welcome: "untrusted",
         rows: [],
     });
+    assert.equal(unavailable({ kind: "unsupported", reason: "remote" }).welcome, "remote");
+    assert.equal(unavailable({ kind: "unsupported", reason: "platform" }).welcome, "platform");
     assert.equal(unavailable({ kind: "missing" }).welcome, "runtime");
     assert.equal(
         unavailable({ kind: "tooOld", path: "C:/old.exe", version: "1.2.0", fromSetting: false })
@@ -78,6 +80,13 @@ test("signed in, with a token, or unsure, and no target, asks for one", () => {
     ]) {
         assert.equal(describeCoverageView(input({ auth, targets: [] })).welcome, "noTarget");
     }
+});
+
+test("while discovery runs, no target is not claimed yet", () => {
+    const view = describeCoverageView(input({ targets: undefined }));
+
+    assert.equal(view.welcome, undefined);
+    assert.deepEqual(labels(view.rows), ["Signed in as dev@example.com"]);
 });
 
 test("ready shows the target to run, and which account and covdbg run it", () => {
@@ -155,6 +164,32 @@ test("results stay on screen when signed out or covdbg is gone", () => {
     );
     assert.equal(untrusted.welcome, undefined);
     assert.equal(untrusted.rows[0].label, "60.5% lines · 3 files · 2 min ago");
+});
+
+test("folders with the same name, or sharing a header, give each row its own id", () => {
+    const header = {
+        filePath: "C:/shared/util.h",
+        totalLines: 10,
+        coveredLines: 1,
+        coveragePercent: 10,
+    };
+    const view = describeCoverageView(
+        input({
+            multiRoot: true,
+            coverage: [
+                { ...LOADED, folderName: "src", files: [...LOADED.files, header] },
+                { ...LOADED, folderName: "src", files: [header] },
+                { folderName: "src", mtime: 0, files: [], problem: "empty" },
+                { folderName: "src", mtime: 0, files: [], problem: "empty" },
+            ],
+        }),
+    );
+    const ids = view.rows.flatMap((row) => [
+        row.id,
+        ...(row.children ?? []).map((child) => child.id),
+    ]);
+
+    assert.equal(new Set(ids).size, ids.length);
 });
 
 test("a multi-root summary names its folder", () => {

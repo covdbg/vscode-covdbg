@@ -185,6 +185,10 @@ test("a run whose sign-in has ended signs the editor out and keeps the notice", 
     auth.applyRunNotices([]);
     assert.equal(auth.lastRunNotice, undefined);
 
+    auth.applyRunNotices([{ kind: "gated", message: "gated" }]);
+    auth.clearLastRunNotice();
+    assert.equal(auth.lastRunNotice, undefined);
+
     // whoami still reads the stored credential; the ended sign-in holds until the editor signs in.
     await auth.refresh();
     assert.deepEqual(auth.state, { kind: "signedOut" });

@@ -7,7 +7,8 @@ import { APP_URL, PROFILE_URL, type RunNotice } from "../runner/runOutcome";
 import type { RuntimeSource, RuntimeState } from "../runner/runnerTypes";
 
 /** States the view shows with fixed welcome text from package.json (`covdbg.welcome`). */
-export type WelcomeState = "unsupported" | "runtime" | "runtimeSetting" | "signedOut" | "noTarget";
+export type WelcomeState =
+    "untrusted" | "remote" | "platform" | "runtime" | "runtimeSetting" | "signedOut" | "noTarget";
 
 /** What one workspace folder has loaded, or why its last load showed nothing. */
 export interface FolderCoverage {
@@ -23,8 +24,8 @@ export interface CoverageViewInput {
     auth: AuthState;
     runtime?: RuntimeState;
     notice?: RunNotice;
-    /** Discovered test executables, as shown to the user, best first. */
-    targets: readonly string[];
+    /** Discovered test executables, as shown to the user, best first; unset until discovery ends. */
+    targets?: readonly string[];
     coverage: readonly FolderCoverage[];
     multiRoot: boolean;
     now: number;
@@ -61,13 +62,16 @@ const LOWEST_FILE_COUNT = 5;
  * signed in, no test executable.
  */
 export function describeCoverageView(input: CoverageViewInput): CoverageView {
-    const loaded = input.coverage.filter((folder) => folder.files.length > 0);
-    const problems = input.coverage.filter((folder) => folder.problem);
+    // Folders can share a name, so rows are keyed by the folder's place in the list.
+    const folders = input.coverage.map((folder, index) => ({ folder, key: String(index) }));
+    const loaded = folders.filter(({ folder }) => folder.files.length > 0);
+    const problems = folders.filter(({ folder }) => folder.problem);
     const hasContent = loaded.length > 0 || problems.length > 0;
     const { auth } = input;
+    const targets = input.targets ?? [];
 
     if (!hasContent) {
-        const welcome = describeWelcome(auth, input.targets.length);
+        const welcome = describeWelcome(auth, input.targets);
         if (welcome) {
             return { welcome, rows: [] };
         }
@@ -83,13 +87,13 @@ export function describeCoverageView(input: CoverageViewInput): CoverageView {
         });
     }
 
-    for (const folder of loaded) {
-        rows.push(describeSummary(folder, input.multiRoot, input.now));
+    for (const { folder, key } of loaded) {
+        rows.push(describeSummary(folder, key, input.multiRoot, input.now));
     }
-    for (const folder of problems) {
+    for (const { folder, key } of problems) {
         const prefix = input.multiRoot && folder.folderName ? `${folder.folderName}: ` : "";
         rows.push({
-            id: `problem:${folder.folderName ?? ""}`,
+            id: `problem:${key}`,
             label: `${prefix}${folder.problem}`,
             tooltip: folder.problem,
             icon: "warning",
@@ -101,21 +105,21 @@ export function describeCoverageView(input: CoverageViewInput): CoverageView {
     }
 
     const canRun = auth.kind === "signedIn" || auth.kind === "token" || auth.kind === "error";
-    if (loaded.length === 0 && canRun && input.targets.length > 0) {
+    if (loaded.length === 0 && canRun && targets.length > 0) {
         rows.push({
             id: "ready",
             label:
-                input.targets.length === 1
-                    ? `Ready: ${input.targets[0]}`
-                    : `Ready: ${input.targets.length} test executables`,
-            tooltip: input.targets.join("\n"),
+                targets.length === 1
+                    ? `Ready: ${targets[0]}`
+                    : `Ready: ${targets.length} test executables`,
+            tooltip: targets.join("\n"),
             icon: "beaker",
             contextValue: "ready",
         });
     }
 
     if (loaded.length > 0) {
-        rows.push(describeLowest(loaded));
+        rows.push(describeLowest(loaded.map(({ folder }) => folder)));
     }
 
     const account = describeAccount(auth);
@@ -129,11 +133,14 @@ export function describeCoverageView(input: CoverageViewInput): CoverageView {
     return { rows };
 }
 
-function describeWelcome(auth: AuthState, targetCount: number): WelcomeState | undefined {
+function describeWelcome(
+    auth: AuthState,
+    targets: readonly string[] | undefined,
+): WelcomeState | undefined {
     switch (auth.kind) {
         case "unavailable":
             if (auth.runtime.kind === "unsupported") {
-                return "unsupported";
+                return auth.runtime.reason;
             }
             return auth.runtime.kind === "tooOld" && auth.runtime.fromSetting
                 ? "runtimeSetting"
@@ -143,13 +150,18 @@ function describeWelcome(auth: AuthState, targetCount: number): WelcomeState | u
         case "signedIn":
         case "token":
         case "error":
-            return targetCount === 0 ? "noTarget" : undefined;
+            return targets?.length === 0 ? "noTarget" : undefined;
         default:
             return undefined;
     }
 }
 
-function describeSummary(folder: FolderCoverage, multiRoot: boolean, now: number): CoverageRow {
+function describeSummary(
+    folder: FolderCoverage,
+    key: string,
+    multiRoot: boolean,
+    now: number,
+): CoverageRow {
     let covered = 0;
     let total = 0;
     for (const file of folder.files) {
@@ -160,7 +172,7 @@ function describeSummary(folder: FolderCoverage, multiRoot: boolean, now: number
     const prefix = multiRoot && folder.folderName ? `${folder.folderName}: ` : "";
     const count = folder.files.length;
     return {
-        id: `summary:${folder.folderName ?? ""}`,
+        id: `summary:${key}`,
         label: `${prefix}${percent.toFixed(1)}% lines · ${count} ${count === 1 ? "file" : "files"} · ${formatAge(now - folder.mtime)}`,
         tooltip: folder.covdbPath,
         icon: "graph",
@@ -179,8 +191,11 @@ function describeNotice(notice: RunNotice): CoverageRow {
 }
 
 function describeLowest(loaded: readonly FolderCoverage[]): CoverageRow {
-    const lowest = loaded
-        .flatMap((folder) => folder.files)
+    // A header can be in more than one folder's .covdb; it is listed once.
+    const files = new Map(
+        loaded.flatMap((folder) => folder.files).map((file) => [file.filePath, file]),
+    );
+    const lowest = [...files.values()]
         .filter((file) => file.totalLines > 0)
         .sort((left, right) => left.coveragePercent - right.coveragePercent)
         .slice(0, LOWEST_FILE_COUNT);
@@ -275,12 +290,13 @@ function describeBadge(state: AuthState): vscode.ViewBadge | undefined {
 
 export interface CoverageTreeDeps {
     getCoverage: () => FolderCoverage[];
-    getTargets: () => string[];
+    /** Unset until the first discovery ends. */
+    getTargets: () => string[] | undefined;
 }
 
 /**
- * The Coverage view. It is redrawn when coverage, the sign-in, covdbg or the targets change, never
- * on an editor switch.
+ * The Coverage view. It is redrawn when coverage, the sign-in, covdbg or the targets change, and
+ * each minute while it is visible so the summary's age stays true, never on an editor switch.
  */
 export class CoverageTree implements vscode.TreeDataProvider<CoverageRow>, vscode.Disposable {
     private readonly changed = new vscode.EventEmitter<void>();
@@ -294,6 +310,11 @@ export class CoverageTree implements vscode.TreeDataProvider<CoverageRow>, vscod
         private readonly deps: CoverageTreeDeps,
     ) {
         this.view = vscode.window.createTreeView("covdbg.homeView", { treeDataProvider: this });
+        const ticker = setInterval(() => {
+            if (this.view.visible) {
+                this.refresh();
+            }
+        }, 60_000);
         this.disposables = [
             this.view,
             this.changed,
@@ -301,9 +322,11 @@ export class CoverageTree implements vscode.TreeDataProvider<CoverageRow>, vscod
             // Opening the view is when a sign-in made in a terminal gets noticed.
             this.view.onDidChangeVisibility((event) => {
                 if (event.visible) {
+                    this.refresh();
                     void auth.refresh();
                 }
             }),
+            { dispose: () => clearInterval(ticker) },
         ];
         this.refresh();
     }
@@ -326,6 +349,11 @@ export class CoverageTree implements vscode.TreeDataProvider<CoverageRow>, vscod
             "setContext",
             "covdbg.hasCoverage",
             coverage.some((folder) => folder.files.length > 0),
+        );
+        void vscode.commands.executeCommand(
+            "setContext",
+            "covdbg.hasNotice",
+            this.auth.lastRunNotice !== undefined,
         );
         this.view.badge = describeBadge(this.auth.state);
         this.changed.fire();

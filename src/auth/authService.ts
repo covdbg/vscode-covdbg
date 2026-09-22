@@ -221,6 +221,12 @@ export class AuthService implements vscode.Disposable {
         return result.kind === "signedIn";
     }
 
+    clearLastRunNotice(): void {
+        if (this._lastRunNotice) {
+            this.setLastRunNotice(undefined);
+        }
+    }
+
     private setLastRunNotice(notice: RunNotice | undefined): void {
         this._lastRunNotice = notice;
         this.changed.fire();
