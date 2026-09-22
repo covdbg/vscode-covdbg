@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isCovdbgRunnable } from "../mcp/preflight";
+import { getUnsupportedReason, isCovdbgRunnable } from "../mcp/preflight";
 
 const runnable = { platform: "win32", isTrusted: true, remoteName: undefined };
 
@@ -30,4 +30,11 @@ test("isCovdbgRunnable needs every condition, not just one", () => {
         false,
     );
     assert.equal(isCovdbgRunnable({ ...runnable, platform: "win32", isTrusted: false }), false);
+});
+
+test("getUnsupportedReason names the condition that fails", () => {
+    assert.equal(getUnsupportedReason(runnable), undefined);
+    assert.equal(getUnsupportedReason({ ...runnable, platform: "linux" }), "platform");
+    assert.equal(getUnsupportedReason({ ...runnable, remoteName: "wsl" }), "remote");
+    assert.equal(getUnsupportedReason({ ...runnable, isTrusted: false }), "untrusted");
 });

@@ -4,7 +4,7 @@ import { spawn } from "child_process";
 import * as vscode from "vscode";
 import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
-import { resolveCovdbgExecutable } from "./executableResolver";
+import { describeRuntimeProblem, resolveCovdbgRuntime } from "./executableResolver";
 import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
 import type { RunnerSettings } from "./runnerTypes";
 import {
@@ -14,7 +14,6 @@ import {
     resolveRunnerPaths,
 } from "./settings";
 import { resolveEffectiveConfigPath, resolveOrSelectTargetExecutable } from "./workspaceDefaults";
-import { getCovdbgVersion } from "./runtimeInfo";
 
 export interface RunResult {
     success: boolean;
@@ -119,19 +118,17 @@ async function runCoverageInternal(
         );
     }
 
-    const resolvedExe = await resolveCovdbgExecutable(context, settings, workspaceRoot);
-    if (!resolvedExe) {
-        vscode.window.showErrorMessage(
-            "covdbg executable not found. Ensure bundled portable exists or configure covdbg.executablePath.",
-        );
+    const resolvedExe = await resolveCovdbgRuntime(context, settings, workspaceRoot);
+    if (resolvedExe.kind !== "ok") {
+        vscode.window.showErrorMessage(describeRuntimeProblem(resolvedExe));
         return { success: false };
     }
 
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     output.show();
-    const version = await getCovdbgVersion(resolvedExe.path);
-    const versionInfo = version ? ` (${version})` : "";
-    output.log(`Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`);
+    output.log(
+        `Running coverage (${resolvedExe.source}): ${resolvedExe.path} (covdbg ${resolvedExe.version})`,
+    );
 
     // The run carries no licence of its own: covdbg decides it from the machine's sign-in
     // (`covdbg login`) or from COVDBG_PROJECT_TOKEN in the environment, and says so when neither is
@@ -237,9 +234,9 @@ export async function mergeCoverageFiles(
     }
 
     const settings = readRunnerSettings(workspaceFolder?.uri);
-    const resolvedExe = await resolveCovdbgExecutable(context, settings, workspaceRoot);
-    if (!resolvedExe) {
-        output.logError("covdbg merge failed: covdbg executable not found.");
+    const resolvedExe = await resolveCovdbgRuntime(context, settings, workspaceRoot);
+    if (resolvedExe.kind !== "ok") {
+        output.logError(`covdbg merge failed: ${describeRuntimeProblem(resolvedExe)}`);
         return false;
     }
 

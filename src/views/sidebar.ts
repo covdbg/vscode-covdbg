@@ -2,9 +2,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as vscode from "vscode";
 import { CovdbFileSummary } from "../coverage/covdbParser";
-import { resolveCovdbgExecutable } from "../runner/executableResolver";
+import { describeRuntimeProblem, resolveCovdbgRuntime } from "../runner/executableResolver";
 import { SignInState, querySignIn, signIn, signOut } from "../runner/signIn";
-import { getCovdbgVersion } from "../runner/runtimeInfo";
 import {
     getPreferredWorkspaceFolder,
     getWorkspaceRoot,
@@ -185,8 +184,8 @@ export class CovdbgSidebarController implements vscode.Disposable {
             return undefined;
         }
         const settings = readRunnerSettings(workspaceFolder?.uri);
-        const resolved = await resolveCovdbgExecutable(this.context, settings, workspaceRoot);
-        return resolved?.path;
+        const resolved = await resolveCovdbgRuntime(this.context, settings, workspaceRoot);
+        return resolved.kind === "ok" ? resolved.path : undefined;
     }
 
     async refreshRuntimeSummary(): Promise<void> {
@@ -202,27 +201,23 @@ export class CovdbgSidebarController implements vscode.Disposable {
         }
 
         const settings = readRunnerSettings(workspaceFolder?.uri);
-        const resolved = await resolveCovdbgExecutable(this.context, settings, workspaceRoot);
-        if (!resolved) {
-            this.lastRuntimeSummary = {
-                checked: true,
-                error: "covdbg.exe was not resolved. Use the bundled portable or set covdbg.executablePath.",
-            };
-            output.log("covdbg runtime: executable not resolved at activation");
+        const resolved = await resolveCovdbgRuntime(this.context, settings, workspaceRoot);
+        if (resolved.kind !== "ok") {
+            const error = describeRuntimeProblem(resolved);
+            this.lastRuntimeSummary = { checked: true, error };
+            output.log(`covdbg runtime: ${error}`);
             this.scheduleRefresh();
             return;
         }
 
-        const version = await getCovdbgVersion(resolved.path);
         this.lastRuntimeSummary = {
             checked: true,
             source: resolved.source,
             path: resolved.path,
-            version,
+            version: resolved.version,
         };
-        const versionInfo = version ? ` (${version})` : "";
         output.log(
-            `covdbg runtime: using ${resolved.source} executable ${resolved.path}${versionInfo}`,
+            `covdbg runtime: using ${resolved.source} executable ${resolved.path} (${resolved.version})`,
         );
         this.scheduleRefresh();
     }

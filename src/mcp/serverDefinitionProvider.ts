@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import * as output from "../views/outputChannel";
-import { resolveCovdbgExecutable } from "../runner/executableResolver";
-import { getCovdbgVersion } from "../runner/runtimeInfo";
+import { describeRuntimeProblem, resolveCovdbgRuntime } from "../runner/executableResolver";
 import { isCovdbgRunnable } from "./preflight";
 import {
     getPreferredWorkspaceFolder,
@@ -87,11 +86,10 @@ export class CovdbgMcpServerDefinitionProvider implements vscode.McpServerDefini
 
         // This can expand the bundled portable archive and stat every entry on PATH, which is
         // exactly why it is here and not in provideMcpServerDefinitions.
-        const resolved = await resolveCovdbgExecutable(this.context, settings, workspaceRoot);
-        if (!resolved) {
+        const resolved = await resolveCovdbgRuntime(this.context, settings, workspaceRoot);
+        if (resolved.kind !== "ok") {
             output.logError(
-                "covdbg: no covdbg.exe could be found, so the MCP server was not started. Set " +
-                    "covdbg.executablePath, or put covdbg.exe on PATH.",
+                `covdbg: the MCP server was not started. ${describeRuntimeProblem(resolved)}`,
             );
             return undefined;
         }
@@ -113,7 +111,7 @@ export class CovdbgMcpServerDefinitionProvider implements vscode.McpServerDefini
         server.cwd = vscode.Uri.file(paths.workingDirectory);
 
         // A covdbg with different tool schemas should prompt the editor to refresh them.
-        server.version = await getCovdbgVersion(resolved.path);
+        server.version = resolved.version;
 
         output.log(`covdbg: MCP server resolved to ${resolved.path} (${resolved.source})`);
         return server;

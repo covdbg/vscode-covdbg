@@ -26,8 +26,6 @@ import {
     listDiscoveredExecutablePaths,
     resolveEffectiveConfigPath,
 } from "./runner/workspaceDefaults";
-import { resolveCovdbgExecutable } from "./runner/executableResolver";
-import { getCovdbgVersion } from "./runner/runtimeInfo";
 import {
     COVDBG_MCP_PROVIDER_ID,
     CovdbgMcpServerDefinitionProvider,
