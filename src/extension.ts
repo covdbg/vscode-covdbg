@@ -57,8 +57,6 @@ let statusBar: StatusBar;
 let report: CoverageReport;
 let coverageTree: CoverageTree;
 let auth: AuthService;
-/** The extension's install URI, used to resolve bundled assets. */
-let extensionUri: vscode.Uri;
 /** Where each folder's last chosen targets are kept. */
 let workspaceState: vscode.Memento;
 
@@ -136,7 +134,6 @@ const coverageStates = new Map<string, CoverageWorkspaceState>();
 export function activate(context: vscode.ExtensionContext) {
     output.log("covdbg extension activated");
 
-    extensionUri = context.extensionUri;
     workspaceState = context.workspaceState;
     decorator = new CoverageDecorator();
     statusBar = new StatusBar();
@@ -1119,11 +1116,7 @@ async function clearLastRunResultCommand(): Promise<void> {
 
 async function showCoverageReportCommand(): Promise<void> {
     const activeState = getActiveCoverageState();
-    await report.show(
-        activeState?.fileIndex ?? new Map(),
-        activeState?.activeCovdbPath,
-        extensionUri,
-    );
+    await report.show(activeState?.fileIndex ?? new Map(), activeState?.activeCovdbPath);
 }
 
 async function executeCoverageRun(

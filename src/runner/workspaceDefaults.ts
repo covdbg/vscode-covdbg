@@ -8,7 +8,7 @@ import {
 } from "./settings";
 import { buildExecutableDiscoveryExcludePattern } from "./discoveryPatterns";
 
-export interface CandidateExe {
+interface CandidateExe {
     absolutePath: string;
     score: number;
 }
@@ -78,9 +78,7 @@ export async function discoverExecutableCandidates(
 }
 
 export async function listDiscoveredExecutablePaths(workspaceRoot?: string): Promise<string[]> {
-    const candidates = workspaceRoot
-        ? await discoverExecutableCandidates(workspaceRoot)
-        : await discoverExecutableCandidates();
+    const candidates = await discoverExecutableCandidates(workspaceRoot);
     return candidates.map((c) => c.absolutePath);
 }
 
