@@ -8,20 +8,17 @@ import { describeRuntimeProblem, resolveCovdbgRuntime } from "./executableResolv
 import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
 import { LineBuffer } from "./lineBuffer";
 import { RunNotice, classifyRunLine } from "./runOutcome";
-import type { RunnerSettings } from "./runnerTypes";
 import {
     getPreferredWorkspaceFolder,
     getWorkspaceRoot,
     readRunnerSettings,
     resolveRunnerPaths,
 } from "./settings";
-import { resolveEffectiveConfigPath, resolveOrSelectTargetExecutable } from "./workspaceDefaults";
+import { resolveEffectiveConfigPath, resolveTargetExecutable } from "./workspaceDefaults";
 
 export interface RunResult {
     success: boolean;
     outputPath?: string;
-    configuredOutputPath?: string;
-    targetExecutablePath?: string;
     /** What covdbg said about the run's license: a refusal, an ended sign-in, a lock, gating. */
     notices: RunNotice[];
     /** Why the run could not start, or found nothing to measure; the caller decides how to say so. */
@@ -44,17 +41,14 @@ export async function runCoverageForTarget(
         {
             targetExecutableOverride: targetExecutablePath,
             outputPathOverride,
-            interactiveTargetSelection: false,
         },
         onStart,
     );
 }
 
 interface RunOptions {
-    targetExecutableOverride?: string;
+    targetExecutableOverride: string;
     outputPathOverride?: string;
-    workspaceFolderOverride?: vscode.WorkspaceFolder;
-    interactiveTargetSelection: boolean;
 }
 
 async function runCoverageInternal(
@@ -67,19 +61,16 @@ async function runCoverageInternal(
         return { success: false, notices: [], problem: trustErr };
     }
 
-    const workspaceFolder =
-        options.workspaceFolderOverride ??
-        getPreferredWorkspaceFolder(options.targetExecutableOverride);
+    const workspaceFolder = getPreferredWorkspaceFolder(options.targetExecutableOverride);
     const settings = readRunnerSettings(workspaceFolder?.uri);
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
         return fail("Open a workspace folder before running coverage.");
     }
 
-    const effectiveTargetExecutablePath = await resolveOrSelectTargetExecutable(
+    const effectiveTargetExecutablePath = await resolveTargetExecutable(
         options.targetExecutableOverride,
         workspaceRoot,
-        options.interactiveTargetSelection,
     );
     if (!effectiveTargetExecutablePath) {
         return fail(
@@ -184,16 +175,12 @@ async function runCoverageInternal(
         return {
             success: true,
             outputPath,
-            configuredOutputPath: paths.configuredOutputPath,
-            targetExecutablePath: effectiveTargetExecutablePath,
             notices,
         };
     }
     return {
         success: false,
         outputPath,
-        configuredOutputPath: paths.configuredOutputPath,
-        targetExecutablePath: effectiveTargetExecutablePath,
         notices,
         problem,
     };

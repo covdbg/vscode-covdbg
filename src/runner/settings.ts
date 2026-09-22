@@ -1,7 +1,6 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import { ensureArrayOfStrings } from "./runnerArgs";
-import { deriveCoverageBatchOutputPath } from "./outputPaths";
 import { RunnerResolvedPaths, RunnerSettings } from "./runnerTypes";
 import {
     DEFAULT_BINARY_DISCOVERY_EXCLUDE_PATTERN,

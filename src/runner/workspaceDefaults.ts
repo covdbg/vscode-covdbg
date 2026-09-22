@@ -10,70 +10,15 @@ import { buildExecutableDiscoveryExcludePattern } from "./discoveryPatterns";
 
 export interface CandidateExe {
     absolutePath: string;
-    label: string;
     score: number;
-    workspaceFolder: vscode.WorkspaceFolder;
 }
 
-export async function selectCoverageTargetExecutable(
-    interactive: boolean,
-    workspaceRoot?: string,
-): Promise<CandidateExe | undefined> {
-    const preferredFolders = getWorkspaceFoldersInPreferenceOrder();
-    if (preferredFolders.length === 0) {
-        return undefined;
-    }
-
-    const candidates = await discoverExecutableCandidates(workspaceRoot);
-    if (candidates.length === 0) {
-        if (interactive) {
-            vscode.window.showErrorMessage(
-                "covdbg: No matching binary found in workspace. Adjust covdbg.runner.binaryDiscoveryPattern or covdbg.runner.binaryDiscoveryExcludePattern.",
-            );
-        }
-        return undefined;
-    }
-
-    let selected = candidates[0];
-    if (interactive && candidates.length > 1) {
-        const quickPickItems = candidates.slice(0, 30).map((candidate) => ({
-            label: candidate.label,
-            description: `${candidate.workspaceFolder.name}: ${path.relative(candidate.workspaceFolder.uri.fsPath, candidate.absolutePath)}`,
-            detail: candidate.absolutePath,
-            absolutePath: candidate.absolutePath,
-        }));
-        const chosen = await vscode.window.showQuickPick(quickPickItems, {
-            title: "covdbg: Select C++ test executable",
-            placeHolder: "Choose the executable to run under coverage",
-            matchOnDescription: true,
-            matchOnDetail: true,
-        });
-        if (!chosen) {
-            return undefined;
-        }
-        selected = candidates.find((c) => c.absolutePath === chosen.absolutePath) ?? selected;
-    }
-
-    return selected;
-}
-
-export async function resolveOrSelectTargetExecutable(
-    requestedTarget: string | undefined,
+export async function resolveTargetExecutable(
+    requestedTarget: string,
     workspaceRoot: string,
-    interactive: boolean,
 ): Promise<string | undefined> {
-    if (requestedTarget) {
-        const resolvedRequested = resolvePathFromWorkspace(requestedTarget, workspaceRoot);
-        if (await isFile(resolvedRequested)) {
-            return resolvedRequested;
-        }
-        if (!interactive) {
-            return undefined;
-        }
-    }
-
-    const picked = await selectCoverageTargetExecutable(interactive, workspaceRoot);
-    return picked?.absolutePath;
+    const resolved = resolvePathFromWorkspace(requestedTarget, workspaceRoot);
+    return (await isFile(resolved)) ? resolved : undefined;
 }
 
 export async function resolveEffectiveConfigPath(
@@ -121,15 +66,9 @@ export async function discoverExecutableCandidates(
             if (!(await isDiscoveredExecutable(uri.fsPath))) {
                 continue;
             }
-            const score = scoreExecutable(uri.fsPath.toLowerCase());
             candidates.push({
                 absolutePath: uri.fsPath,
-                label:
-                    score >= 90
-                        ? `$(beaker) ${path.basename(uri.fsPath)}`
-                        : `$(file-binary) ${path.basename(uri.fsPath)}`,
-                score,
-                workspaceFolder: folder,
+                score: scoreExecutable(uri.fsPath.toLowerCase()),
             });
         }
     }

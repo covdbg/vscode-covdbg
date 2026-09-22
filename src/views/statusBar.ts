@@ -24,12 +24,6 @@ export class StatusBar {
     public isCoverageEnabled(): boolean {
         return this._enabled;
     }
-    public isLoaded(): boolean {
-        return this._loaded;
-    }
-    public getRenderMode(): RenderMode {
-        return this._renderMode;
-    }
 
     public toggleCoverage(): boolean {
         this._enabled = !this._enabled;

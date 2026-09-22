@@ -16,6 +16,7 @@ type PackageManifest = {
         languageModelTools?: unknown;
         mcpServerDefinitionProviders?: { id: string; label: string }[];
         menus?: Record<string, { command: string; when?: string }[]>;
+        configuration?: { properties?: Record<string, unknown> };
     };
 };
 
@@ -157,5 +158,13 @@ test("every context key a welcome state waits for is set somewhere", () => {
     for (const key of keys) {
         const pattern = `"setContext",\\s*"${key.replace(".", "\\.")}"`;
         assert.match(sources, new RegExp(pattern), key);
+    }
+});
+
+test("the settings covdbg 1.3 refuses are gone", () => {
+    const properties = readPackageManifest().contributes?.configuration?.properties ?? {};
+
+    for (const key of ["covdbg.runner.appDataPath", "covdbg.runner.licenseServerUrl"]) {
+        assert.ok(!(key in properties), key);
     }
 });
