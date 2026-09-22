@@ -62,6 +62,18 @@ test("the server is started with --workspace and runs from the working directory
     assert.deepEqual(resolved?.args, ["mcp", "--workspace", ROOT]);
 });
 
+test("covdbg is resolved for the folder the definition was offered for", async () => {
+    const { instance, resolved } = provider();
+    const [server] = instance.provideMcpServerDefinitions();
+
+    // Another folder becomes the preferred one between offering and starting.
+    const other = path.resolve("work", "other");
+    vscodeStub.workspace.workspaceFolders = [{ uri: { fsPath: other } }];
+
+    await instance.resolveMcpServerDefinition(server);
+    assert.equal(resolved[0].workspaceRoot, ROOT);
+});
+
 test("the environment is covdbg.runner.env plus COVDBG_OUTPUT, and nothing about licenses", () => {
     vscodeStub.workspace.settings = {
         "runner.env": { COVDBG_PROJECT_TOKEN: "cvt_123" },

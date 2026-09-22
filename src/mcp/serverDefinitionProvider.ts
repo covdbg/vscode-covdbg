@@ -114,16 +114,18 @@ export class CovdbgMcpServerDefinitionProvider
     async resolveMcpServerDefinition(
         server: vscode.McpStdioServerDefinition,
     ): Promise<vscode.McpStdioServerDefinition | undefined> {
-        const workspaceFolder = getPreferredWorkspaceFolder();
-        if (!canRunCovdbg() || !workspaceFolder) {
+        // The folder provide chose, not whichever editor is active now: in a multi-root window
+        // the two can differ, and covdbg must be found with the settings of the folder it serves.
+        const workspaceRoot = server.args[2];
+        if (!canRunCovdbg() || !workspaceRoot) {
             return undefined;
         }
 
         // This can expand the bundled portable archive and stat every entry on PATH, which is
         // exactly why it is here and not in provideMcpServerDefinitions.
         const resolved = await this.deps.resolveRuntime(
-            readRunnerSettings(workspaceFolder.uri),
-            workspaceFolder.uri.fsPath,
+            readRunnerSettings(vscode.Uri.file(workspaceRoot)),
+            workspaceRoot,
         );
         if (resolved.kind !== "ok") {
             output.logError(
