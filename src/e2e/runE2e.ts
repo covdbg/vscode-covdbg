@@ -5,6 +5,7 @@
  *
  *   npm run test:e2e              all scenarios
  *   npm run test:e2e -- signIn    one scenario
+ *   npm run test:e2e -- realSignIn  signs the machine out, then in through app.covdbg.com
  *
  * Needs Windows, covdbg 1.3+ on PATH (signed in), CMake with MSVC, git, and the quick-start sample
  * next to this repo (or COVDBG_E2E_QUICKSTART).
@@ -88,6 +89,8 @@ interface Scenario {
     folder: () => string;
     swapIn?: boolean;
     env?: Record<string, string>;
+    /** Runs only when named: it changes the machine's own covdbg sign-in. */
+    onlyByName?: boolean;
 }
 
 async function main(): Promise<void> {
@@ -105,12 +108,21 @@ async function main(): Promise<void> {
             swapIn: true,
             env: { FAKE_COVDBG_STATE: fakeState, FAKE_COVDBG_REAL: real },
         },
+        {
+            name: "realSignIn",
+            folder: () => prepareQuickStart("real-sign-in", {}),
+            swapIn: true,
+            env: { COVDBG_E2E_SIGN_IN_URL: path.join(work, "sign-in-url.txt") },
+            onlyByName: true,
+        },
     ];
 
     const only = process.argv.slice(2);
     const vscodeExecutablePath = process.env.COVDBG_E2E_VSCODE;
     let failed = 0;
-    for (const scenario of scenarios.filter((s) => only.length === 0 || only.includes(s.name))) {
+    for (const scenario of scenarios.filter((s) =>
+        only.length === 0 ? !s.onlyByName : only.includes(s.name),
+    )) {
         console.log(`\n=== ${scenario.name} ===`);
         fs.rmSync(fakeState, { recursive: true, force: true });
         const profile = path.join(work, "profile", scenario.name);
