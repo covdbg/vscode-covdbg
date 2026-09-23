@@ -1,3 +1,4 @@
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
@@ -54,6 +55,20 @@ export async function run(): Promise<void> {
                 await vscode.commands.executeCommand("covdbg.cancelSignIn");
                 await waitFor("signed out again", () => auth() === "signedOut");
                 await new Promise((resolve) => setTimeout(resolve, 1_000));
+                assert.ok(!fs.existsSync(covdb()), "nothing ran");
+                assert.deepStrictEqual(spies.messages, []);
+            },
+        ],
+        [
+            "Stop in the Testing view cancels the pre-run sign-in and ends covdbg login",
+            async () => {
+                void vscode.commands.executeCommand("testing.runAll");
+                await waitFor("signing in", () => auth() === "signingIn");
+                assert.match(spies.statusBar.text ?? "", /Sign in to covdbg/);
+                assert.strictEqual(loginProcesses(), 1, "one covdbg login is running");
+                await vscode.commands.executeCommand("testing.cancelRun");
+                await waitFor("signed out again", () => auth() === "signedOut");
+                await waitFor("covdbg login to end", () => loginProcesses() === 0, 10_000);
                 assert.ok(!fs.existsSync(covdb()), "nothing ran");
                 assert.deepStrictEqual(spies.messages, []);
             },
@@ -120,6 +135,20 @@ export async function run(): Promise<void> {
             },
         ],
     ]);
+}
+
+/** How many covdbg stand-ins are running `login` right now. */
+function loginProcesses(): number {
+    const out = execFileSync(
+        "powershell.exe",
+        [
+            "-NoProfile",
+            "-Command",
+            "@(Get-CimInstance Win32_Process -Filter \"Name='covdbg.exe'\" | Where-Object { $_.CommandLine -match ' login' -and $_.ExecutablePath -match 'fake-build' }).Count",
+        ],
+        { encoding: "utf8" },
+    );
+    return Number(out.trim());
 }
 
 function indent(text: string): string {

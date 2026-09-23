@@ -1,7 +1,18 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { assert, installSpies, openScenarioFolder, steps, treeText, waitFor } from "./harness";
+import {
+    assert,
+    installSpies,
+    mcpSession,
+    openScenarioFolder,
+    screenshot,
+    steps,
+    sessionId,
+    toolText,
+    treeText,
+    waitFor,
+} from "./harness";
 
 /**
  * A C++ project opened for the first time on a machine already signed in to covdbg, with the real
@@ -94,6 +105,72 @@ export async function run(): Promise<void> {
                 console.log(indent(tree));
                 assert.match(tree, /main\.cpp/);
                 assert.doesNotMatch(tree, /vcruntime|crt|stl|Windows Kits/i);
+            },
+        ],
+        [
+            "the status bar shows the coverage; the gutter is highlighted (screenshot)",
+            async () => {
+                await waitFor("the coverage in the status bar", () => spies.statusBar.visible);
+                assert.strictEqual(spies.statusBar.text, "$(beaker) 100.0%");
+                const main = await vscode.workspace.openTextDocument(
+                    path.join(folder, "src", "main.cpp"),
+                );
+                await vscode.window.showTextDocument(main);
+                await vscode.commands.executeCommand("covdbg.homeView.focus");
+                await new Promise((resolve) => setTimeout(resolve, 2_000));
+                console.log(`    screenshot: ${screenshot("first-run-coverage")}`);
+            },
+        ],
+        [
+            "an agent's run through covdbg's MCP server lands in the editor",
+            async () => {
+                const definitions =
+                    (await spies.mcp?.provideMcpServerDefinitions(
+                        new vscode.CancellationTokenSource().token,
+                    )) ?? [];
+                const server = definitions[0] as vscode.McpStdioServerDefinition;
+                const covdbgOutput = server.env.COVDBG_OUTPUT;
+                assert.ok(covdbgOutput, "COVDBG_OUTPUT points the server's runs at the editor");
+                const mcp = await mcpSession(server);
+                try {
+                    const { tools } = await mcp.request("tools/list");
+                    assert.strictEqual(tools.length, 11);
+                    const call = async (name: string, args: unknown) =>
+                        toolText(await mcp.request("tools/call", { name, arguments: args }));
+
+                    const loadsBefore = spies.log.filter((line) =>
+                        /Loading index/.test(line),
+                    ).length;
+                    const started = await call("run", {
+                        target: path.join(folder, "build", "Debug", "test_app.exe"),
+                        config_path: path.join(folder, ".covdbg.yaml"),
+                    });
+                    const finished = await call("wait_run", {
+                        session_id: sessionId(started),
+                        timeout_seconds: 60,
+                    });
+                    console.log(indent(finished.trim().split("\n").slice(0, 6).join("\n")));
+                    assert.ok(fs.existsSync(String(covdbgOutput)), "the run wrote COVDBG_OUTPUT");
+
+                    const opened = await call("open_coverage", { path: covdbgOutput });
+                    const session = sessionId(opened);
+                    // `files` ranks only files with uncovered lines; quick-start has none.
+                    const rows = await call("query", {
+                        session_id: session,
+                        sql: "SELECT relative_path FROM files",
+                    });
+                    assert.match(rows, /main\.cpp/);
+                    await call("close", { session_id: session });
+
+                    await waitFor(
+                        "the editor to reload the agent's coverage",
+                        () =>
+                            spies.log.filter((line) => /Loading index/.test(line)).length >
+                            loadsBefore,
+                    );
+                } finally {
+                    mcp.close();
+                }
             },
         ],
         [

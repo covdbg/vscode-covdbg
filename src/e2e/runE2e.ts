@@ -125,6 +125,7 @@ async function main(): Promise<void> {
                     ...scenario.env,
                     COVDBG_E2E_REAL: real,
                     COVDBG_E2E_FOLDER: folder,
+                    COVDBG_E2E_SHOTS: path.join(work, "shots"),
                 },
                 launchArgs: [
                     scenario.swapIn ? prepareWorkspaceFile(scenario.name) : folder,
