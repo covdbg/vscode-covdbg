@@ -4,6 +4,7 @@ import type { AuthService, AuthState } from "../auth/authService";
 import type { CovdbFileSummary } from "../coverage/covdbParser";
 import { describeRuntimeProblem } from "../runner/executableResolver";
 import { APP_URL, PROFILE_URL, type RunNotice } from "../runner/runOutcome";
+import { describeSignedIn } from "../runner/signIn";
 import type { RuntimeSource, RuntimeState } from "../runner/runnerTypes";
 
 /** States the view shows with fixed welcome text from package.json (`covdbg.welcome`). */
@@ -241,7 +242,7 @@ function describeAccount(auth: AuthState): Omit<CoverageRow, "id"> | undefined {
             return { label: "Using project token (COVDBG_PROJECT_TOKEN)", icon: "key" };
         case "signedIn":
             return {
-                label: auth.email ? `Signed in as ${auth.email}` : "Signed in",
+                label: describeSignedIn(auth),
                 icon: "account",
             };
         case "signedOut":

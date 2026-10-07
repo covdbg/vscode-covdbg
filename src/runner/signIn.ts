@@ -7,9 +7,21 @@ import { LineBuffer } from "./lineBuffer";
  * reads or writes the credential itself.
  */
 export type WhoamiResult =
-    | { kind: "signedIn"; email?: string }
+    | ({ kind: "signedIn" } & SignedInAccount)
     | { kind: "signedOut" }
     | { kind: "error"; message: string };
+
+/**
+ * The account and team a sign-in belongs to. Every field is optional: older covdbg versions name
+ * at most the email, and the sign-in line names the team but not its slug or kind.
+ */
+export interface SignedInAccount {
+    email?: string;
+    accountId?: string;
+    teamName?: string;
+    teamSlug?: string;
+    teamKind?: string;
+}
 
 export interface SignInPrompt {
     url: string;
@@ -17,7 +29,7 @@ export interface SignInPrompt {
 }
 
 export type SignInResult =
-    | { kind: "signedIn"; email?: string }
+    | ({ kind: "signedIn" } & SignedInAccount)
     | { kind: "cancelled" }
     | { kind: "failed"; message: string };
 
@@ -51,24 +63,97 @@ const spawnCovdbg: SpawnCovdbg = (executablePath, args, env) =>
 /** covdbg gives up on a sign-in after 10 minutes; this is the backstop if it does not. */
 const SIGN_IN_TIMEOUT_MS = 11 * 60_000;
 
-/** `covdbg whoami` and `covdbg login` both end with "Signed in as <email>." when there is one. */
-export function parseSignedInAs(stdout: string): string | undefined {
-    const match = /^Signed in as (.+)\.\s*$/m.exec(stdout);
-    return match?.[1].trim();
+/**
+ * `covdbg whoami` and `covdbg login` both print "Signed in as <email>." or, with a team,
+ * "Signed in as <email> for <team name>." when there is one.
+ */
+export function parseSignedIn(stdout: string): SignedInAccount {
+    const match = /^Signed in as (.+?)(?: for (.+?))?\.\s*$/m.exec(stdout);
+    return withValues({ email: match?.[1].trim(), teamName: match?.[2]?.trim() });
 }
 
-/** `whoami` decides by its exit code: 0 is signed in, 1 is not. The text only names the email. */
+export function parseSignedInAs(stdout: string): string | undefined {
+    return parseSignedIn(stdout).email;
+}
+
+/** "Signed in as a@acme.com for Acme", as far as the account is known. */
+export function describeSignedIn(account: SignedInAccount): string {
+    if (!account.email) {
+        return "Signed in";
+    }
+    return `Signed in as ${account.email}${account.teamName ? ` for ${account.teamName}` : ""}`;
+}
+
+/**
+ * Reads `covdbg whoami --json` (`signedIn`, `email`, `accountId`, `teamName`, `teamSlug`,
+ * `teamKind`, ...). Anything that is not a JSON object with a boolean `signedIn`, as an older
+ * covdbg prints for an option it does not know, gives undefined.
+ */
+export function parseWhoamiJson(stdout: string): WhoamiResult | undefined {
+    let json: unknown;
+    try {
+        json = JSON.parse(stdout.trim());
+    } catch {
+        return undefined;
+    }
+    if (typeof json !== "object" || json === null) {
+        return undefined;
+    }
+    const fields = json as Record<string, unknown>;
+    if (typeof fields.signedIn !== "boolean") {
+        return undefined;
+    }
+    if (!fields.signedIn) {
+        return { kind: "signedOut" };
+    }
+    const text = (name: string) =>
+        typeof fields[name] === "string" && fields[name] !== ""
+            ? (fields[name] as string)
+            : undefined;
+    return {
+        kind: "signedIn",
+        ...withValues({
+            email: text("email"),
+            accountId: text("accountId"),
+            teamName: text("teamName"),
+            teamSlug: text("teamSlug"),
+            teamKind: text("teamKind"),
+        }),
+    };
+}
+
+/** Drops the fields that are not known, so a result only carries what covdbg said. */
+function withValues(account: SignedInAccount): SignedInAccount {
+    return Object.fromEntries(
+        Object.entries(account).filter(([, value]) => value !== undefined),
+    ) as SignedInAccount;
+}
+
+/**
+ * Asks `covdbg whoami --json`. A covdbg that does not know the option, or answers with anything
+ * but that JSON, is an older one: it is asked again the old way, where the exit code decides
+ * (0 is signed in, 1 is not) and the text only names the email.
+ */
 export async function querySignIn(
     executablePath: string,
     env: NodeJS.ProcessEnv,
     start: SpawnCovdbg = spawnCovdbg,
 ): Promise<WhoamiResult> {
+    const json = await runCovdbg(executablePath, ["whoami", "--json"], env, 15_000, start);
+    if (json.error) {
+        return { kind: "error", message: json.error };
+    }
+    const parsed = parseWhoamiJson(json.stdout);
+    if (parsed) {
+        return parsed;
+    }
+
     const run = await runCovdbg(executablePath, ["whoami"], env, 15_000, start);
     if (run.error) {
         return { kind: "error", message: run.error };
     }
     if (run.code === 0) {
-        return { kind: "signedIn", email: parseSignedInAs(run.stdout) };
+        return { kind: "signedIn", ...parseSignedIn(run.stdout) };
     }
     if (run.code === 1) {
         return { kind: "signedOut" };
@@ -136,7 +221,7 @@ export function signIn(
             } else if (timedOut) {
                 finish({ kind: "failed", message: "The sign-in did not finish in time." });
             } else if (exitCode === 0) {
-                finish({ kind: "signedIn", email: parseSignedInAs(printed) });
+                finish({ kind: "signedIn", ...parseSignedIn(printed) });
             } else {
                 // covdbg prints why a sign-in failed on stdout, after the prompt.
                 finish({

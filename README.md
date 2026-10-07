@@ -62,11 +62,10 @@ coverage:
 The license service decides every run for the person signed in on the machine. The extension uses the same sign-in as `covdbg` on the command line, so if you have already run `covdbg login`, there is nothing more to do.
 
 - **Sign in** with **covdbg: Sign In**, or just press ▶. Signing in is free.
-- **Without a seat**, personal use covers public repositories without limit and one private repository at a time. This is your personal lock, which you can change at [app.covdbg.com](https://app.covdbg.com).
-- **With a seat** in any team, every repository is covered. Teams and seats are managed at [app.covdbg.com](https://app.covdbg.com).
+- **Your account and team** decide what a run covers. The sign-in is for one team (or your personal account) at a time, and the Coverage view shows it, for example `Signed in as a@acme.com for Acme`. To use another team, run `covdbg login --team <slug>` in a terminal; the editor picks the new sign-in up on refresh.
 - **With a project token**, for example on a shared build machine, put `COVDBG_PROJECT_TOKEN` into the `covdbg.runner.env` setting. A project token takes precedence over the sign-in.
 
-**covdbg: Sign Out** ends the session on this machine. See [pricing](https://covdbg.com/pricing/) and the [licensing FAQ](https://covdbg.com/docs/reference/licensing-faq/) for details.
+**covdbg: Sign Out** ends the one session on this machine, for every covdbg that uses it. Seats, teams and your personal lock are managed at [app.covdbg.com](https://app.covdbg.com). See [pricing](https://covdbg.com/pricing/) and the [licensing FAQ](https://covdbg.com/docs/reference/licensing-faq/) for details.
 
 ## AI agents via MCP
 

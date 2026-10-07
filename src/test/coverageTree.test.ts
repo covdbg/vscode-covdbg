@@ -275,3 +275,10 @@ test("ages read naturally", () => {
     assert.equal(formatAge(24 * 3_600_000), "1 day ago");
     assert.equal(formatAge(3 * 24 * 3_600_000), "3 days ago");
 });
+
+test("the account row names the team the sign-in is for", () => {
+    const view = describeCoverageView(
+        input({ auth: { kind: "signedIn", email: "a@acme.com", teamName: "Acme" } }),
+    );
+    assert.equal(view.rows[view.rows.length - 1].label, "Signed in as a@acme.com for Acme");
+});

@@ -208,7 +208,7 @@
             },
             {
                 "view": "covdbg.homeView",
-                "contents": "Sign in to measure coverage. Free for public repositories and one private repository.\n[Sign in](command:covdbg.signIn)",
+                "contents": "Sign in to measure coverage. The account and team you sign in with decide which repositories are covered.\n[Sign in](command:covdbg.signIn)",
                 "when": "covdbg.welcome == signedOut"
             },
             {
@@ -450,7 +450,7 @@
                 "covdbg.runner.env": {
                     "type": "object",
                     "default": {},
-                    "markdownDescription": "Additional environment variables passed to covdbg runs, for example `COVDBG_PROJECT_TOKEN` where runs should use a team's project token instead of the machine's sign-in.",
+                    "markdownDescription": "Additional environment variables passed to covdbg runs, for example `COVDBG_PROJECT_TOKEN` where runs should use a project token instead of the machine's sign-in.",
                     "scope": "resource",
                     "order": 15
                 }

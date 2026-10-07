@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AuthService, SIGN_IN_TO_RUN } from "../auth/authService";
 import type { RuntimeState } from "../runner/runnerTypes";
-import { FakeProcess, fakeCovdbg, settle } from "./fakeCovdbg";
+import { FakeProcess, answerWhoami, fakeCovdbg, settle } from "./fakeCovdbg";
 
 const OK: RuntimeState = {
     kind: "ok",
@@ -16,12 +16,30 @@ const PROMPT =
     "  and confirm the code there:  ABCD-1234\n\nWaiting for you to finish...\n";
 
 /** A machine whose sign-in the test controls; `login` processes are left for the test to drive. */
-function machine(options: { runtime?: RuntimeState; settingsEnv?: Record<string, string> } = {}) {
-    const state = { email: undefined as string | undefined };
+function machine(
+    options: { runtime?: RuntimeState; settingsEnv?: Record<string, string>; json?: boolean } = {},
+) {
+    const state = {
+        email: undefined as string | undefined,
+        team: undefined as { id: string; name: string; slug: string; kind: string } | undefined,
+    };
     const covdbg = fakeCovdbg((process) => {
         if (process.args[0] === "whoami") {
-            process.print(state.email ? `Signed in as ${state.email}.\n` : "Not signed in.\n");
-            process.exit(state.email ? 0 : 1);
+            answerWhoami(
+                process,
+                state.email
+                    ? {
+                          email: state.email,
+                          ...(state.team && {
+                              accountId: state.team.id,
+                              teamName: state.team.name,
+                              teamSlug: state.team.slug,
+                              teamKind: state.team.kind,
+                          }),
+                      }
+                    : undefined,
+                options.json ?? false,
+            );
         }
     });
     const auth = new AuthService({
@@ -58,11 +76,48 @@ test("whoami's answer becomes the state, and the context keys follow", async () 
     assert.deepEqual(auth.state, { kind: "signedIn", email: "dev@example.com" });
 });
 
+test("a covdbg that knows whoami --json gives the account and team", async () => {
+    const { state, auth, whoamis } = machine({ json: true });
+    await auth.refresh();
+    assert.deepEqual(auth.state, { kind: "signedOut" });
+
+    state.email = "a@acme.com";
+    state.team = { id: "acc_1", name: "Acme", slug: "acme", kind: "team" };
+    await auth.refresh();
+    assert.deepEqual(auth.state, {
+        kind: "signedIn",
+        email: "a@acme.com",
+        accountId: "acc_1",
+        teamName: "Acme",
+        teamSlug: "acme",
+        teamKind: "team",
+    });
+    assert.deepEqual(
+        whoamis().map((process) => process.args),
+        [
+            ["whoami", "--json"],
+            ["whoami", "--json"],
+        ],
+    );
+});
+
+test("an older covdbg without --json is asked again the old way", async () => {
+    const { state, auth, whoamis } = machine({ json: false });
+    state.email = "dev@example.com";
+    await auth.refresh();
+    assert.deepEqual(auth.state, { kind: "signedIn", email: "dev@example.com" });
+    assert.deepEqual(
+        whoamis().map((process) => process.args),
+        [["whoami", "--json"], ["whoami"]],
+    );
+});
+
 test("a project token wins over the sign-in, from covdbg.runner.env or the editor's environment", async () => {
     const fromSettings = machine({ settingsEnv: { COVDBG_PROJECT_TOKEN: "cvt_123" } });
     await fromSettings.auth.refresh();
     assert.deepEqual(fromSettings.auth.state, { kind: "token" });
     assert.equal(fromSettings.whoamis().length, 0);
+    assert.equal(fromSettings.logins().length, 0);
 
     process.env.COVDBG_PROJECT_TOKEN = "cvt_456";
     try {
@@ -223,7 +278,7 @@ test("signing out asks first and passes on the service's problem", async () => {
 
     assert.deepEqual(
         covdbg.started.map((process) => process.args[0]),
-        ["logout", "whoami"],
+        ["logout", "whoami", "whoami"],
     );
     assert.deepEqual(vscodeStub.window.toasts, [
         "Sign out of covdbg?",

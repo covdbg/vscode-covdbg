@@ -3,7 +3,14 @@ import * as output from "../views/outputChannel";
 import { describeRuntimeProblem } from "../runner/executableResolver";
 import type { RuntimeState } from "../runner/runnerTypes";
 import { RunNotice, endsSignIn, summarizeNotices } from "../runner/runOutcome";
-import { SpawnCovdbg, querySignIn, signIn, signOut } from "../runner/signIn";
+import {
+    SignedInAccount,
+    SpawnCovdbg,
+    describeSignedIn,
+    querySignIn,
+    signIn,
+    signOut,
+} from "../runner/signIn";
 
 /**
  * Whether runs can be licensed, as far as the editor can tell. covdbg owns the sign-in; this only
@@ -13,7 +20,7 @@ export type AuthState =
     | { kind: "unknown" }
     | { kind: "unavailable"; runtime: Exclude<RuntimeState, { kind: "ok" }> }
     | { kind: "token" }
-    | { kind: "signedIn"; email?: string }
+    | ({ kind: "signedIn" } & SignedInAccount)
     | { kind: "signedOut" }
     | { kind: "signingIn"; url: string; code: string }
     | { kind: "error"; message: string };
@@ -210,7 +217,7 @@ export class AuthService implements vscode.Disposable {
 
         if (result.kind === "signedIn") {
             this.signInEnded = false;
-            output.log(`Signed in${result.email ? ` as ${result.email}` : ""}.`);
+            output.log(`${describeSignedIn(result)}.`);
             if (this._lastRunNotice?.action === "signIn") {
                 this._lastRunNotice = undefined;
             }

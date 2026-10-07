@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- The Coverage view and the output log show the account and the team a sign-in is for, for example
+  `Signed in as a@acme.com for Acme`. The extension reads them from `covdbg whoami --json` and the
+  `covdbg login` line, and falls back to the exit code and the old text with a covdbg that does not
+  know `--json`.
+
+### Changed
+
+- The setting and view texts no longer promise a free tier or seats the editor cannot see or choose.
+  Teams, seats and the personal lock are managed at app.covdbg.com.
+
 ## [0.9.0] - 2026-09-23
 
 ### Breaking
