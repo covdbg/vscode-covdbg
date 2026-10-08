@@ -482,7 +482,7 @@
     },
     "devDependencies": {
         "@types/js-yaml": "^4.0.9",
-        "@types/node": "^26.4.0",
+        "@types/node": "^24.13.3",
         "@types/sql.js": "^1.4.11",
         "@types/vscode": "^1.134.0",
         "@typescript-eslint/eslint-plugin": "^8.68.0",
