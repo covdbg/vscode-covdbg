@@ -10,7 +10,7 @@ const ROOT = path.resolve("work", "app");
 const OK: RuntimeState = {
     kind: "ok",
     path: "C:/covdbg/covdbg.exe",
-    version: "1.3.0",
+    version: "1.4.0",
     source: "path",
 };
 const TOO_OLD: RuntimeState = {
@@ -58,7 +58,7 @@ test("the server is started with --workspace and runs from the working directory
 
     const resolved = await instance.resolveMcpServerDefinition(server);
     assert.equal(resolved?.command, OK.path);
-    assert.equal(resolved?.version, "1.3.0");
+    assert.equal(resolved?.version, "1.4.0");
     assert.deepEqual(resolved?.args, ["mcp", "--workspace", ROOT]);
 });
 

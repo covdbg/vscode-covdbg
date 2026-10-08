@@ -8,7 +8,7 @@ import { FakeProcess, answerWhoami, fakeCovdbg, settle } from "./fakeCovdbg";
 const OK: RuntimeState = {
     kind: "ok",
     path: "C:/covdbg/covdbg.exe",
-    version: "1.3.0",
+    version: "1.4.0",
     source: "path",
 };
 const PROMPT =

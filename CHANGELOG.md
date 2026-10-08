@@ -6,31 +6,25 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
-### Added
-
-- The Coverage view and the output log show the account and the team a sign-in is for, for example
-  `Signed in as a@acme.com for Acme`. The extension reads them from `covdbg whoami --json` and the
-  `covdbg login` line.
-
-### Changed
-
-- The setting and view texts no longer promise a free tier or seats the editor cannot see or choose.
-  Teams, seats and the personal lock are managed at app.covdbg.com.
-
-## [0.9.0] - 2026-09-23
+## [1.0.0] - 2026-10-08
 
 ### Breaking
 
-- Requires covdbg 1.3 or newer. Older versions are no longer used, and an older covdbg named by
-  `covdbg.executablePath` is reported as too old instead of being run.
+- Requires covdbg 1.4 or newer. Older versions are no longer used, and an older covdbg named by
+  `covdbg.executablePath` is reported as too old instead of being run. covdbg 1.4.0 carries the
+  team-scoped sign-in (`covdbg login --team`, `covdbg whoami --json`) that the editor shows as
+  `Signed in as <email> for <team>`. The bundled portable covdbg is 1.4.0.
 - The `covdbg.runner.licenseServerUrl` and `covdbg.runner.appDataPath` settings are removed.
-  covdbg 1.3 has neither a license server to point at nor an app-data option, and rejects runs
+  covdbg 1.4 has neither a license server to point at nor an app-data option, and rejects runs
   that pass them.
 - `COVDBG_LICENSE*` variables and the 30-day demo license are no longer used. Runs are licensed by
   the machine's sign-in or by `COVDBG_PROJECT_TOKEN` in `covdbg.runner.env`.
 
 ### Added
 
+- The Coverage view and the output log show the account and the team a sign-in is for, for example
+  `Signed in as a@acme.com for Acme`. The extension reads them from `covdbg whoami --json` and the
+  `covdbg login` line.
 - Sign-in from the editor. **covdbg: Sign In** opens the browser with the code to confirm, and
   pressing ▶ while signed out signs in first and then continues the same run. **covdbg: Sign Out**
   ends the session. The sign-in is the one `covdbg login` uses, so an existing one is picked up.
@@ -42,7 +36,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - A run in a folder without `.covdbg.yaml` offers, once, to create a starter config and run.
 - covdbg's MCP server is offered to VS Code through `contributes.mcpServerDefinitionProviders`, so
   AI agents can run coverage, inspect uncovered code, query a coverage database and merge results.
-  It is offered only where a run could succeed: Windows, a trusted local workspace and covdbg 1.3
+  It is offered only where a run could succeed: Windows, a trusted local workspace and covdbg 1.4
   or newer. Runs with no output path of their own write where `covdbg.runner.outputPath` points,
   so their results load into the editor.
 - Coverage databases written by something other than this extension are now noticed. A watcher per
@@ -51,6 +45,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 
+- The setting and view texts no longer promise a free tier or seats the editor cannot see or choose.
+  Teams, seats and the personal lock are managed at app.covdbg.com.
 - An installed covdbg is preferred over the bundled one: the `covdbg.executablePath` setting, then
   `PATH`, then the known install folders (now including `%LOCALAPPDATA%\Programs\Liasoft\covdbg`),
   and only then the bundled portable copy.

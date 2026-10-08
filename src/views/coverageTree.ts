@@ -266,7 +266,7 @@ const SOURCE_LABELS: Record<RuntimeSource, string> = {
     cache: "portable cache",
 };
 
-/** Which covdbg runs, as `covdbg 1.3.0 (PATH)`. */
+/** Which covdbg runs, as `covdbg 1.4.0 (PATH)`. */
 export function describeRuntime(runtime: RuntimeState | undefined): string | undefined {
     return runtime?.kind === "ok"
         ? `covdbg ${runtime.version} (${SOURCE_LABELS[runtime.source]})`

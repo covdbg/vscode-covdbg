@@ -10,7 +10,7 @@ import {
 import type { RuntimeState } from "../runner/runnerTypes";
 
 const NOW = Date.UTC(2026, 8, 23, 12, 0, 0);
-const OK: RuntimeState = { kind: "ok", path: "C:/covdbg.exe", version: "1.3.0", source: "path" };
+const OK: RuntimeState = { kind: "ok", path: "C:/covdbg.exe", version: "1.4.0", source: "path" };
 
 function input(overrides: Partial<CoverageViewInput> = {}): CoverageViewInput {
     return {
@@ -98,7 +98,7 @@ test("ready shows the target to run, and which account and covdbg run it", () =>
         "Signed in as dev@example.com",
     ]);
     assert.equal(view.rows[0].contextValue, "ready");
-    assert.equal(view.rows[1].description, "covdbg 1.3.0 (PATH)");
+    assert.equal(view.rows[1].description, "covdbg 1.4.0 (PATH)");
 });
 
 test("several targets are counted", () => {
