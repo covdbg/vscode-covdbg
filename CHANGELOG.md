@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-09
+
+### Fixed
+
+- The repository moved to `liasoft/covdbg-vscode`. The README, the Marketplace page and the package links point there, and the demo animation on the Marketplace page loads again.
+
 ## [1.0.0] - 2026-10-08
 
 ### Breaking
