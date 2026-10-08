@@ -495,6 +495,6 @@
         "js-yaml": "^4.3.2",
         "prettier": "^3.9.6",
         "sql.js": "^1.14.2",
-        "typescript": "^7.0.2"
+        "typescript": "^6.0.3"
     }
 }
