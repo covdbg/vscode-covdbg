@@ -105,7 +105,7 @@ npm run test:e2e -- signIn   # one scenario: plainFolder, firstRun or signIn
 
 They launch VS Code with the extension against a fresh copy of the [quick-start](https://github.com/liasoft/covdbg-quick-start) sample. That copy is built with CMake, then run with the real covdbg, so they need:
 
-- covdbg 1.3+ on `PATH`, signed in;
+- covdbg 1.4+ on `PATH`, signed in;
 - CMake with MSVC;
 - quick-start checked out next to this repository (or at `COVDBG_E2E_QUICKSTART`).
 
@@ -132,8 +132,8 @@ npm run package
 Create and push a Git tag in the form `vX.Y.Z` that matches the version in `package.json`.
 
 ```bash
-git tag v0.9.0
-git push origin v0.9.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 The release workflow then:
@@ -169,5 +169,5 @@ It fails unless the VS Code engine matches `@types/vscode`, the bundled covdbg r
 ## Notes
 
 - Coverage viewing works independently from coverage execution.
-- Coverage execution requires covdbg 1.3 or newer, and a sign-in or a project token for the license service.
+- Coverage execution requires covdbg 1.4 or newer, and a sign-in or a project token for the license service.
 - Repository-facing end-user documentation belongs in `README.md`; contributor workflow documentation belongs in this file.

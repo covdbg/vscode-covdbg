@@ -1,8 +1,11 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
 import * as fs from "fs/promises";
 
-/** The oldest covdbg this extension can drive: 1.3.0 dropped the arguments older ones needed. */
-export const MIN_COVDBG_VERSION = "1.3.0";
+/**
+ * The oldest covdbg this extension can drive: 1.4.0 added `whoami --json` and the team-scoped
+ * sign-in (`login --team`) that the editor shows, and 1.3.0 has neither.
+ */
+export const MIN_COVDBG_VERSION = "1.4.0";
 
 const PROBE_TIMEOUT_MS = 5000;
 

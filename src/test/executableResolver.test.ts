@@ -53,7 +53,7 @@ function candidate(
 
 const versions = new Map([
     ["old.exe", "0.0.1-debug"],
-    ["new.exe", "1.3.0"],
+    ["new.exe", "1.4.0"],
     ["newer.exe", "1.4.2"],
 ]);
 const probe = async (exePath: string) => versions.get(exePath);
@@ -103,7 +103,7 @@ test("without covdbg.executablePath there is no setting candidate", () => {
     assert.equal(sources[0], "path");
 });
 
-test("the first covdbg 1.3 or newer wins, and nothing after it is looked for", async () => {
+test("the first covdbg 1.4 or newer wins, and nothing after it is looked for", async () => {
     const located: string[] = [];
     const state = await pickRuntime(
         [
@@ -113,11 +113,11 @@ test("the first covdbg 1.3 or newer wins, and nothing after it is looked for", a
         ],
         probe,
     );
-    assert.deepEqual(state, { kind: "ok", path: "new.exe", version: "1.3.0", source: "install" });
+    assert.deepEqual(state, { kind: "ok", path: "new.exe", version: "1.4.0", source: "install" });
     assert.deepEqual(located, ["path", "install"]);
 });
 
-test("a covdbg older than 1.3, such as the 0.0.1-debug build, is passed over", async () => {
+test("a covdbg older than 1.4, such as the 0.0.1-debug build, is passed over", async () => {
     const state = await pickRuntime(
         [candidate("bundled", "old.exe"), candidate("cache", "newer.exe")],
         probe,

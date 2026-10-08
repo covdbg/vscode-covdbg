@@ -21,7 +21,7 @@ Run your real test executables under [covdbg](https://covdbg.com/), see covered 
 ## Install
 
 1. Install **covdbg** from the Visual Studio Marketplace, on Windows.
-2. The extension needs covdbg 1.3 or newer. It uses an installed covdbg when it finds one, in this order:
+2. The extension needs covdbg 1.4 or newer; an older one is reported as too old, with an offer to update. It uses an installed covdbg when it finds one, in this order:
     - the `covdbg.executablePath` setting;
     - `covdbg.exe` on `PATH`;
     - the usual install folders.

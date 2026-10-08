@@ -1,5 +1,5 @@
 // A covdbg stand-in for the end-to-end tests. It answers --version, whoami, login and logout
-// the way covdbg 1.3 does, keeping its sign-in in FAKE_COVDBG_STATE instead of the machine's
+// the way covdbg 1.4 does, keeping its sign-in in FAKE_COVDBG_STATE instead of the machine's
 // credential store, and hands every other command line to the real covdbg in FAKE_COVDBG_REAL.
 #include <windows.h>
 
@@ -62,7 +62,7 @@ int wmain(int argc, wchar_t** argv)
     std::wstring command = argc > 1 ? argv[1] : L"";
 
     if (command == L"--version") {
-        Say("covdbg 1.3.0");
+        Say("covdbg 1.4.0");
         return 0;
     }
     if (command == L"whoami") {
@@ -83,7 +83,7 @@ int wmain(int argc, wchar_t** argv)
         return 0;
     }
     if (command == L"login") {
-        // Word for word what covdbg 1.3.0 prints (RunLoginCommand in covdbg's main.cpp).
+        // Word for word what covdbg 1.4.0 prints (RunLoginCommand in covdbg's main.cpp).
         Say("");
         Say("  Open https://app.covdbg.com/device?code=E2EE-TEST");
         Say("  and confirm the code there:  E2EE-TEST");

@@ -7,7 +7,7 @@
  *   npm run test:e2e -- signIn    one scenario
  *   npm run test:e2e -- realSignIn  signs the machine out, then in through app.covdbg.com
  *
- * Needs Windows, covdbg 1.3+ on PATH (signed in), CMake with MSVC, git, and the quick-start sample
+ * Needs Windows, covdbg 1.4+ on PATH (signed in), CMake with MSVC, git, and the quick-start sample
  * next to this repo (or COVDBG_E2E_QUICKSTART).
  */
 import { execFileSync } from "child_process";

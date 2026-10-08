@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.9.0",
+    "version": "1.0.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -40,7 +40,7 @@
         "onMcpCollection:covdbg.mcp"
     ],
     "main": "./out/extension.js",
-    "covdbgBundledVersion": "1.3.0",
+    "covdbgBundledVersion": "1.4.0",
     "capabilities": {
         "untrustedWorkspaces": {
             "supported": "limited",
@@ -198,12 +198,12 @@
             },
             {
                 "view": "covdbg.homeView",
-                "contents": "covdbg 1.3 or newer is needed.\n[Install covdbg](https://covdbg.com/download)\n[Refresh](command:covdbg.refresh)",
+                "contents": "covdbg 1.4 or newer is needed.\n[Install covdbg](https://covdbg.com/download)\n[Refresh](command:covdbg.refresh)",
                 "when": "covdbg.welcome == runtime"
             },
             {
                 "view": "covdbg.homeView",
-                "contents": "covdbg 1.3 or newer is needed. The covdbg.executablePath setting points at an older one.\n[Open Setting](command:workbench.action.openSettings?%5B%22covdbg.executablePath%22%5D)\n[Refresh](command:covdbg.refresh)",
+                "contents": "covdbg 1.4 or newer is needed. The covdbg.executablePath setting points at an older one.\n[Open Setting](command:workbench.action.openSettings?%5B%22covdbg.executablePath%22%5D)\n[Refresh](command:covdbg.refresh)",
                 "when": "covdbg.welcome == runtimeSetting"
             },
             {
@@ -391,7 +391,7 @@
                 "covdbg.executablePath": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg 1.3.0 or newer is looked for on PATH, then in the known install folders, then the bundled portable copy.",
+                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg 1.4.0 or newer is looked for on PATH, then in the known install folders, then the bundled portable copy.",
                     "scope": "resource",
                     "order": 3
                 },
