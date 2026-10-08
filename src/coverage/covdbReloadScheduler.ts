@@ -62,5 +62,5 @@ export class CovdbReloadScheduler {
 }
 
 function normalizePathKey(filePath: string): string {
-    return path.normalize(filePath).toLowerCase();
+    return path.win32.normalize(filePath).toLowerCase();
 }

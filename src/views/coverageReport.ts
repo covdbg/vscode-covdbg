@@ -21,7 +21,6 @@ export class CoverageReport {
     async show(
         fileIndex: Map<string, CovdbFileSummary>,
         activeCovdbPath: string | undefined,
-        extensionUri: vscode.Uri,
     ): Promise<void> {
         if (fileIndex.size === 0) {
             vscode.window.showInformationMessage("covdbg: No coverage data loaded.");

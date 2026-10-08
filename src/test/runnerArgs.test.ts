@@ -18,8 +18,6 @@ test("buildCovdbgArguments builds expected covdbg CLI shape", () => {
     );
 
     assert.deepEqual(args, [
-        "--appdata",
-        "C:\\repo\\.covdbg",
         "--config",
         "C:\\repo\\.covdbg.yaml",
         "--output",
@@ -29,7 +27,7 @@ test("buildCovdbgArguments builds expected covdbg CLI shape", () => {
     ]);
 });
 
-test("buildCovdbgArguments inserts covdbg CLI flags before target executable", () => {
+test("buildCovdbgArguments omits --config when no config file was resolved", () => {
     const args = buildCovdbgArguments(
         {
             workspaceRoot: "C:\\repo",
@@ -41,19 +39,11 @@ test("buildCovdbgArguments inserts covdbg CLI flags before target executable", (
         },
         "C:\\repo\\build\\tests.exe",
         ["--gtest_filter=Suite.*"],
-        ["--demo", "--plugin-name", "vscode", "--plugin-ver", "0.3.0"],
     );
 
     assert.deepEqual(args, [
-        "--appdata",
-        "C:\\repo\\.covdbg",
         "--output",
         "C:\\repo\\.covdbg\\coverage.covdb",
-        "--demo",
-        "--plugin-name",
-        "vscode",
-        "--plugin-ver",
-        "0.3.0",
         "C:\\repo\\build\\tests.exe",
         "--gtest_filter=Suite.*",
     ]);

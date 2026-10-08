@@ -2,7 +2,7 @@
     "name": "covdbg",
     "displayName": "covdbg",
     "description": "Native Windows C++ coverage in VS Code. Run coverage, inspect inline results, browse reports, and rerun test binaries from the Testing UI.",
-    "version": "0.8.1",
+    "version": "1.0.0",
     "author": "Liasoft GmbH",
     "publisher": "covdbg",
     "license": "Apache-2.0",
@@ -21,8 +21,7 @@
     "categories": [
         "Testing",
         "Visualization",
-        "AI",
-        "Chat"
+        "AI"
     ],
     "keywords": [
         "coverage",
@@ -33,11 +32,15 @@
         "ai assisted cpp coverage"
     ],
     "activationEvents": [
-        "onStartupFinished",
         "workspaceContains:**/.covdbg.yaml",
-        "workspaceContains:**/*.covdb"
+        "workspaceContains:**/*.covdb",
+        "workspaceContains:**/CMakeLists.txt",
+        "workspaceContains:**/*.sln",
+        "workspaceContains:**/*.vcxproj",
+        "onMcpCollection:covdbg.mcp"
     ],
     "main": "./out/extension.js",
+    "covdbgBundledVersion": "1.4.0",
     "capabilities": {
         "untrustedWorkspaces": {
             "supported": "limited",
@@ -47,7 +50,6 @@
                 "covdbg.runner.workingDirectory",
                 "covdbg.runner.configPath",
                 "covdbg.runner.outputPath",
-                "covdbg.runner.appDataPath",
                 "covdbg.runner.binaryDiscoveryPattern",
                 "covdbg.runner.env"
             ]
@@ -82,22 +84,18 @@
             },
             {
                 "command": "covdbg.configurePath",
-                "title": "Select .covdb File…",
-                "category": "covdbg"
-            },
-            {
-                "command": "covdbg.pickDiscoveredCovdb",
-                "title": "Pick Discovered .covdb",
+                "title": "Load .covdb…",
                 "category": "covdbg"
             },
             {
                 "command": "covdbg.runCoverage",
                 "title": "Run Coverage",
-                "category": "covdbg"
+                "category": "covdbg",
+                "icon": "$(play)"
             },
             {
-                "command": "covdbg.getUncoveredCode",
-                "title": "Get Uncovered Code",
+                "command": "covdbg.chooseExecutable",
+                "title": "Choose Executable…",
                 "category": "covdbg"
             },
             {
@@ -107,7 +105,7 @@
             },
             {
                 "command": "covdbg.openConfig",
-                "title": "Open .covdbg.yaml",
+                "title": "Open or Create .covdbg.yaml",
                 "category": "covdbg"
             },
             {
@@ -116,25 +114,53 @@
                 "category": "covdbg"
             },
             {
-                "command": "covdbg.openAppDataFolder",
-                "title": "Open .covdbg Folder",
+                "command": "covdbg.showOutput",
+                "title": "Show Log",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.refresh",
+                "title": "Refresh",
+                "category": "covdbg",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "covdbg.openSettings",
+                "title": "Open Settings",
                 "category": "covdbg"
             },
             {
                 "command": "covdbg.clearLastRunResult",
-                "title": "Clear Last Run Result",
+                "title": "Clear Last Run",
                 "category": "covdbg"
             },
             {
-                "command": "covdbg.refreshTestBinaries",
-                "title": "Refresh Test Binaries",
+                "command": "covdbg.signIn",
+                "title": "Sign In",
                 "category": "covdbg"
             },
             {
-                "command": "covdbg.refreshDashboard",
-                "title": "Refresh Home Dashboard",
+                "command": "covdbg.signOut",
+                "title": "Sign Out",
+                "category": "covdbg"
+            },
+            {
+                "command": "covdbg.copySignInCode",
+                "title": "Copy Sign-In Code",
                 "category": "covdbg",
-                "icon": "$(refresh)"
+                "icon": "$(copy)"
+            },
+            {
+                "command": "covdbg.openSignInPage",
+                "title": "Open Sign-In Page Again",
+                "category": "covdbg",
+                "icon": "$(link-external)"
+            },
+            {
+                "command": "covdbg.cancelSignIn",
+                "title": "Cancel Sign-In",
+                "category": "covdbg",
+                "icon": "$(close)"
             }
         ],
         "viewsContainers": {
@@ -150,121 +176,102 @@
             "covdbg-sidebar": [
                 {
                     "id": "covdbg.homeView",
-                    "name": "Home",
-                    "type": "webview"
+                    "name": "Coverage"
                 }
             ]
         },
-        "languageModelTools": [
+        "viewsWelcome": [
             {
-                "name": "covdbg_explore",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "workspace"
-                ],
-                "toolReferenceName": "covdbg_explore",
-                "displayName": "Explore covdbg Environment",
-                "modelDescription": "Preferred discovery tool for covdbg workspace setup. Use it to find where discovered test binaries are located, where .covdbg.yaml is configured or resolved, which coverage databases are present, and which runtime and runner paths are active before deciding what to run next.",
-                "userDescription": "Inspect the current covdbg workspace environment, including test binaries, config files, runtime, and coverage database locations.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(compass)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "workspaceRoot": {
-                            "type": "string",
-                            "description": "Optional absolute workspace root to inspect. If omitted, the preferred active workspace is used."
-                        },
-                        "limit": {
-                            "type": "number",
-                            "description": "Optional maximum number of discovered paths to return per category. Defaults to 20."
-                        }
-                    }
-                }
+                "view": "covdbg.homeView",
+                "contents": "covdbg runs Windows executables locally, in a trusted workspace.\n[Manage Workspace Trust](command:workbench.trust.manage)",
+                "when": "covdbg.welcome == untrusted"
             },
             {
-                "name": "covdbg_code",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "code"
-                ],
-                "toolReferenceName": "covdbg_code",
-                "displayName": "Get Uncovered Code",
-                "modelDescription": "Returns structured uncovered code segments for a source file from covdbg's active native .covdb coverage data, including grouped uncovered ranges, code snippets, nearby context, and file coverage summary.",
-                "userDescription": "Read uncovered code segments for a file from covdbg coverage data.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(search-fuzzy)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "filePath": {
-                            "type": "string",
-                            "description": "Optional absolute or workspace-relative source file path. If omitted, the active editor file is used."
-                        }
-                    }
-                }
+                "view": "covdbg.homeView",
+                "contents": "covdbg runs only in a local window, not a remote one.",
+                "when": "covdbg.welcome == remote"
             },
             {
-                "name": "covdbg_files",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "exploration"
-                ],
-                "toolReferenceName": "covdbg_files",
-                "displayName": "Explore Active Coverage Files",
-                "modelDescription": "Reads the active loaded workspace coverage database and returns the currently indexed source files with uncovered lines, sorted to help an LLM choose the next file to inspect or fix.",
-                "userDescription": "List uncovered files from the active loaded covdbg coverage result.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(list-tree)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "limit": {
-                            "type": "number",
-                            "description": "Optional maximum number of uncovered files to return. Defaults to 20."
-                        },
-                        "maxCoveragePercent": {
-                            "type": "number",
-                            "description": "Optional upper coverage-percent filter. Only files at or below this percent are returned."
-                        }
-                    }
-                }
+                "view": "covdbg.homeView",
+                "contents": "covdbg runs only on Windows.",
+                "when": "covdbg.welcome == platform"
             },
             {
-                "name": "covdbg_run",
-                "tags": [
-                    "coverage",
-                    "testing",
-                    "runner"
-                ],
-                "toolReferenceName": "covdbg_run",
-                "displayName": "Run Test With Coverage",
-                "modelDescription": "Runs one or more specified test executables under covdbg coverage instrumentation, queues them sequentially, refreshes the active coverage database when runs succeed, and returns per-executable results.",
-                "userDescription": "Run one or more test executables with covdbg coverage and reload results.",
-                "canBeReferencedInPrompt": true,
-                "icon": "$(beaker-run)",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "executablePaths": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "description": "Absolute or workspace-relative test executable paths to run sequentially with coverage."
-                        },
-                        "executablePath": {
-                            "type": "string",
-                            "description": "Deprecated singular alias for one executable path. Prefer executablePaths."
-                        }
-                    }
-                }
+                "view": "covdbg.homeView",
+                "contents": "covdbg 1.4 or newer is needed.\n[Install covdbg](https://covdbg.com/download)\n[Refresh](command:covdbg.refresh)",
+                "when": "covdbg.welcome == runtime"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "covdbg 1.4 or newer is needed. The covdbg.executablePath setting points at an older one.\n[Open Setting](command:workbench.action.openSettings?%5B%22covdbg.executablePath%22%5D)\n[Refresh](command:covdbg.refresh)",
+                "when": "covdbg.welcome == runtimeSetting"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "Sign in to measure coverage. The account and team you sign in with decide which repositories are covered.\n[Sign in](command:covdbg.signIn)",
+                "when": "covdbg.welcome == signedOut"
+            },
+            {
+                "view": "covdbg.homeView",
+                "contents": "No test executable found.\n[Choose Executable…](command:covdbg.chooseExecutable)\n[Refresh](command:covdbg.refresh)",
+                "when": "covdbg.welcome == noTarget"
+            }
+        ],
+        "mcpServerDefinitionProviders": [
+            {
+                "id": "covdbg.mcp",
+                "label": "covdbg"
             }
         ],
         "menus": {
+            "commandPalette": [
+                {
+                    "command": "covdbg.copySignInCode",
+                    "when": "covdbg.auth == signingIn"
+                },
+                {
+                    "command": "covdbg.cancelSignIn",
+                    "when": "covdbg.auth == signingIn"
+                },
+                {
+                    "command": "covdbg.openSignInPage",
+                    "when": "covdbg.auth == signingIn"
+                },
+                {
+                    "command": "covdbg.signIn",
+                    "when": "covdbg.auth != signedIn && covdbg.auth != token && covdbg.auth != unavailable"
+                },
+                {
+                    "command": "covdbg.signOut",
+                    "when": "covdbg.auth == signedIn"
+                },
+                {
+                    "command": "covdbg.setRenderMode",
+                    "when": "false"
+                },
+                {
+                    "command": "covdbg.toggleCoverage",
+                    "when": "covdbg.hasCoverage"
+                },
+                {
+                    "command": "covdbg.showReport",
+                    "when": "covdbg.hasCoverage"
+                },
+                {
+                    "command": "covdbg.browseFiles",
+                    "when": "covdbg.hasCoverage"
+                },
+                {
+                    "command": "covdbg.clearLastRunResult",
+                    "when": "covdbg.hasCoverage || covdbg.hasNotice"
+                }
+            ],
+            "testing/message/content": [
+                {
+                    "command": "covdbg.showOutput",
+                    "when": "testMessage == covdbg.run"
+                }
+            ],
             "view/title": [
                 {
                     "command": "covdbg.runCoverage",
@@ -272,9 +279,71 @@
                     "group": "navigation@1"
                 },
                 {
-                    "command": "covdbg.refreshDashboard",
+                    "command": "covdbg.refresh",
                     "when": "view == covdbg.homeView",
                     "group": "navigation@2"
+                },
+                {
+                    "command": "covdbg.chooseExecutable",
+                    "when": "view == covdbg.homeView",
+                    "group": "1_config@1"
+                },
+                {
+                    "command": "covdbg.openConfig",
+                    "when": "view == covdbg.homeView",
+                    "group": "1_config@2"
+                },
+                {
+                    "command": "covdbg.configurePath",
+                    "when": "view == covdbg.homeView",
+                    "group": "2_coverage@1"
+                },
+                {
+                    "command": "covdbg.showReport",
+                    "when": "view == covdbg.homeView && covdbg.hasCoverage",
+                    "group": "2_coverage@2"
+                },
+                {
+                    "command": "covdbg.clearLastRunResult",
+                    "when": "view == covdbg.homeView && (covdbg.hasCoverage || covdbg.hasNotice)",
+                    "group": "2_coverage@3"
+                },
+                {
+                    "command": "covdbg.openLog",
+                    "when": "view == covdbg.homeView",
+                    "group": "3_log@1"
+                },
+                {
+                    "command": "covdbg.signOut",
+                    "when": "view == covdbg.homeView && covdbg.auth == signedIn",
+                    "group": "4_account@1"
+                },
+                {
+                    "command": "covdbg.openSettings",
+                    "when": "view == covdbg.homeView",
+                    "group": "5_settings@1"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "covdbg.copySignInCode",
+                    "when": "view == covdbg.homeView && viewItem == signingIn",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "covdbg.openSignInPage",
+                    "when": "view == covdbg.homeView && viewItem == signingIn",
+                    "group": "inline@2"
+                },
+                {
+                    "command": "covdbg.cancelSignIn",
+                    "when": "view == covdbg.homeView && viewItem == signingIn",
+                    "group": "inline@3"
+                },
+                {
+                    "command": "covdbg.runCoverage",
+                    "when": "view == covdbg.homeView && viewItem == ready",
+                    "group": "inline@1"
                 }
             ]
         },
@@ -322,7 +391,7 @@
                 "covdbg.executablePath": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg is resolved from bundled portable first, then PATH/known install paths/cache.",
+                    "markdownDescription": "Explicit path to `covdbg.exe`. If empty, covdbg 1.4.0 or newer is looked for on PATH, then in the known install folders, then the bundled portable copy.",
                     "scope": "resource",
                     "order": 3
                 },
@@ -352,38 +421,24 @@
                 },
                 "covdbg.runner.outputPath": {
                     "type": "string",
-                    "default": ".covdbg/coverage.covdb",
-                    "markdownDescription": "Output `.covdb` path for runs started from VS Code.",
+                    "default": "",
+                    "markdownDescription": "Where a run started from VS Code writes its `.covdb`. Leave empty for covdbg's own default, `.covdbg/coverage.covdb` under the run's working directory. A relative path is resolved from the workspace folder.",
                     "scope": "resource",
                     "order": 7
                 },
-                "covdbg.runner.appDataPath": {
-                    "type": "string",
-                    "default": ".covdbg",
-                    "markdownDescription": "Path for covdbg appdata (logs, cache). Default stores logs under `.covdbg/Logs`.",
-                    "scope": "resource",
-                    "order": 8
-                },
                 "covdbg.runner.binaryDiscoveryPattern": {
                     "type": "string",
-                    "default": "{build,Build,BUILD,out,Out,OUT}/**/*{test,Test,TEST}*",
+                    "default": "{build,Build,out,Out,x64,cmake-build-*}/**/*{test,Test,TEST}*",
                     "markdownDescription": "Glob pattern used to discover test binaries for the Testing API integration.",
                     "scope": "resource",
                     "order": 9
                 },
                 "covdbg.runner.binaryDiscoveryExcludePattern": {
                     "type": "string",
-                    "default": "",
-                    "markdownDescription": "Optional glob pattern used to exclude discovered test binaries. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`, which is useful when post-build steps copy matching executables into additional folders.",
+                    "default": "**/{Release,RelWithDebInfo,cmake-build-release*,cmake-build-relwithdebinfo*}/**",
+                    "markdownDescription": "Glob pattern for discovered test binaries to leave out. Excludes take precedence over `#covdbg.runner.binaryDiscoveryPattern#`. The default skips optimized build trees, whose binaries carry the symbols covdbg needs only in part; it is also useful when post-build steps copy matching executables into additional folders.",
                     "scope": "resource",
                     "order": 10
-                },
-                "covdbg.runner.licenseServerUrl": {
-                    "type": "string",
-                    "default": "",
-                    "markdownDescription": "Optional override for the covdbg license server base URL.",
-                    "scope": "resource",
-                    "order": 11
                 },
                 "covdbg.runner.workingDirectory": {
                     "type": "string",
@@ -395,7 +450,7 @@
                 "covdbg.runner.env": {
                     "type": "object",
                     "default": {},
-                    "markdownDescription": "Additional environment variables passed to covdbg runs (for example `COVDBG_LICENSE`).",
+                    "markdownDescription": "Additional environment variables passed to covdbg runs, for example `COVDBG_PROJECT_TOKEN` where runs should use a project token instead of the machine's sign-in.",
                     "scope": "resource",
                     "order": 15
                 }
@@ -404,7 +459,7 @@
     },
     "scripts": {
         "prepare:portable": "node ./scripts/downloadPortable.js",
-        "release:check": "node ./scripts/verifyReleaseVersion.js",
+        "release:check": "npm run check:vscode-engine && node ./scripts/verifyBundledCovdbg.js && node ./scripts/verifyReleaseVersion.js",
         "check:vscode-engine": "node ./scripts/syncVscodeEngine.js --check",
         "sync:vscode-engine": "node ./scripts/syncVscodeEngine.js --write",
         "vscode:prepublish": "npm run build",
@@ -417,6 +472,7 @@
         "compile:tests": "tsc -p ./tsconfig.tests.json",
         "pretest": "npm run compile && npm run compile:tests",
         "test": "node --test test-out/test/*.test.js",
+        "test:e2e": "npm run compile && npm run compile:tests && node test-out/e2e/runE2e.js",
         "pretest:coverage": "npm run compile && npm run compile:tests",
         "test:coverage": "c8 --reporter=text --reporter=lcov --reports-dir=coverage --include=\"test-out/**/*.js\" --exclude=\"test-out/test/**/*.test.js\" node --test test-out/test/*.test.js",
         "lint": "eslint src",
@@ -425,15 +481,18 @@
         "format:check": "prettier --check ."
     },
     "devDependencies": {
-        "@types/node": "^26.4.0",
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^24.13.3",
         "@types/sql.js": "^1.4.11",
         "@types/vscode": "^1.134.0",
         "@typescript-eslint/eslint-plugin": "^8.68.0",
         "@typescript-eslint/parser": "^8.68.0",
-        "@vscode/vsce": "^3.9.2",
+        "@vscode/test-electron": "^3.1.0",
+        "@vscode/vsce": "^4.0.0",
         "c8": "^12.0.0",
         "esbuild": "^0.28.2",
         "eslint": "^10.9.1",
+        "js-yaml": "^4.3.2",
         "prettier": "^3.9.6",
         "sql.js": "^1.14.2",
         "typescript": "^6.0.3"

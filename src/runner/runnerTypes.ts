@@ -3,11 +3,9 @@ export interface RunnerSettings {
     portableCachePath: string;
     binaryDiscoveryPattern: string;
     binaryDiscoveryExcludePattern: string;
-    licenseServerUrl: string;
     targetArgs: string[];
     configPath: string;
     outputPath: string;
-    appDataPath: string;
     workingDirectory: string;
     env: Record<string, string>;
 }
@@ -17,11 +15,16 @@ export interface RunnerResolvedPaths {
     configPath?: string;
     configuredOutputPath: string;
     outputPath: string;
+    /** Where covdbg keeps its logs: `.covdbg` under the directory it is started from. */
     appDataPath: string;
     workingDirectory: string;
 }
 
-export interface ResolvedExecutable {
-    path: string;
-    source: "setting" | "bundled" | "path" | "install" | "cache";
-}
+export type RuntimeSource = "setting" | "path" | "install" | "bundled" | "cache";
+
+/** What the extension can run: a covdbg new enough to use, or why there is none. */
+export type RuntimeState =
+    | { kind: "ok"; path: string; version: string; source: RuntimeSource }
+    | { kind: "missing" }
+    | { kind: "tooOld"; path: string; version?: string; fromSetting: boolean }
+    | { kind: "unsupported"; reason: "remote" | "platform" | "untrusted" };

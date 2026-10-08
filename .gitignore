@@ -7,7 +7,7 @@ out/
 .vs/
 */.vs/
 .covdbg/
-coverage/
+/coverage/
 *.vsix
 tsconfig.lsif.json
 *.lsif
@@ -19,3 +19,4 @@ vscode*.d.ts
 
 assets/portable
 test-out/
+.vscode-test/
