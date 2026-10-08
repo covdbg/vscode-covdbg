@@ -162,5 +162,4 @@ export class CoverageWorkspaceSession {
         this.staleCoverageKeys.delete(coverageKey);
         return result.coverage;
     }
-
 }
