@@ -1,12 +1,12 @@
 # covdbg for VS Code
 
-[![codecov](https://codecov.io/github/covdbg/vscode-covdbg/graph/badge.svg?token=7NJ34AP0R4)](https://codecov.io/github/covdbg/vscode-covdbg)
+[![codecov](https://codecov.io/github/liasoft/covdbg-vscode/graph/badge.svg)](https://codecov.io/github/liasoft/covdbg-vscode)
 
 Native Windows C++ coverage, directly in VS Code.
 
 Run your real test executables under [covdbg](https://covdbg.com/), see covered and uncovered lines in the editor, and open a detailed report, without leaving the IDE. covdbg works from the debug symbols your build already produces: no instrumentation, no compiler flags.
 
-<img src="https://media.githubusercontent.com/media/covdbg/vscode-covdbg/main/gif/readme-demo.gif" width=800 height=500>
+<img src="https://media.githubusercontent.com/media/liasoft/covdbg-vscode/main/gif/readme-demo.gif" width=800 height=500>
 
 ## What you get
 
@@ -103,5 +103,5 @@ The most useful settings:
 
 - Product site: [covdbg.com](https://covdbg.com/)
 - Documentation: [covdbg.com/docs](https://covdbg.com/docs/)
-- Release notes: [CHANGELOG.md](https://github.com/covdbg/vscode-covdbg/blob/main/CHANGELOG.md)
-- Contributing: [DEVELOPMENT.md](https://github.com/covdbg/vscode-covdbg/blob/main/DEVELOPMENT.md)
+- Release notes: [CHANGELOG.md](https://github.com/liasoft/covdbg-vscode/blob/main/CHANGELOG.md)
+- Contributing: [DEVELOPMENT.md](https://github.com/liasoft/covdbg-vscode/blob/main/DEVELOPMENT.md)
