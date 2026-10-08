@@ -4,117 +4,104 @@
 
 Native Windows C++ coverage, directly in VS Code.
 
-Run real executables with coverage, inspect covered and uncovered lines in the editor, open a detailed report, and keep the whole workflow inside the IDE.
+Run your real test executables under [covdbg](https://covdbg.com/), see covered and uncovered lines in the editor, and open a detailed report, without leaving the IDE. covdbg works from the debug symbols your build already produces: no instrumentation, no compiler flags.
 
 <img src="https://media.githubusercontent.com/media/covdbg/vscode-covdbg/main/gif/readme-demo.gif" width=800 height=500>
 
-[Get started with covdbg](https://covdbg.com/) | [Product docs and guides](https://covdbg.com/docs/)
+## What you get
 
-## Why It Exists
+- **One-click runs.** Press ▶ in the Coverage view to run a discovered test executable with coverage. The next ▶ runs the same one again.
+- **Coverage in the editor.** Covered and uncovered lines show in the gutter, as line highlights, or both.
+- **A Coverage view.** The total, the files with the lowest coverage, and who is signed in, in the covdbg sidebar.
+- **A full report.** Drill into files, folders and functions when line overlays are not enough.
+- **Testing view integration.** Discovered test executables appear in the Testing view and can be run with coverage from there.
+- **Existing results.** Load any `.covdb`, including ones written by covdbg on the command line or in CI. The editor picks up changes on its own.
+- **AI agents.** covdbg's MCP server is offered to VS Code automatically, so agents can run coverage and read the results.
 
-Native Windows coverage is often fragmented across runners, reports, and local scripts. covdbg keeps that loop in one place.
+## Install
 
-- Use existing Windows binaries and debug symbols.
-- Avoid compiler-specific instrumentation workflows.
-- Review coverage where you edit and debug.
-- Move quickly from a run to exact uncovered lines and functions.
-- Keep results local to the machine and workspace.
+1. Install **covdbg** from the Visual Studio Marketplace, on Windows.
+2. The extension needs covdbg 1.3 or newer. It uses an installed covdbg when it finds one, in this order:
+    - the `covdbg.executablePath` setting;
+    - `covdbg.exe` on `PATH`;
+    - the usual install folders.
 
-## What The Extension Does
+    If there is none, it falls back to the copy of covdbg bundled with the extension. To install covdbg yourself, see [covdbg.com/download](https://covdbg.com/download).
 
-### Run coverage from VS Code
+Coverage runs need a local window in a trusted workspace. Viewing existing `.covdb` files works in Restricted Mode too.
 
-Choose a discovered executable, start a run, and let covdbg load the latest result back into the workspace automatically.
+## Get started in 3 steps
 
-### Show coverage inline in the editor
+1. **Open your C++ folder** and build your tests with debug information (a Debug build).
+2. **Press ▶** in the Coverage view in the covdbg sidebar. If more than one test executable is found, pick the ones to run. The choice is remembered, and **Choose Executable…** in the view's menu changes it.
+3. **Confirm once.** If you are not signed in, your browser opens with a code filled in. Confirm it there. If the folder has no `.covdbg.yaml`, the extension offers to create a starter one. The run then continues, and coverage appears in the editor and the Coverage view.
 
-See covered and uncovered lines with gutter markers, line highlights, or both while you work in source.
+## Choose what counts with `.covdbg.yaml`
 
-### Open a full interactive report
-
-Drill into file, folder, and function summaries when you need more than line-level overlays.
-
-### Work with discovered test binaries
-
-Find likely test executables in the workspace and rerun them with coverage from the built-in Testing view.
-
-### Load existing coverage results
-
-Point covdbg at an existing `.covdb` file or let it discover results in the workspace automatically.
-
-### Get a workspace dashboard
-
-Use the sidebar to see runtime status, discovered tests, loaded coverage, config health, and the next useful action.
-
-## Coverage Scope With `.covdbg.yaml`
-
-Use `.covdbg.yaml` to decide what counts in the report. This is where you keep SDKs, vendored code, external dependencies, and helper-only test code out of project coverage.
+`.covdbg.yaml` decides which source files count toward coverage. The starter config counts every source file your debug information names, except the Windows SDK, the MSVC toolchain and runtime sources, and vendored dependencies. To count only your own code, list it under `include`:
 
 ```yaml
 version: 1
 source_root: "."
 coverage:
-	default:
-		files:
-			include:
-				- "**/*.cpp"
-				- "**/*.h"
-			exclude:
-				- "tests/helpers/**"
-				- "third_party/**"
-				- "external/**"
-				- "vendor/**"
-				- "**/Windows Kits/**"
-				- "**/VC/Tools/MSVC/**"
-
-		functions:
-			include:
-				- "*"
-			exclude:
-				- "__scrt_*"
-				- "_RTC_*"
-				- "__security_*"
+    default:
+        files:
+            include:
+                - "src/**/*.cpp"
+                - "src/**/*.h"
+            exclude:
+                - "third_party/**"
+                - "**/Windows Kits/**"
+                - "**/VC/Tools/MSVC/**"
 ```
 
-The extension can generate a starter config, then you can tune it to match your binaries and source layout.
+**Open or Create .covdbg.yaml** in the Coverage view's menu opens it. See the [configuration reference](https://covdbg.com/docs/reference/configuration/) for every option.
 
-## AI Coverage Workflows
+## Licensing and sign-in
 
-covdbg ships an MCP server, and the extension offers it to VS Code automatically. Nothing to
-install and nothing to configure: open a C++ workspace on Windows and the server appears under
-**MCP: List Servers** as `covdbg`.
+The license service decides every run for the person signed in on the machine. The extension uses the same sign-in as `covdbg` on the command line, so if you have already run `covdbg login`, there is nothing more to do.
 
-Chat-capable tooling can then drive coverage end to end:
+- **Sign in** with **covdbg: Sign In**, or just press ▶. Signing in is free.
+- **Your account and team** decide what a run covers. The sign-in is for one team (or your personal account) at a time, and the Coverage view shows it, for example `Signed in as a@acme.com for Acme`. To use another team, run `covdbg login --team <slug>` in a terminal; the editor picks the new sign-in up on refresh.
+- **With a project token**, for example on a shared build machine, put `COVDBG_PROJECT_TOKEN` into the `covdbg.runner.env` setting. A project token takes precedence over the sign-in.
 
-- Run a test executable under coverage, wait for it to finish, or cancel it.
-- Open a `.covdb`, list the files with the most uncovered lines, and read the uncovered segments
-  of any one of them with their surrounding context.
-- Query a coverage database directly with read-only SQL, and merge several databases into one.
+**covdbg: Sign Out** ends the one session on this machine, for every covdbg that uses it. Seats, teams and your personal lock are managed at [app.covdbg.com](https://app.covdbg.com). See [pricing](https://covdbg.com/pricing/) and the [licensing FAQ](https://covdbg.com/docs/reference/licensing-faq/) for details.
 
-A run that names no output path writes to the location `covdbg.runner.outputPath` configures
-(`.covdbg/coverage.covdb` by default), so the result loads into the editor on its own - the
-gutter decorations and the sidebar update without a command.
+## AI agents via MCP
 
-This supports a tight loop: inspect uncovered code, make a fix, rebuild, rerun the real tests
-with coverage, and query the updated result again.
+covdbg includes an MCP server, and the extension offers it to VS Code automatically. There is nothing to install or configure. In a trusted local window on Windows, the server appears as `covdbg` under **MCP: List Servers**.
 
-Licensing follows the same rules as a run started from the UI. If `COVDBG_LICENSE` or
-`COVDBG_LICENSE_FILE` is set for the window, covdbg uses it; otherwise a plugin demo licence is
-requested.
+Agents can then:
 
-## Quick Start
+- run a test executable with coverage, wait for it, or cancel it;
+- list the files with the most uncovered lines and read the uncovered code with its context;
+- query a coverage database with read-only SQL, and merge several databases.
 
-1. Install the extension on Windows and open your C++ workspace.
-2. Open the covdbg sidebar to verify runtime, config, and discovered targets.
-3. Add or generate `.covdbg.yaml` so the report matches your project boundaries.
-4. Run coverage on a discovered executable.
-5. Review inline highlights or open the report for deeper inspection.
+An agent's run looks for `.covdbg.yaml` beside the test executable, unless the agent names a config path.
 
-If you already have a `.covdb` result, load it and start browsing immediately.
+Runs an agent starts are licensed like your own: by the machine's sign-in, or by a project token in `covdbg.runner.env`.
 
-## Learn More
+A run that names no output path writes to the same `.covdb` as runs started from the editor: the `covdbg.runner.outputPath` setting, or `.covdbg/coverage.covdb` under the working directory. Its results then load into the editor on their own. The tradeoff is that each such run overwrites the previous result. To keep one, have the agent write to a different output path.
+
+See [Connect an AI agent](https://covdbg.com/docs/integrations/mcp/) for using the server from other MCP clients.
+
+## Settings
+
+The most useful settings:
+
+| Setting                                       | What it does                                                                     |
+| --------------------------------------------- | -------------------------------------------------------------------------------- |
+| `covdbg.executablePath`                       | Use this `covdbg.exe` instead of looking for one.                                |
+| `covdbg.renderMode`                           | Show coverage in the gutter, as line highlights, or both.                        |
+| `covdbg.runner.targetArgs`                    | Arguments passed to the test executable.                                         |
+| `covdbg.runner.outputPath`                    | Where runs write their `.covdb`.                                                 |
+| `covdbg.runner.env`                           | Extra environment variables for runs, such as `COVDBG_PROJECT_TOKEN`.            |
+| `covdbg.runner.binaryDiscoveryPattern`        | Which executables count as tests.                                                |
+| `covdbg.runner.binaryDiscoveryExcludePattern` | Which of those to leave out. By default, Release and RelWithDebInfo build trees. |
+
+## Learn more
 
 - Product site: [covdbg.com](https://covdbg.com/)
 - Documentation: [covdbg.com/docs](https://covdbg.com/docs/)
-- Development guide: [DEVELOPMENT.md](https://github.com/covdbg/vscode-covdbg/blob/main/DEVELOPMENT.md)
 - Release notes: [CHANGELOG.md](https://github.com/covdbg/vscode-covdbg/blob/main/CHANGELOG.md)
+- Contributing: [DEVELOPMENT.md](https://github.com/covdbg/vscode-covdbg/blob/main/DEVELOPMENT.md)

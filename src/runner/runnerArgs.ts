@@ -4,15 +4,12 @@ export function buildCovdbgArguments(
     paths: RunnerResolvedPaths,
     targetExecutablePath: string,
     targetArgs: string[],
-    covdbgArgs: string[] = [],
 ): string[] {
     const args: string[] = [];
-    args.push("--appdata", paths.appDataPath);
     if (paths.configPath) {
         args.push("--config", paths.configPath);
     }
     args.push("--output", paths.outputPath);
-    args.push(...covdbgArgs);
     args.push(targetExecutablePath, ...targetArgs);
     return args;
 }

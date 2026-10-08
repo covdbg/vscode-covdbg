@@ -5,7 +5,7 @@ This document covers building, testing, packaging, and releasing the covdbg VS C
 ## Repository Layout
 
 - `src/` contains the extension source.
-- `views/` contains report and UI helpers.
+- `src/views/` contains the Coverage view, the status bar and the report.
 - `scripts/` contains bundling, portable download, and release validation scripts.
 - `assets/portable/` is used for the portable covdbg runtime archive during local packaging.
 
@@ -34,7 +34,7 @@ The build performs two steps:
 1. `npm run prepare:portable`
 2. `npm run compile`
 
-If `assets/portable/covdbg-portable.zip` is missing or empty, the portable archive is downloaded automatically.
+Every build downloads a fresh `assets/portable/covdbg-portable.zip`, so the bundled covdbg is never a leftover from an earlier build.
 
 ## Development Loop
 
@@ -65,7 +65,6 @@ Then start the `Run Extension` launch configuration or press `F5`.
 
 Notes:
 
-- `npm run build` is idempotent with respect to the portable archive.
 - The downloaded archive stays local because it is ignored by git.
 - Set `COVDBG_PORTABLE_URL` to test with a different portable artifact.
 
@@ -97,6 +96,21 @@ npm run test:coverage
 
 The coverage command measures compiled extension modules under `test-out/`, excludes compiled test files, prints a text summary, and writes `coverage/lcov.info` for Codecov.
 
+Run the end-to-end tests (Windows only, run locally, not in CI):
+
+```bash
+npm run test:e2e             # every scenario
+npm run test:e2e -- signIn   # one scenario: plainFolder, firstRun or signIn
+```
+
+They launch VS Code with the extension against a fresh copy of the [quick-start](https://github.com/liasoft/covdbg-quick-start) sample. That copy is built with CMake, then run with the real covdbg, so they need:
+
+- covdbg 1.3+ on `PATH`, signed in;
+- CMake with MSVC;
+- quick-start checked out next to this repository (or at `COVDBG_E2E_QUICKSTART`).
+
+The sign-in scenario uses a covdbg stand-in (`src/e2e/fakeCovdbg`), so the machine's own sign-in is never touched. Set `COVDBG_E2E_VSCODE` to an installed `Code.exe` to skip downloading VS Code into `.vscode-test/`. Scratch folders go to `%TEMP%\covdbg-e2e`.
+
 Run linting:
 
 ```bash
@@ -111,15 +125,15 @@ Build a VSIX locally:
 npm run package
 ```
 
-The package flow downloads the current portable covdbg runtime from `https://covdbg.com/download/latest/portable.zip` if needed.
+`vscode:prepublish` runs the build, so packaging downloads the current portable covdbg runtime from `https://covdbg.com/download/latest/portable.zip` every time.
 
 ## Release Process
 
 Create and push a Git tag in the form `vX.Y.Z` that matches the version in `package.json`.
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.9.0
+git push origin v0.9.0
 ```
 
 The release workflow then:
@@ -143,14 +157,17 @@ Marketplace prerequisites:
 
 Once the secret is present, a `vX.Y.Z` tag will both publish the extension to the VS Code Marketplace and attach the same VSIX to the GitHub release.
 
-Use this check locally before tagging:
+Use this check locally, on Windows, before tagging:
 
 ```bash
-npm run release:check
+npm run build
+npm run release:check -- vX.Y.Z
 ```
+
+It fails unless the VS Code engine matches `@types/vscode`, the bundled covdbg reports `covdbgBundledVersion` from `package.json`, the tag matches the package version, and `CHANGELOG.md` has a dated section for that version.
 
 ## Notes
 
 - Coverage viewing works independently from coverage execution.
-- Coverage execution requires the proprietary covdbg runtime and license flow.
+- Coverage execution requires covdbg 1.3 or newer, and a sign-in or a project token for the license service.
 - Repository-facing end-user documentation belongs in `README.md`; contributor workflow documentation belongs in this file.

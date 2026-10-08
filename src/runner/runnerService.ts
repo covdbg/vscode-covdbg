@@ -4,26 +4,30 @@ import { spawn } from "child_process";
 import * as vscode from "vscode";
 import * as output from "../views/outputChannel";
 import { buildCovdbgArguments } from "./runnerArgs";
-import { LicenseStatusSnapshot, readLicenseStatus } from "./licenseStatus";
-import { resolveCovdbgExecutable } from "./executableResolver";
-import { buildLicenseRunConfig } from "./licenseRunConfig";
+import { describeRuntimeProblem, resolveCovdbgRuntime } from "./executableResolver";
 import { COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK, getCovdbgRunFailureMessage } from "./exitCodes";
-import type { RunnerSettings } from "./runnerTypes";
+import { LineBuffer } from "./lineBuffer";
+import { RunNotice, classifyRunLine } from "./runOutcome";
 import {
     getPreferredWorkspaceFolder,
     getWorkspaceRoot,
     readRunnerSettings,
     resolveRunnerPaths,
 } from "./settings";
-import { resolveEffectiveConfigPath, resolveOrSelectTargetExecutable } from "./workspaceDefaults";
-import { getCovdbgVersion } from "./runtimeInfo";
+import { resolveEffectiveConfigPath, resolveTargetExecutable } from "./workspaceDefaults";
 
 export interface RunResult {
     success: boolean;
     outputPath?: string;
-    configuredOutputPath?: string;
-    targetExecutablePath?: string;
-    licenseStatus?: LicenseStatusSnapshot;
+    /** What covdbg said about the run's license: a refusal, an ended sign-in, a lock, gating. */
+    notices: RunNotice[];
+    /** Why the run could not start, or found nothing to measure; the caller decides how to say so. */
+    problem?: RunProblem;
+}
+
+export interface RunProblem {
+    message: string;
+    actions: string[];
 }
 
 export async function runCoverageForTarget(
@@ -31,70 +35,47 @@ export async function runCoverageForTarget(
     targetExecutablePath: string,
     outputPathOverride?: string,
     onStart?: () => void,
-    onFinish?: (success: boolean) => void,
 ): Promise<RunResult> {
     return runCoverageInternal(
         context,
         {
             targetExecutableOverride: targetExecutablePath,
             outputPathOverride,
-            interactiveTargetSelection: false,
-            showProgress: false,
         },
         onStart,
-        onFinish,
     );
 }
 
 interface RunOptions {
-    targetExecutableOverride?: string;
+    targetExecutableOverride: string;
     outputPathOverride?: string;
-    workspaceFolderOverride?: vscode.WorkspaceFolder;
-    interactiveTargetSelection: boolean;
-    showProgress: boolean;
 }
 
 async function runCoverageInternal(
     context: vscode.ExtensionContext,
     options: RunOptions,
     onStart?: () => void,
-    onFinish?: (success: boolean) => void,
 ): Promise<RunResult> {
     const trustErr = await ensurePreflight();
     if (trustErr) {
-        vscode.window.showErrorMessage(trustErr.message, ...trustErr.actions).then((action) => {
-            if (action === "Manage Trust") {
-                void vscode.commands.executeCommand("workbench.trust.manage");
-            } else if (action === "Open Settings") {
-                void vscode.commands.executeCommand(
-                    "workbench.action.openSettings",
-                    "covdbg.runner",
-                );
-            }
-        });
-        return { success: false };
+        return { success: false, notices: [], problem: trustErr };
     }
 
-    const workspaceFolder =
-        options.workspaceFolderOverride ??
-        getPreferredWorkspaceFolder(options.targetExecutableOverride);
+    const workspaceFolder = getPreferredWorkspaceFolder(options.targetExecutableOverride);
     const settings = readRunnerSettings(workspaceFolder?.uri);
     const workspaceRoot = workspaceFolder?.uri.fsPath ?? getWorkspaceRoot();
     if (!workspaceRoot) {
-        vscode.window.showErrorMessage("covdbg: Open a workspace folder before running coverage.");
-        return { success: false };
+        return fail("Open a workspace folder before running coverage.");
     }
 
-    const effectiveTargetExecutablePath = await resolveOrSelectTargetExecutable(
+    const effectiveTargetExecutablePath = await resolveTargetExecutable(
         options.targetExecutableOverride,
         workspaceRoot,
-        options.interactiveTargetSelection,
     );
     if (!effectiveTargetExecutablePath) {
-        vscode.window.showErrorMessage(
-            "covdbg: No runnable test executable found. Refresh test discovery or build a test binary first.",
+        return fail(
+            "No runnable test executable found. Refresh test discovery or build a test binary first.",
         );
-        return { success: false };
     }
 
     const paths = resolveRunnerPaths(settings, workspaceRoot);
@@ -109,10 +90,7 @@ async function runCoverageInternal(
         workspaceRoot,
     );
     if (explicitConfig && !effectiveConfigPath) {
-        vscode.window.showErrorMessage(
-            `covdbg: Config file not found: ${paths.configPath ?? explicitConfig}`,
-        );
-        return { success: false };
+        return fail(`Config file not found: ${paths.configPath ?? explicitConfig}`);
     }
     if (!effectiveConfigPath) {
         output.log(
@@ -120,29 +98,19 @@ async function runCoverageInternal(
         );
     }
 
-    const resolvedExe = await resolveCovdbgExecutable(context, settings, workspaceRoot);
-    if (!resolvedExe) {
-        vscode.window.showErrorMessage(
-            "covdbg executable not found. Ensure bundled portable exists or configure covdbg.executablePath.",
-        );
-        return { success: false };
+    const resolvedExe = await resolveCovdbgRuntime(context, settings, workspaceRoot);
+    if (resolvedExe.kind !== "ok") {
+        return fail(describeRuntimeProblem(resolvedExe));
     }
 
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
-    await fs.mkdir(paths.appDataPath, { recursive: true });
-    output.show();
-    const version = await getCovdbgVersion(resolvedExe.path);
-    const versionInfo = version ? ` (${version})` : "";
-    output.log(`Running coverage (${resolvedExe.source}): ${resolvedExe.path}${versionInfo}`);
-
-    const extensionVersion = vscode.extensions.getExtension("covdbg.covdbg")?.packageJSON?.version;
-    const licenseRunConfig = buildLicenseRunConfig(
-        settings,
-        typeof extensionVersion === "string" ? extensionVersion : undefined,
+    output.log(
+        `Running coverage (${resolvedExe.source}): ${resolvedExe.path} (covdbg ${resolvedExe.version})`,
     );
-    if (licenseRunConfig.requestsDemoLicense) {
-        output.log("covdbg: Auto-requesting plugin demo license for VS Code run.");
-    }
+
+    // The run carries no licence of its own: covdbg decides it from the machine's sign-in
+    // (`covdbg login`) or from COVDBG_PROJECT_TOKEN in the environment, and says so when neither is
+    // there. Its notices about the license are read from whole lines, so the editor can offer the fix.
     const args = buildCovdbgArguments(
         {
             ...paths,
@@ -151,14 +119,24 @@ async function runCoverageInternal(
         },
         effectiveTargetExecutablePath,
         settings.targetArgs,
-        licenseRunConfig.args,
     );
     const env = {
         ...process.env,
-        ...licenseRunConfig.env,
+        ...settings.env,
     };
+    const projectToken = Boolean(env["COVDBG_PROJECT_TOKEN"]?.trim());
+    const notices: RunNotice[] = [];
+    const readLines = (stream: "stdout" | "stderr") =>
+        new LineBuffer((line) => {
+            output.log(line);
+            const notice = classifyRunLine(stream, line, projectToken);
+            if (notice) {
+                notices.push(notice);
+            }
+        });
 
     onStart?.();
+    let problem: RunProblem | undefined;
     const executeRun = () =>
         new Promise<boolean>((resolve) => {
             const child = spawn(resolvedExe.path, args, {
@@ -167,19 +145,23 @@ async function runCoverageInternal(
                 windowsHide: true,
             });
 
-            child.stdout.on("data", (chunk) => output.log(String(chunk).trimEnd()));
-            child.stderr.on("data", (chunk) => output.log(String(chunk).trimEnd()));
+            const stdout = readLines("stdout");
+            const stderr = readLines("stderr");
+            child.stdout.on("data", (chunk) => stdout.push(chunk));
+            child.stderr.on("data", (chunk) => stderr.push(chunk));
             child.on("error", (error) => {
                 output.logError(`Failed to start covdbg: ${error.message}`);
                 resolve(false);
             });
             child.on("close", (code) => {
+                stdout.flush();
+                stderr.flush();
                 const ok = code === 0;
                 if (!ok) {
                     const failureMessage = getCovdbgRunFailureMessage(code);
                     output.logError(failureMessage);
                     if (code === COVDBG_EXIT_NO_FUNCTIONS_TO_TRACK) {
-                        void vscode.window.showWarningMessage(`covdbg: ${failureMessage}`);
+                        problem = { message: failureMessage, actions: [] };
                     }
                 } else {
                     output.log(`Coverage run finished. Output: ${outputPath}`);
@@ -188,35 +170,25 @@ async function runCoverageInternal(
             });
         });
 
-    const success = options.showProgress
-        ? await vscode.window.withProgress<boolean>(
-              {
-                  location: vscode.ProgressLocation.Notification,
-                  title: "covdbg: Running coverage",
-                  cancellable: false,
-              },
-              async () => executeRun(),
-          )
-        : await executeRun();
-    const licenseStatus = await readLicenseStatus(paths.appDataPath);
-    onFinish?.(success);
+    const success = await executeRun();
 
     if (success) {
         return {
             success: true,
             outputPath,
-            configuredOutputPath: paths.configuredOutputPath,
-            targetExecutablePath: effectiveTargetExecutablePath,
-            licenseStatus,
+            notices,
         };
     }
     return {
         success: false,
         outputPath,
-        configuredOutputPath: paths.configuredOutputPath,
-        targetExecutablePath: effectiveTargetExecutablePath,
-        licenseStatus,
+        notices,
+        problem,
     };
+}
+
+function fail(message: string): RunResult {
+    return { success: false, notices: [], problem: { message, actions: [] } };
 }
 
 export async function mergeCoverageFiles(
@@ -242,9 +214,9 @@ export async function mergeCoverageFiles(
     }
 
     const settings = readRunnerSettings(workspaceFolder?.uri);
-    const resolvedExe = await resolveCovdbgExecutable(context, settings, workspaceRoot);
-    if (!resolvedExe) {
-        output.logError("covdbg merge failed: covdbg executable not found.");
+    const resolvedExe = await resolveCovdbgRuntime(context, settings, workspaceRoot);
+    if (resolvedExe.kind !== "ok") {
+        output.logError(`covdbg merge failed: ${describeRuntimeProblem(resolvedExe)}`);
         return false;
     }
 
@@ -284,12 +256,7 @@ export async function mergeCoverageFiles(
     });
 }
 
-interface PreflightError {
-    message: string;
-    actions: string[];
-}
-
-async function ensurePreflight(): Promise<PreflightError | undefined> {
+async function ensurePreflight(): Promise<RunProblem | undefined> {
     if (process.platform !== "win32") {
         return {
             message: "covdbg runner is supported only on Windows.",

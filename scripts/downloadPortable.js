@@ -10,13 +10,8 @@ const REDIRECT_LIMIT = 5;
 
 async function main() {
     const downloadUrl = process.env.COVDBG_PORTABLE_URL || DEFAULT_PORTABLE_URL;
-    const forceDownload = isTruthy(process.env.COVDBG_PORTABLE_FORCE_DOWNLOAD);
 
-    if (!forceDownload && (await hasExistingArchive(OUTPUT_PATH))) {
-        console.log(`Portable archive already present: ${OUTPUT_PATH}`);
-        return;
-    }
-
+    // Always downloaded: an archive left over from an earlier build could be any covdbg at all.
     await fsp.mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
 
     const tempPath = `${OUTPUT_PATH}.download`;
@@ -35,15 +30,6 @@ async function main() {
     } catch (error) {
         await safeUnlink(tempPath);
         throw error;
-    }
-}
-
-async function hasExistingArchive(filePath) {
-    try {
-        const stats = await fsp.stat(filePath);
-        return stats.isFile() && stats.size > 0;
-    } catch {
-        return false;
     }
 }
 
@@ -102,14 +88,6 @@ function downloadToFile(urlString, destinationPath, redirectsRemaining) {
 
         request.on("error", reject);
     });
-}
-
-function isTruthy(value) {
-    if (!value) {
-        return false;
-    }
-
-    return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 }
 
 main().catch((error) => {

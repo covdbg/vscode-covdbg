@@ -23,6 +23,20 @@ async function main() {
     }
 
     console.log(`Release tag ${releaseTag} matches package.json version ${packageVersion}.`);
+
+    const changelog = await fs.readFile(path.join(__dirname, "..", "CHANGELOG.md"), "utf8");
+    const heading = `## [${packageVersion}] - `;
+    const dated = changelog
+        .split(/\r?\n/)
+        .some(
+            (line) =>
+                line.startsWith(heading) && /^\d{4}-\d{2}-\d{2}$/.test(line.slice(heading.length)),
+        );
+    if (!dated) {
+        throw new Error(`CHANGELOG.md has no dated "${heading}YYYY-MM-DD" section.`);
+    }
+
+    console.log(`CHANGELOG.md has a dated section for ${packageVersion}.`);
 }
 
 main().catch((error) => {

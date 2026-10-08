@@ -11,7 +11,10 @@ export function getKnownInstallPaths(): string[] {
         path.join(programFiles86, "Liasoft", "covdbg", COVDBG_EXE),
     ];
     if (localAppData) {
-        candidates.push(path.join(localAppData, "Programs", "covdbg", COVDBG_EXE));
+        candidates.push(
+            path.join(localAppData, "Programs", "Liasoft", "covdbg", COVDBG_EXE),
+            path.join(localAppData, "Programs", "covdbg", COVDBG_EXE),
+        );
     }
     return candidates;
 }

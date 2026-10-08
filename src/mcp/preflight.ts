@@ -21,9 +21,21 @@ export interface CovdbgRunnability {
  * Kept free of any vscode import so the rule itself can be tested without an editor.
  */
 export function isCovdbgRunnable(conditions: CovdbgRunnability): boolean {
-    return (
-        conditions.platform === "win32" &&
-        conditions.isTrusted &&
-        conditions.remoteName === undefined
-    );
+    return getUnsupportedReason(conditions) === undefined;
+}
+
+/** The first of those conditions that fails, or undefined when covdbg can run here. */
+export function getUnsupportedReason(
+    conditions: CovdbgRunnability,
+): "platform" | "remote" | "untrusted" | undefined {
+    if (conditions.platform !== "win32") {
+        return "platform";
+    }
+    if (conditions.remoteName !== undefined) {
+        return "remote";
+    }
+    if (!conditions.isTrusted) {
+        return "untrusted";
+    }
+    return undefined;
 }

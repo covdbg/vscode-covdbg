@@ -19,7 +19,11 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Windows, so the bundled covdbg can be run to check its version before it ships.
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     env:
       VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
@@ -57,6 +61,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify bundled covdbg version
+        run: node ./scripts/verifyBundledCovdbg.js
 
       - name: Test
         run: npm test
