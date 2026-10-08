@@ -16,9 +16,7 @@ const PROMPT =
     "  and confirm the code there:  ABCD-1234\n\nWaiting for you to finish...\n";
 
 /** A machine whose sign-in the test controls; `login` processes are left for the test to drive. */
-function machine(
-    options: { runtime?: RuntimeState; settingsEnv?: Record<string, string>; json?: boolean } = {},
-) {
+function machine(options: { runtime?: RuntimeState; settingsEnv?: Record<string, string> } = {}) {
     const state = {
         email: undefined as string | undefined,
         team: undefined as { id: string; name: string; slug: string; kind: string } | undefined,
@@ -38,7 +36,6 @@ function machine(
                           }),
                       }
                     : undefined,
-                options.json ?? false,
             );
         }
     });
@@ -76,8 +73,8 @@ test("whoami's answer becomes the state, and the context keys follow", async () 
     assert.deepEqual(auth.state, { kind: "signedIn", email: "dev@example.com" });
 });
 
-test("a covdbg that knows whoami --json gives the account and team", async () => {
-    const { state, auth, whoamis } = machine({ json: true });
+test("whoami --json gives the account and team", async () => {
+    const { state, auth, whoamis } = machine();
     await auth.refresh();
     assert.deepEqual(auth.state, { kind: "signedOut" });
 
@@ -98,17 +95,6 @@ test("a covdbg that knows whoami --json gives the account and team", async () =>
             ["whoami", "--json"],
             ["whoami", "--json"],
         ],
-    );
-});
-
-test("an older covdbg without --json is asked again the old way", async () => {
-    const { state, auth, whoamis } = machine({ json: false });
-    state.email = "dev@example.com";
-    await auth.refresh();
-    assert.deepEqual(auth.state, { kind: "signedIn", email: "dev@example.com" });
-    assert.deepEqual(
-        whoamis().map((process) => process.args),
-        [["whoami", "--json"], ["whoami"]],
     );
 });
 
@@ -264,8 +250,7 @@ test("signing out asks first and passes on the service's problem", async () => {
             );
             process.exit(0);
         } else {
-            process.print("Not signed in.\n");
-            process.exit(1);
+            answerWhoami(process, undefined);
         }
     });
     const signingOut = new AuthService({
@@ -278,7 +263,7 @@ test("signing out asks first and passes on the service's problem", async () => {
 
     assert.deepEqual(
         covdbg.started.map((process) => process.args[0]),
-        ["logout", "whoami", "whoami"],
+        ["logout", "whoami"],
     );
     assert.deepEqual(vscodeStub.window.toasts, [
         "Sign out of covdbg?",

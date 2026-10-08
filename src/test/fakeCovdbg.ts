@@ -44,37 +44,20 @@ export function fakeCovdbg(script: (process: FakeProcess) => void): {
     return { start, started };
 }
 
-/**
- * Answers a `whoami` process the way covdbg does. With `json` it knows `--json` and prints the
- * contract's object; without, it is an older covdbg that rejects the option and prints the text.
- */
-export function answerWhoami(
-    process: FakeProcess,
-    account: SignedInAccount | undefined,
-    json: boolean,
-): void {
-    if (process.args.includes("--json")) {
-        if (!json) {
-            process.print("covdbg: unknown option --json\n");
-            process.exit(2);
-            return;
-        }
-        process.print(
-            JSON.stringify({
-                signedIn: account !== undefined,
-                email: account?.email ?? null,
-                accountId: account?.accountId ?? null,
-                teamName: account?.teamName ?? null,
-                teamSlug: account?.teamSlug ?? null,
-                teamKind: account?.teamKind ?? null,
-                source: "service",
-                projectToken: false,
-            }) + "\n",
-        );
-        process.exit(account ? 0 : 1);
-        return;
-    }
-    process.print(account ? `Signed in as ${account.email}.\n` : "Not signed in.\n");
+/** Answers a `whoami --json` process the way covdbg does, with the contract's object. */
+export function answerWhoami(process: FakeProcess, account: SignedInAccount | undefined): void {
+    process.print(
+        JSON.stringify({
+            signedIn: account !== undefined,
+            email: account?.email ?? null,
+            accountId: account?.accountId ?? null,
+            teamName: account?.teamName ?? null,
+            teamSlug: account?.teamSlug ?? null,
+            teamKind: account?.teamKind ?? null,
+            source: "service",
+            projectToken: false,
+        }) + "\n",
+    );
     process.exit(account ? 0 : 1);
 }
 

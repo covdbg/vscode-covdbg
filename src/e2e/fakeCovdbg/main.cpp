@@ -66,11 +66,14 @@ int wmain(int argc, wchar_t** argv)
         return 0;
     }
     if (command == L"whoami") {
+        // The extension asks for `whoami --json`; the exit code follows the sign-in too.
         if (fs::exists(signedIn)) {
-            Say("Signed in as e2e@example.com.");
+            Say("{\"signedIn\":true,\"email\":\"e2e@example.com\",\"accountId\":\"acc_e2e\","
+                "\"teamName\":\"E2E Team\",\"teamSlug\":\"e2e-team\",\"teamKind\":\"team\","
+                "\"source\":\"service\",\"projectToken\":false}");
             return 0;
         }
-        Say("Not signed in.");
+        Say("{\"signedIn\":false,\"email\":null,\"source\":\"none\",\"projectToken\":false}");
         return 1;
     }
     if (command == L"logout") {
@@ -94,7 +97,7 @@ int wmain(int argc, wchar_t** argv)
                 if (file) {
                     std::fclose(file);
                 }
-                Say("Signed in as e2e@example.com.");
+                Say("Signed in as e2e@example.com for E2E Team.");
                 Say("Seats, teams and your personal lock are managed at https://app.covdbg.com");
                 return 0;
             }

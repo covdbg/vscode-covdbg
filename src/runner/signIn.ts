@@ -12,8 +12,8 @@ export type WhoamiResult =
     | { kind: "error"; message: string };
 
 /**
- * The account and team a sign-in belongs to. Every field is optional: older covdbg versions name
- * at most the email, and the sign-in line names the team but not its slug or kind.
+ * The account and team a sign-in belongs to. Every field is optional: the sign-in line names the
+ * email and the team but not its slug or kind, and a JSON answer leaves out what it does not know.
  */
 export interface SignedInAccount {
     email?: string;
@@ -63,17 +63,10 @@ const spawnCovdbg: SpawnCovdbg = (executablePath, args, env) =>
 /** covdbg gives up on a sign-in after 10 minutes; this is the backstop if it does not. */
 const SIGN_IN_TIMEOUT_MS = 11 * 60_000;
 
-/**
- * `covdbg whoami` and `covdbg login` both print "Signed in as <email>." or, with a team,
- * "Signed in as <email> for <team name>." when there is one.
- */
+/** `covdbg login` prints "Signed in as <email> for <team name>." once the code is confirmed. */
 export function parseSignedIn(stdout: string): SignedInAccount {
-    const match = /^Signed in as (.+?)(?: for (.+?))?\.\s*$/m.exec(stdout);
-    return withValues({ email: match?.[1].trim(), teamName: match?.[2]?.trim() });
-}
-
-export function parseSignedInAs(stdout: string): string | undefined {
-    return parseSignedIn(stdout).email;
+    const match = /^Signed in as (.+?) for (.+?)\.\s*$/m.exec(stdout);
+    return withValues({ email: match?.[1].trim(), teamName: match?.[2].trim() });
 }
 
 /** "Signed in as a@acme.com for Acme", as far as the account is known. */
@@ -86,8 +79,7 @@ export function describeSignedIn(account: SignedInAccount): string {
 
 /**
  * Reads `covdbg whoami --json` (`signedIn`, `email`, `accountId`, `teamName`, `teamSlug`,
- * `teamKind`, ...). Anything that is not a JSON object with a boolean `signedIn`, as an older
- * covdbg prints for an option it does not know, gives undefined.
+ * `teamKind`, ...). Anything that is not a JSON object with a boolean `signedIn` gives undefined.
  */
 export function parseWhoamiJson(stdout: string): WhoamiResult | undefined {
     let json: unknown;
@@ -130,35 +122,24 @@ function withValues(account: SignedInAccount): SignedInAccount {
 }
 
 /**
- * Asks `covdbg whoami --json`. A covdbg that does not know the option, or answers with anything
- * but that JSON, is an older one: it is asked again the old way, where the exit code decides
- * (0 is signed in, 1 is not) and the text only names the email.
+ * Asks `covdbg whoami --json`. The exit code does not matter; the JSON says whether this machine
+ * is signed in. Anything else on stdout is an error state.
  */
 export async function querySignIn(
     executablePath: string,
     env: NodeJS.ProcessEnv,
     start: SpawnCovdbg = spawnCovdbg,
 ): Promise<WhoamiResult> {
-    const json = await runCovdbg(executablePath, ["whoami", "--json"], env, 15_000, start);
-    if (json.error) {
-        return { kind: "error", message: json.error };
-    }
-    const parsed = parseWhoamiJson(json.stdout);
-    if (parsed) {
-        return parsed;
-    }
-
-    const run = await runCovdbg(executablePath, ["whoami"], env, 15_000, start);
+    const run = await runCovdbg(executablePath, ["whoami", "--json"], env, 15_000, start);
     if (run.error) {
         return { kind: "error", message: run.error };
     }
-    if (run.code === 0) {
-        return { kind: "signedIn", ...parseSignedIn(run.stdout) };
-    }
-    if (run.code === 1) {
-        return { kind: "signedOut" };
-    }
-    return { kind: "error", message: `covdbg whoami exited with code ${run.code}` };
+    return (
+        parseWhoamiJson(run.stdout) ?? {
+            kind: "error",
+            message: `covdbg whoami --json did not answer with the expected JSON (exit code ${run.code}).`,
+        }
+    );
 }
 
 /**

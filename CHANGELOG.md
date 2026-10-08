@@ -10,8 +10,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 - The Coverage view and the output log show the account and the team a sign-in is for, for example
   `Signed in as a@acme.com for Acme`. The extension reads them from `covdbg whoami --json` and the
-  `covdbg login` line, and falls back to the exit code and the old text with a covdbg that does not
-  know `--json`.
+  `covdbg login` line.
 
 ### Changed
 

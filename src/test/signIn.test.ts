@@ -4,7 +4,6 @@ import {
     describeSignedIn,
     parseSignOut,
     parseSignedIn,
-    parseSignedInAs,
     querySignIn,
     signIn,
     signOut,
@@ -16,17 +15,6 @@ const PROMPT =
     "\n  Open https://app.covdbg.com/device?code=ABCD-1234\n" +
     "  and confirm the code there:  ABCD-1234\n\nWaiting for you to finish...\n";
 
-test("parseSignedInAs reads the email out of what covdbg prints", () => {
-    assert.equal(parseSignedInAs("Signed in as dev@example.com.\r\n"), "dev@example.com");
-    assert.equal(parseSignedInAs("Not signed in.\n"), undefined);
-});
-
-test("parseSignedInAs ignores the line about a sign-in being replaced", () => {
-    const stdout = "Already signed in as old@example.com. Signing in again replaces it.\n";
-    assert.equal(parseSignedInAs(stdout), undefined);
-    assert.equal(parseSignedInAs(stdout + "Signed in as new@example.com.\n"), "new@example.com");
-});
-
 test("parseSignedIn reads the team out of the login line", () => {
     assert.deepEqual(parseSignedIn("Signed in as a@acme.com for Acme Inc.\r\n"), {
         email: "a@acme.com",
@@ -36,9 +24,11 @@ test("parseSignedIn reads the team out of the login line", () => {
         email: "a@acme.com",
         teamName: "Made for You",
     });
-    assert.deepEqual(parseSignedIn("Signed in as dev@example.com.\n"), {
-        email: "dev@example.com",
-    });
+    assert.deepEqual(parseSignedIn("Signed in as dev@example.com.\n"), {});
+    assert.deepEqual(
+        parseSignedIn("Already signed in as old@acme.com for Old. Signing in again replaces it.\n"),
+        {},
+    );
     assert.deepEqual(parseSignedIn("Not signed in.\n"), {});
     assert.equal(
         describeSignedIn({ email: "a@acme.com", teamName: "Acme" }),
@@ -85,52 +75,32 @@ test("whoami --json gives the account and team, whatever the exit code", async (
     assert.equal(out.started.length, 1);
 });
 
-test("whoami falls back to the exit code when --json is not understood", async () => {
-    const covdbg = fakeCovdbg((process) => {
-        if (process.args.includes("--json")) {
-            process.print("covdbg: unknown option --json\n");
-            process.exit(2);
-        } else {
-            process.print("Signed in as dev@example.com.\n");
-            process.exit(0);
-        }
-    });
-    assert.deepEqual(await querySignIn(EXE, {}, covdbg.start), {
-        kind: "signedIn",
-        email: "dev@example.com",
-    });
-    assert.deepEqual(
-        covdbg.started.map((process) => process.args),
-        [["whoami", "--json"], ["whoami"]],
-    );
-
-    // Output that is JSON but not the contract's object is an older covdbg too.
-    const odd = fakeCovdbg((process) => {
-        const json = process.args.includes("--json");
-        process.print(json ? "[]" : "Not signed in.\n");
-        process.exit(json ? 0 : 1);
-    });
-    assert.deepEqual(await querySignIn(EXE, {}, odd.start), { kind: "signedOut" });
-});
-
-test("whoami decides by its exit code and reads only the email from the text", async () => {
-    const cases: [string, number, unknown][] = [
-        ["Signed in as dev@example.com.\r\n", 0, { kind: "signedIn", email: "dev@example.com" }],
-        ["", 0, { kind: "signedIn" }],
-        ["Not signed in.\r\n", 1, { kind: "signedOut" }],
+test("whoami --json that is not the contract's object is an error", async () => {
+    const cases: [string, number, RegExp][] = [
+        ["covdbg: unknown option --json\n", 2, /expected JSON.*exit code 2/],
+        ["", 0, /expected JSON/],
+        ["[]", 0, /expected JSON/],
+        ['{"email":"a@acme.com"}', 0, /expected JSON/],
+        ['{"signedIn":"yes"}', 0, /expected JSON/],
     ];
-    for (const [stdout, code, expected] of cases) {
+    for (const [stdout, code, message] of cases) {
         const covdbg = fakeCovdbg((process) => {
             process.print(stdout);
             process.exit(code);
         });
-        assert.deepEqual(await querySignIn(EXE, { marker: "1" }, covdbg.start), expected);
-        assert.deepEqual(
-            covdbg.started.map((process) => process.args),
-            [["whoami", "--json"], ["whoami"]],
-        );
-        assert.equal(covdbg.started[1].env.marker, "1");
+        const result = await querySignIn(EXE, {}, covdbg.start);
+        assert.equal(result.kind, "error");
+        assert.match(result.kind === "error" ? result.message : "", message);
+        assert.equal(covdbg.started.length, 1);
     }
+});
+
+test("whoami that cannot start is an error", async () => {
+    const covdbg = fakeCovdbg((process) => process.emit("error", new Error("ENOENT")));
+    assert.deepEqual(await querySignIn(EXE, {}, covdbg.start), {
+        kind: "error",
+        message: "Failed to start covdbg: ENOENT",
+    });
 });
 
 test("sign-in announces the page once, even when the prompt arrives in pieces", async () => {
@@ -155,11 +125,15 @@ test("sign-in announces the page once, even when the prompt arrives in pieces", 
     ]);
 
     login.print(
-        "Signed in as dev@example.com.\nSeats, teams and your personal lock are managed at ",
+        "Signed in as dev@example.com for Acme.\nSeats, teams and your personal lock are managed at ",
     );
     login.print("https://app.covdbg.com\n");
     login.exit(0);
-    assert.deepEqual(await result, { kind: "signedIn", email: "dev@example.com" });
+    assert.deepEqual(await result, {
+        kind: "signedIn",
+        email: "dev@example.com",
+        teamName: "Acme",
+    });
     assert.equal(prompts.length, 1);
 });
 
