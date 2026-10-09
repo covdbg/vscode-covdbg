@@ -16,7 +16,7 @@
         "url": "https://github.com/liasoft/covdbg-vscode/issues"
     },
     "engines": {
-        "vscode": "^1.134.0"
+        "vscode": "^1.140.0"
     },
     "categories": [
         "Testing",
@@ -484,16 +484,16 @@
         "@types/js-yaml": "^4.0.9",
         "@types/node": "^24.13.3",
         "@types/sql.js": "^1.4.11",
-        "@types/vscode": "^1.134.0",
-        "@typescript-eslint/eslint-plugin": "^8.68.0",
+        "@types/vscode": "^1.140.0",
+        "@typescript-eslint/eslint-plugin": "^8.71.1",
         "@typescript-eslint/parser": "^8.68.0",
         "@vscode/test-electron": "^3.1.0",
         "@vscode/vsce": "^4.0.0",
         "c8": "^12.0.0",
         "esbuild": "^0.28.2",
-        "eslint": "^10.9.1",
-        "js-yaml": "^4.3.2",
-        "prettier": "^3.9.6",
+        "eslint": "^10.12.0",
+        "js-yaml": "^5.4.3",
+        "prettier": "^3.9.9",
         "sql.js": "^1.14.2",
         "typescript": "^6.0.3"
     }
